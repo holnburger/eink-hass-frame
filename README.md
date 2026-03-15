@@ -36,17 +36,31 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Docker
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 App runs at [http://localhost:3000](http://localhost:3000).
+
+This is now the live development setup:
+
+- source changes are mounted directly into the container
+- Next.js runs in dev mode with hot reload
+- firmware artifacts and caches stay inside named Docker volumes
+
+You only need `docker compose up --build` again when dependencies or the Docker image itself changed.
 
 To keep Wi-Fi credentials out of the browser UI/localStorage, set them as env vars before starting:
 
 ```bash
 export FIRMWARE_WIFI_SSID="YourSSID"
 export FIRMWARE_WIFI_PASSWORD="YourPassword"
-docker compose up --build
+docker compose up
+```
+
+For a production-style container build, use the `prod` profile:
+
+```bash
+docker compose --profile prod up --build eink-hass-frame-prod
 ```
 
 ## Playwright

@@ -2,6 +2,7 @@
 
 import {
   CheckCircle2,
+  GripVertical,
   Moon,
   Palette,
   Plus,
@@ -11,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, Reorder, useDragControls } from "motion/react";
 
 import { DevicePreview } from "@/components/dashboard/device-preview";
 import { OtaFlashCard } from "@/components/dashboard/ota-flash";
@@ -23,8 +25,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
+  CLOCK_STYLE_OPTIONS,
   countWidgets,
-  createPage,
+  createPageOfType,
   createWidget,
   DEFAULT_BUILD_CONFIG,
   FONT_OPTIONS,
@@ -32,9 +35,11 @@ import {
   MAX_PAGES,
   MAX_WIDGETS_PER_PAGE,
   normalizeBuildConfig,
+  PAGE_TYPE_OPTIONS,
   type BuildConfig,
   type FontName,
   type PageConfig,
+  type PageType,
   type WidgetConfig,
   type WidgetType,
   WIDGET_OPTIONS,
@@ -65,6 +70,14 @@ type StepStateBadgeProps = {
   pendingLabel: string;
 };
 
+type EditableWidgetCardProps = {
+  widget: WidgetConfig;
+  widgetIndex: number;
+  widgetsCount: number;
+  onRemove: (widgetId: string) => void;
+  onUpdate: (widgetId: string, updater: (widget: WidgetConfig) => WidgetConfig) => void;
+};
+
 function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
   return done ? (
     <Badge className="border-emerald-500/50 bg-emerald-500/10 text-emerald-300">
@@ -75,16 +88,186 @@ function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
   );
 }
 
-function moveItem<T>(items: T[], fromIndex: number, direction: -1 | 1) {
-  const toIndex = fromIndex + direction;
-  if (toIndex < 0 || toIndex >= items.length) {
-    return items;
-  }
+function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpdate }: EditableWidgetCardProps) {
+  const dragControls = useDragControls();
 
-  const next = [...items];
-  const [item] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, item);
-  return next;
+  return (
+    <Reorder.Item
+      value={widget.id}
+      dragListener={false}
+      dragControls={dragControls}
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98, y: -10 }}
+      whileDrag={{
+        scale: 1.01,
+        boxShadow: "0 24px 60px rgba(0, 0, 0, 0.28)",
+      }}
+      transition={{ type: "spring", stiffness: 360, damping: 28 }}
+      className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onPointerDown={(event) => dragControls.start(event)}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+            aria-label={`Drag ${widget.label}`}
+            title="Drag to reorder"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <div>
+            <p className="text-sm font-medium text-zinc-100">
+              {widgetIndex + 1}. {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)?.label ?? widget.type}
+            </p>
+            <p className="text-xs text-zinc-500">
+              Type: {widget.type} · Position {widgetIndex + 1} of {widgetsCount}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRemove(widget.id)}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-zinc-400 transition hover:border-red-500/60 hover:text-red-300"
+          aria-label={`Delete ${widget.label}`}
+          title="Delete widget"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${widget.id}-label`}>Label</Label>
+          <Input
+            id={`${widget.id}-label`}
+            value={widget.label}
+            onChange={(event) => onUpdate(widget.id, (current) => ({ ...current, label: event.target.value }))}
+          />
+        </div>
+
+        {(widget.type === "progress" || widget.type === "slider") && (
+          <div className="space-y-2">
+            <Label htmlFor={`${widget.id}-value`}>Initial Value (%)</Label>
+            <Input
+              id={`${widget.id}-value`}
+              type="number"
+              min={0}
+              max={100}
+              value={widget.value ?? 0}
+              onChange={(event) =>
+                onUpdate(widget.id, (current) => ({
+                  ...current,
+                  value: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
+                  max: 100,
+                }))
+              }
+            />
+          </div>
+        )}
+
+        {widget.type === "thermostat" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${widget.id}-current`}>Current Temperature (°C)</Label>
+              <Input
+                id={`${widget.id}-current`}
+                type="number"
+                min={12}
+                max={30}
+                step={0.1}
+                value={widget.currentValue ?? 20}
+                onChange={(event) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    currentValue: Number(
+                      Math.max(12, Math.min(30, Number(event.target.value) || 20)).toFixed(1),
+                    ),
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${widget.id}-target`}>Target Temperature (°C)</Label>
+              <Input
+                id={`${widget.id}-target`}
+                type="number"
+                min={12}
+                max={30}
+                step={0.5}
+                value={widget.value ?? 22}
+                onChange={(event) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    value: Number(
+                      (Math.round(Math.max(12, Math.min(30, Number(event.target.value) || 22)) * 2) / 2).toFixed(1),
+                    ),
+                    max: 30,
+                  }))
+                }
+              />
+            </div>
+          </>
+        )}
+
+        {widget.type === "clock" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${widget.id}-clock-style`}>Clock Style</Label>
+              <select
+                id={`${widget.id}-clock-style`}
+                className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
+                value={widget.clockStyle ?? "digital"}
+                onChange={(event) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    clockStyle: event.target.value === "analog" ? "analog" : "digital",
+                  }))
+                }
+              >
+                {CLOCK_STYLE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${widget.id}-seconds`} className="sr-only">
+                Show Seconds
+              </Label>
+              <div className="rounded-md border border-zinc-800 px-3 py-2">
+                <Switch
+                  id={`${widget.id}-seconds`}
+                  label="Show seconds"
+                  checked={widget.showSeconds !== false}
+                  onCheckedChange={(checked) => onUpdate(widget.id, (current) => ({ ...current, showSeconds: checked }))}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {widget.type === "switch" && (
+          <div className="space-y-2">
+            <Label htmlFor={`${widget.id}-enabled`} className="sr-only">
+              Default State
+            </Label>
+            <div className="rounded-md border border-zinc-800 px-3 py-2">
+              <Switch
+                id={`${widget.id}-enabled`}
+                label="Default enabled"
+                checked={Boolean(widget.enabled)}
+                onCheckedChange={(checked) => onUpdate(widget.id, (current) => ({ ...current, enabled: checked }))}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </Reorder.Item>
+  );
 }
 
 export default function Home() {
@@ -194,11 +377,11 @@ export default function Home() {
     );
   }
 
-  function addPage() {
+  function addPage(type: PageType) {
     if (buildConfig.pages.length >= MAX_PAGES) {
       return;
     }
-    const nextPage = createPage(buildConfig.pages.length);
+    const nextPage = createPageOfType(buildConfig.pages.length, type);
     updatePages((current) => [...current, nextPage]);
     setEditorPageId(nextPage.id);
   }
@@ -234,12 +417,16 @@ export default function Home() {
     }));
   }
 
-  function moveWidget(widgetId: string, direction: -1 | 1) {
+  function reorderWidgets(widgetIds: string[]) {
     updateCurrentPage((page) => {
-      const index = page.widgets.findIndex((widget) => widget.id === widgetId);
+      const currentById = new Map(page.widgets.map((widget) => [widget.id, widget]));
+      const reordered = widgetIds
+        .map((widgetId) => currentById.get(widgetId))
+        .filter((widget): widget is WidgetConfig => Boolean(widget));
+
       return {
         ...page,
-        widgets: moveItem(page.widgets, index, direction),
+        widgets: reordered.length === page.widgets.length ? reordered : page.widgets,
       };
     });
   }
@@ -363,11 +550,20 @@ export default function Home() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={addPage}
+                        onClick={() => addPage("standard")}
                         disabled={buildConfig.pages.length >= MAX_PAGES}
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Add Page
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addPage("weather-focus")}
+                        disabled={buildConfig.pages.length >= MAX_PAGES}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Weather Page
                       </Button>
                     </div>
 
@@ -402,6 +598,43 @@ export default function Home() {
                             }
                           />
                         </div>
+                        <div className="w-full max-w-xs space-y-2">
+                          <Label htmlFor="page-type">Page Type</Label>
+                          <select
+                            id="page-type"
+                            className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
+                            value={editorPage.type}
+                            onChange={(event) =>
+                              updateCurrentPage((page) => {
+                                const nextType = event.target.value === "weather-focus" ? "weather-focus" : "standard";
+                                if (nextType === "weather-focus") {
+                                  return {
+                                    ...page,
+                                    type: nextType,
+                                    widgets: [],
+                                  };
+                                }
+                                return {
+                                  ...page,
+                                  type: nextType,
+                                  widgets:
+                                    page.widgets.length > 0
+                                      ? page.widgets
+                                      : [createWidget("clock"), createWidget("weather")],
+                                };
+                              })
+                            }
+                          >
+                            {PAGE_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-zinc-500">
+                            Weather Grayscale Page uses a dedicated weather render path on the device instead of normal widgets.
+                          </p>
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
@@ -414,114 +647,59 @@ export default function Home() {
                         </Button>
                       </div>
 
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-zinc-100">Add Widget</p>
-                        <div className="flex flex-wrap gap-2">
-                          {WIDGET_OPTIONS.map((widgetOption) => (
-                            <Button
-                              key={widgetOption.type}
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => addWidget(widgetOption.type)}
-                              disabled={editorPage.widgets.length >= MAX_WIDGETS_PER_PAGE}
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              {widgetOption.label}
-                            </Button>
-                          ))}
+                      {editorPage.type === "weather-focus" ? (
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+                          <p className="font-medium text-zinc-100">Dedicated weather page</p>
+                          <p className="mt-2 text-zinc-400">
+                            This page renders a large grayscale weather overview with forecast blocks on the device. It does not use the
+                            normal widget stack and is refreshed separately for stability.
+                          </p>
                         </div>
-                        <p className="text-xs text-zinc-500">
-                          Up to {MAX_WIDGETS_PER_PAGE} widgets per page. Widget order maps directly to the device layout.
-                        </p>
-                      </div>
-
-                      <div className="space-y-3">
-                        {editorPage.widgets.map((widget, widgetIndex) => (
-                          <div key={widget.id} className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-medium text-zinc-100">
-                                  {widgetIndex + 1}. {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)?.label ?? widget.type}
-                                </p>
-                                <p className="text-xs text-zinc-500">Type: {widget.type}</p>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
+                      ) : (
+                        <>
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-zinc-100">Add Widget</p>
+                            <div className="flex flex-wrap gap-2">
+                              {WIDGET_OPTIONS.map((widgetOption) => (
                                 <Button
+                                  key={widgetOption.type}
+                                  type="button"
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => moveWidget(widget.id, -1)}
-                                  disabled={widgetIndex === 0}
+                                  onClick={() => addWidget(widgetOption.type)}
+                                  disabled={editorPage.widgets.length >= MAX_WIDGETS_PER_PAGE}
                                 >
-                                  Up
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  {widgetOption.label}
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => moveWidget(widget.id, 1)}
-                                  disabled={widgetIndex === editorPage.widgets.length - 1}
-                                >
-                                  Down
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => removeWidget(widget.id)}>
-                                  Remove
-                                </Button>
-                              </div>
+                              ))}
                             </div>
-
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label htmlFor={`${widget.id}-label`}>Label</Label>
-                                <Input
-                                  id={`${widget.id}-label`}
-                                  value={widget.label}
-                                  onChange={(event) =>
-                                    updateWidget(widget.id, (current) => ({ ...current, label: event.target.value }))
-                                  }
-                                />
-                              </div>
-
-                              {(widget.type === "progress" || widget.type === "slider") && (
-                                <div className="space-y-2">
-                                  <Label htmlFor={`${widget.id}-value`}>Initial Value (%)</Label>
-                                  <Input
-                                    id={`${widget.id}-value`}
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={widget.value ?? 0}
-                                    onChange={(event) =>
-                                      updateWidget(widget.id, (current) => ({
-                                        ...current,
-                                        value: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
-                                        max: 100,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                              )}
-
-                              {widget.type === "switch" && (
-                                <div className="space-y-2">
-                                  <Label htmlFor={`${widget.id}-enabled`} className="sr-only">
-                                    Default State
-                                  </Label>
-                                  <div className="rounded-md border border-zinc-800 px-3 py-2">
-                                    <Switch
-                                      id={`${widget.id}-enabled`}
-                                      label="Default enabled"
-                                      checked={Boolean(widget.enabled)}
-                                      onCheckedChange={(checked) =>
-                                        updateWidget(widget.id, (current) => ({ ...current, enabled: checked }))
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            <p className="text-xs text-zinc-500">
+                              Up to {MAX_WIDGETS_PER_PAGE} widgets per page. Widget order maps directly to the device layout.
+                            </p>
                           </div>
-                        ))}
-                      </div>
+
+                          <Reorder.Group
+                            axis="y"
+                            values={editorPage.widgets.map((widget) => widget.id)}
+                            onReorder={reorderWidgets}
+                            className="space-y-3"
+                          >
+                            <AnimatePresence initial={false}>
+                              {editorPage.widgets.map((widget, widgetIndex) => (
+                                <EditableWidgetCard
+                                  key={widget.id}
+                                  widget={widget}
+                                  widgetIndex={widgetIndex}
+                                  widgetsCount={editorPage.widgets.length}
+                                  onRemove={removeWidget}
+                                  onUpdate={updateWidget}
+                                />
+                              ))}
+                            </AnimatePresence>
+                          </Reorder.Group>
+                        </>
+                      )}
                     </div>
                   ) : null}
                 </CardContent>

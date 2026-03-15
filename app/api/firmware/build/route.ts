@@ -45,6 +45,17 @@ function normalizeNumber(value: unknown, fallback: number): number {
   return Math.floor(parsed);
 }
 
+function normalizeThermostatTenths(value: unknown, fallbackTenths: number, stepTenths: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallbackTenths;
+  }
+  const clamped = Math.max(12, Math.min(30, parsed));
+  const tenths = Math.round(clamped * 10);
+  const snapped = Math.round(tenths / stepTenths) * stepTenths;
+  return Math.max(120, Math.min(300, snapped));
+}
+
 function widgetTypeToCpp(type: string) {
   switch (type) {
     case "clock":
@@ -57,9 +68,19 @@ function widgetTypeToCpp(type: string) {
       return "UI_WIDGET_SWITCH";
     case "slider":
       return "UI_WIDGET_SLIDER";
+    case "thermostat":
+      return "UI_WIDGET_THERMOSTAT";
     default:
       return "UI_WIDGET_NONE";
   }
+}
+
+function clockStyleToCpp(style: unknown) {
+  return style === "analog" ? "UI_CLOCK_ANALOG" : "UI_CLOCK_DIGITAL";
+}
+
+function pageTypeToCpp(type: unknown) {
+  return type === "weather-focus" ? "UI_PAGE_WEATHER_FOCUS" : "UI_PAGE_STANDARD";
 }
 
 async function runCommand(command: string, args: string[], cwd: string) {
@@ -94,22 +115,26 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", 0, 100, 0}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1}";
 
   const pageSource = config.pages
     .map((page) => {
       const widgets = page.widgets
         .map((widget) => {
           const label = sanitizeCString(widget.label);
-          const value = normalizeNumber(widget.value, 0);
-          const maxValue = normalizeNumber(widget.max, 100);
+          const isThermostat = widget.type === "thermostat";
+          const value = isThermostat ? normalizeThermostatTenths(widget.value, 225, 5) : normalizeNumber(widget.value, 0);
+          const currentValue = isThermostat ? normalizeThermostatTenths(widget.currentValue, 205, 1) : normalizeNumber(widget.currentValue, 0);
+          const maxValue = isThermostat ? normalizeThermostatTenths(widget.max, 300, 5) : normalizeNumber(widget.max, 100);
           const enabled = widget.enabled ? 1 : 0;
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", ${value}, ${maxValue}, ${enabled}}`;
+          const clockStyle = clockStyleToCpp(widget.clockStyle);
+          const showSeconds = widget.showSeconds !== false ? 1 : 0;
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
 
-      return `  {"${sanitizeCString(page.name)}", ${page.widgets.length}, {${widgets}}}`;
+      return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, {${widgets}}}`;
     })
     .join(",\n");
 
@@ -132,18 +157,33 @@ enum UiWidgetType : uint8_t {
   UI_WIDGET_PROGRESS = 2,
   UI_WIDGET_SWITCH = 3,
   UI_WIDGET_SLIDER = 4,
+  UI_WIDGET_THERMOSTAT = 5,
   UI_WIDGET_NONE = 255,
+};
+
+enum UiClockStyle : uint8_t {
+  UI_CLOCK_DIGITAL = 0,
+  UI_CLOCK_ANALOG = 1,
+};
+
+enum UiPageType : uint8_t {
+  UI_PAGE_STANDARD = 0,
+  UI_PAGE_WEATHER_FOCUS = 1,
 };
 
 typedef struct {
   uint8_t type;
   const char *label;
   int16_t value;
+  int16_t currentValue;
   int16_t maxValue;
   uint8_t enabled;
+  uint8_t clockStyle;
+  uint8_t showSeconds;
 } UiWidgetConfig;
 
 typedef struct {
+  uint8_t pageType;
   const char *name;
   uint8_t widgetCount;
   UiWidgetConfig widgets[${maxWidgetsPerPage}];

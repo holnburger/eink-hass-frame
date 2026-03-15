@@ -7,14 +7,29 @@ export const FONT_OPTIONS = [
   { name: "Mono", className: "font-mono" },
 ] as const;
 
+export const CLOCK_STYLE_OPTIONS = [
+  { value: "digital", label: "Digital" },
+  { value: "analog", label: "Analog" },
+] as const;
+
+export const PAGE_TYPE_OPTIONS = [
+  { value: "standard", label: "Standard Page" },
+  { value: "weather-focus", label: "Weather Grayscale Page" },
+] as const;
+
 export type FontName = (typeof FONT_OPTIONS)[number]["name"];
-export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider";
+export type ClockStyle = (typeof CLOCK_STYLE_OPTIONS)[number]["value"];
+export type PageType = (typeof PAGE_TYPE_OPTIONS)[number]["value"];
+export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider" | "thermostat";
 
 export type WidgetConfig = {
   id: string;
   type: WidgetType;
   label: string;
+  clockStyle?: ClockStyle;
+  showSeconds?: boolean;
   value?: number;
+  currentValue?: number;
   max?: number;
   enabled?: boolean;
 };
@@ -22,6 +37,7 @@ export type WidgetConfig = {
 export type PageConfig = {
   id: string;
   name: string;
+  type: PageType;
   widgets: WidgetConfig[];
 };
 
@@ -39,6 +55,7 @@ export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
   { type: "progress", label: "Progress Bar" },
   { type: "switch", label: "Switch" },
   { type: "slider", label: "Slider" },
+  { type: "thermostat", label: "Thermostat" },
 ];
 
 function clampPercent(value: unknown, fallback = 50) {
@@ -47,6 +64,19 @@ function clampPercent(value: unknown, fallback = 50) {
     return fallback;
   }
   return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+function roundToStep(value: number, step: number) {
+  return Math.round(value / step) * step;
+}
+
+function clampTemperature(value: unknown, fallback = 21, step = 0.1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const clamped = Math.max(12, Math.min(30, parsed));
+  return Number(roundToStep(clamped, step).toFixed(1));
 }
 
 function toPositiveInt(value: unknown, fallback: number) {
@@ -78,6 +108,8 @@ export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
       return count > 1 ? `Switch ${count}` : "Switch";
     case "slider":
       return count > 1 ? `Slider ${count}` : "Slider";
+    case "thermostat":
+      return count > 1 ? `Thermostat ${count}` : "Thermostat";
     default:
       return "Widget";
   }
@@ -94,6 +126,14 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
     label: getDefaultWidgetLabel(type, index),
   };
 
+  if (type === "clock") {
+    return {
+      ...base,
+      clockStyle: "digital",
+      showSeconds: true,
+    };
+  }
+
   if (type === "progress" || type === "slider") {
     return {
       ...base,
@@ -109,19 +149,36 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
     };
   }
 
+  if (type === "thermostat") {
+    return {
+      ...base,
+      value: 22.5,
+      currentValue: 20.5,
+      max: 30,
+    };
+  }
+
   return base;
 }
 
 export function createPage(index = 0): PageConfig {
+  return createPageOfType(index, "standard");
+}
+
+export function createPageOfType(index = 0, type: PageType = "standard"): PageConfig {
   return {
     id: makeLocalId("page"),
-    name: index === 0 ? "Home" : `Page ${index + 1}`,
-    widgets: [
-      createWidget("clock"),
-      createWidget("weather"),
-      createWidget("progress"),
-      createWidget("switch"),
-    ].slice(0, MAX_WIDGETS_PER_PAGE),
+    name: type === "weather-focus" ? (index === 0 ? "Weather" : `Weather ${index + 1}`) : index === 0 ? "Home" : `Page ${index + 1}`,
+    type,
+    widgets:
+      type === "weather-focus"
+        ? []
+        : [
+            createWidget("clock"),
+            createWidget("weather"),
+            createWidget("progress"),
+            createWidget("switch"),
+          ].slice(0, MAX_WIDGETS_PER_PAGE),
   };
 }
 
@@ -134,11 +191,13 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
     {
       id: "page-home",
       name: "Home",
+      type: "standard",
       widgets: [
-        { id: "widget-clock", type: "clock", label: "Clock" },
+        { id: "widget-clock", type: "clock", label: "Clock", clockStyle: "digital", showSeconds: true },
         { id: "widget-weather", type: "weather", label: "Weather" },
         { id: "widget-progress", type: "progress", label: "Progress", value: 45, max: 100 },
         { id: "widget-switch", type: "switch", label: "Switch", enabled: false },
+        { id: "widget-thermostat", type: "thermostat", label: "Thermostat", currentValue: 20.5, value: 22.5, max: 30 },
       ],
     },
   ],
@@ -156,7 +215,8 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     type !== "weather" &&
     type !== "progress" &&
     type !== "switch" &&
-    type !== "slider"
+    type !== "slider" &&
+    type !== "thermostat"
   ) {
     return null;
   }
@@ -172,9 +232,20 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
 
   const normalized: WidgetConfig = { id, type, label };
 
+  if (type === "clock") {
+    normalized.clockStyle = candidate.clockStyle === "analog" ? "analog" : "digital";
+    normalized.showSeconds = candidate.showSeconds !== false;
+  }
+
   if (type === "progress" || type === "slider") {
     normalized.value = clampPercent(candidate.value, 40);
     normalized.max = 100;
+  }
+
+  if (type === "thermostat") {
+    normalized.currentValue = clampTemperature(candidate.currentValue, 20.5, 0.1);
+    normalized.value = clampTemperature(candidate.value, 22.5, 0.5);
+    normalized.max = 30;
   }
 
   if (type === "switch") {
@@ -192,7 +263,13 @@ function normalizePagesFromLegacy(candidate: Record<string, unknown>): PageConfi
 
   const widgets: WidgetConfig[] = [];
   if (candidate.showClock !== false) {
-    widgets.push({ id: "legacy-clock", type: "clock", label: "Clock" });
+    widgets.push({
+      id: "legacy-clock",
+      type: "clock",
+      label: "Clock",
+      clockStyle: "digital",
+      showSeconds: true,
+    });
   }
   if (candidate.showWeather !== false) {
     widgets.push({ id: "legacy-weather", type: "weather", label: "Weather" });
@@ -216,13 +293,20 @@ function normalizePagesFromLegacy(candidate: Record<string, unknown>): PageConfi
   }
 
   if (widgets.length === 0) {
-    widgets.push({ id: "legacy-clock", type: "clock", label: "Clock" });
+    widgets.push({
+      id: "legacy-clock",
+      type: "clock",
+      label: "Clock",
+      clockStyle: "digital",
+      showSeconds: true,
+    });
   }
 
   return [
     {
       id: "page-home",
       name: pageName,
+      type: "standard",
       widgets,
     },
   ];
@@ -249,15 +333,20 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
               typeof rawPage.id === "string" && rawPage.id.trim().length > 0
                 ? rawPage.id
                 : `page-${pageIndex + 1}`;
+            const type: PageType = rawPage.type === "weather-focus" ? "weather-focus" : "standard";
             const widgetsInput = Array.isArray(rawPage.widgets) ? rawPage.widgets : [];
-            const widgets = widgetsInput
-              .slice(0, MAX_WIDGETS_PER_PAGE)
-              .map((widget, widgetIndex) => normalizeWidget(widget, widgetIndex))
-              .filter((widget): widget is WidgetConfig => widget !== null);
+            const widgets =
+              type === "weather-focus"
+                ? []
+                : widgetsInput
+                    .slice(0, MAX_WIDGETS_PER_PAGE)
+                    .map((widget, widgetIndex) => normalizeWidget(widget, widgetIndex))
+                    .filter((widget): widget is WidgetConfig => widget !== null);
 
             return {
               id,
               name,
+              type,
               widgets,
             };
           })
