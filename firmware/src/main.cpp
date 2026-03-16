@@ -5,6 +5,7 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <PubSubClient.h>
 #include <WebServer.h>
 #include <WebSocketsClient.h>
 #if __has_include(<esp_heap_caps.h>)
@@ -319,6 +320,23 @@ struct ParsedUrl
   String basePath;
 };
 
+struct MqttConfig
+{
+  bool enabled;
+  String host;
+  uint16_t port;
+  String username;
+  String password;
+  String topicPrefix;
+  bool discoveryEnabled;
+  String discoveryPrefix;
+};
+
+static constexpr uint16_t MQTT_DEFAULT_PORT = 1883;
+static const char *MQTT_DEFAULT_DISCOVERY_PREFIX = "homeassistant";
+static const char *MQTT_AVAILABILITY_ONLINE = "online";
+static const char *MQTT_AVAILABILITY_OFFLINE = "offline";
+
 static ParsedUrl homeAssistantUrl = {false, false, 0, "", ""};
 static WebSocketsClient homeAssistantSocket;
 static bool homeAssistantSocketStarted = false;
@@ -328,6 +346,20 @@ static bool homeAssistantSubscriptionActive = false;
 static uint32_t lastHomeAssistantPollMs = 0;
 static uint32_t lastHomeAssistantSocketSetupMs = 0;
 static char lastHomeAssistantError[96] = "";
+static WiFiClient mqttNetworkClient;
+static PubSubClient mqttClient(mqttNetworkClient);
+static MqttConfig mqttConfig = {false, "", MQTT_DEFAULT_PORT, "", "", "", true, MQTT_DEFAULT_DISCOVERY_PREFIX};
+static bool mqttConnected = false;
+static bool mqttDiscoveryPublished = false;
+static uint32_t lastMqttReconnectAttemptMs = 0;
+static uint32_t lastMqttTelemetryPublishMs = 0;
+static char lastMqttError[96] = "";
+static bool currentDarkModeEnabled = UI_THEME_DARK != 0;
+static constexpr uint32_t MQTT_TELEMETRY_PUBLISH_INTERVAL_MS = 30000UL;
+static constexpr int PAPERS3_BATTERY_ADC_PIN = 3;
+static constexpr int PAPERS3_USB_DET_PIN = 5;
+static constexpr int PAPERS3_USB_DET_THRESHOLD_MV = 200;
+static constexpr float PAPERS3_BATTERY_DIVIDER_RATIO = 2.0f;
 static const int WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
 static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 6;
 
@@ -336,6 +368,14 @@ static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget);
 static bool pageHasHomeAssistantBinding(int pageIndex);
 static bool ensureMediaPageCoverLoaded(int pageIndex, bool forceReload = false);
 static bool drawCachedMediaCover(int pageIndex, const BB_RECT &rect, int radius);
+static bool setActivePageIndex(int nextIndex, bool pageTransition = true);
+static bool cycleActivePage(int delta);
+static const char *getCurrentPageName();
+static bool applyDarkModeSetting(bool enabled);
+static void publishMqttPageState();
+static void publishMqttDarkModeState();
+static void publishMqttTelemetryState();
+static void handleMqttMessage(char *topic, uint8_t *payload, unsigned int length);
 
 #if FASTEPD_AVAILABLE
 static FASTEPD display;
@@ -374,7 +414,7 @@ static constexpr int UI_MEDIA_PLAYBACK_REFRESH_INTERVAL_SECONDS = 5;
 
 static inline bool uiThemeDark()
 {
-  return UI_THEME_DARK != 0;
+  return currentDarkModeEnabled;
 }
 
 static inline uint16_t uiMonoInk()
@@ -2329,6 +2369,71 @@ static void renderActivePage(bool pageTransition = false)
   lastPartialRefresh = millis();
   pageReady = true;
   lastFullRefreshMs = millis();
+}
+
+static const char *getCurrentPageName()
+{
+  if (UI_PAGE_COUNT <= 0)
+  {
+    return "";
+  }
+  if (currentPageIndex < 0 || currentPageIndex >= UI_PAGE_COUNT)
+  {
+    return UI_PAGES[0].name;
+  }
+  return UI_PAGES[currentPageIndex].name;
+}
+
+static bool setActivePageIndex(int nextIndex, bool pageTransition)
+{
+  if (UI_PAGE_COUNT <= 0)
+  {
+    return false;
+  }
+
+  const int normalizedIndex = clampInt(nextIndex, 0, UI_PAGE_COUNT - 1);
+  if (normalizedIndex == currentPageIndex && pageReady)
+  {
+    return false;
+  }
+
+  currentPageIndex = normalizedIndex;
+  if (displayReady)
+  {
+    renderActivePage(pageTransition && pageReady);
+  }
+  return true;
+}
+
+static bool cycleActivePage(int delta)
+{
+  if (UI_PAGE_COUNT <= 0)
+  {
+    return false;
+  }
+
+  int nextIndex = currentPageIndex + delta;
+  while (nextIndex < 0)
+  {
+    nextIndex += UI_PAGE_COUNT;
+  }
+  nextIndex %= UI_PAGE_COUNT;
+  return setActivePageIndex(nextIndex, true);
+}
+
+static bool applyDarkModeSetting(bool enabled)
+{
+  if (currentDarkModeEnabled == enabled)
+  {
+    return false;
+  }
+
+  currentDarkModeEnabled = enabled;
+  if (displayReady)
+  {
+    renderActivePage(pageReady);
+  }
+  return true;
 }
 
 static bool homeAssistantConfigured()
@@ -4456,6 +4561,7 @@ static void handleHomeAssistantSocketText(const char *payload, size_t length)
     {
       renderActivePage();
     }
+    publishMqttTelemetryState();
     return;
   }
   if (strcmp(messageType, "auth_invalid") == 0)
@@ -4463,6 +4569,7 @@ static void handleHomeAssistantSocketText(const char *payload, size_t length)
     homeAssistantAuthenticated = false;
     homeAssistantSubscriptionActive = false;
     snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_AUTH_INVALID");
+    publishMqttTelemetryState();
     return;
   }
   if (strcmp(messageType, "result") == 0)
@@ -4499,12 +4606,14 @@ static void handleHomeAssistantSocketEvent(WStype_t type, uint8_t *payload, size
     homeAssistantAuthenticated = false;
     homeAssistantSubscriptionActive = false;
     Serial.println("HA_SOCKET_CONNECTED");
+    publishMqttTelemetryState();
     break;
   case WStype_DISCONNECTED:
     homeAssistantSocketConnected = false;
     homeAssistantAuthenticated = false;
     homeAssistantSubscriptionActive = false;
     Serial.println("HA_SOCKET_DISCONNECTED");
+    publishMqttTelemetryState();
     break;
   case WStype_TEXT:
     handleHomeAssistantSocketText(reinterpret_cast<const char *>(payload), length);
@@ -4637,8 +4746,10 @@ static void pollTouchInput()
       if (isPointInRectExpanded(tx, ty, navLeftRect, 18))
       {
         lastTouchActionMs = now;
-        currentPageIndex = (currentPageIndex - 1 + UI_PAGE_COUNT) % UI_PAGE_COUNT;
-        renderActivePage(true);
+        if (cycleActivePage(-1))
+        {
+          publishMqttPageState();
+        }
         Serial.printf("PAGE_SWITCH DIR=LEFT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
         return;
       }
@@ -4646,8 +4757,10 @@ static void pollTouchInput()
       if (isPointInRectExpanded(tx, ty, navRightRect, 18))
       {
         lastTouchActionMs = now;
-        currentPageIndex = (currentPageIndex + 1) % UI_PAGE_COUNT;
-        renderActivePage(true);
+        if (cycleActivePage(1))
+        {
+          publishMqttPageState();
+        }
         Serial.printf("PAGE_SWITCH DIR=RIGHT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
         return;
       }
@@ -5117,6 +5230,1065 @@ static String extractJsonString(const String &json, const char *key)
   return parsed;
 }
 
+static String htmlEscape(const String &value)
+{
+  String escaped;
+  escaped.reserve(value.length() + 16);
+  for (size_t index = 0; index < value.length(); index++)
+  {
+    const char ch = value[index];
+    switch (ch)
+    {
+    case '&':
+      escaped += "&amp;";
+      break;
+    case '<':
+      escaped += "&lt;";
+      break;
+    case '>':
+      escaped += "&gt;";
+      break;
+    case '"':
+      escaped += "&quot;";
+      break;
+    case '\'':
+      escaped += "&#39;";
+      break;
+    default:
+      escaped += ch;
+      break;
+    }
+  }
+  return escaped;
+}
+
+static void setLastMqttError(const String &message)
+{
+  snprintf(lastMqttError, sizeof(lastMqttError), "%s", message.c_str());
+}
+
+static void clearLastMqttError()
+{
+  lastMqttError[0] = '\0';
+}
+
+static String normalizeTopicPath(const String &rawValue)
+{
+  String value = rawValue;
+  value.trim();
+  while (value.startsWith("/"))
+  {
+    value.remove(0, 1);
+  }
+  while (value.endsWith("/"))
+  {
+    value.remove(value.length() - 1);
+  }
+  return value;
+}
+
+static uint16_t parsePortOrDefault(const String &rawValue, uint16_t fallback)
+{
+  const String value = rawValue;
+  if (value.length() == 0)
+  {
+    return fallback;
+  }
+
+  char *endPtr = nullptr;
+  const long parsed = strtol(value.c_str(), &endPtr, 10);
+  if (endPtr == value.c_str() || *endPtr != '\0' || parsed <= 0 || parsed > 65535)
+  {
+    return fallback;
+  }
+  return static_cast<uint16_t>(parsed);
+}
+
+static String normalizeMqttHost(const String &rawValue, uint16_t &portInOut)
+{
+  String host = rawValue;
+  host.trim();
+  if (host.startsWith("mqtt://"))
+  {
+    host.remove(0, 7);
+  }
+  else if (host.startsWith("tcp://"))
+  {
+    host.remove(0, 6);
+  }
+  else if (host.startsWith("ws://"))
+  {
+    host.remove(0, 5);
+  }
+
+  const int slashIndex = host.indexOf('/');
+  if (slashIndex >= 0)
+  {
+    host.remove(slashIndex);
+  }
+
+  if (host.indexOf(':') >= 0 && host.indexOf(':') == host.lastIndexOf(':'))
+  {
+    const int colonIndex = host.lastIndexOf(':');
+    const String portPart = host.substring(colonIndex + 1);
+    const uint16_t parsedPort = parsePortOrDefault(portPart, portInOut);
+    if (parsedPort != portInOut || portPart == String(parsedPort))
+    {
+      portInOut = parsedPort;
+      host.remove(colonIndex);
+    }
+  }
+
+  host.trim();
+  return host;
+}
+
+static bool parseBooleanPayload(const String &rawPayload, bool currentValue, bool &parsedValue)
+{
+  String payload = rawPayload;
+  payload.trim();
+  payload.toLowerCase();
+  if (payload == "1" || payload == "true" || payload == "on" || payload == "enable" || payload == "enabled")
+  {
+    parsedValue = true;
+    return true;
+  }
+  if (payload == "0" || payload == "false" || payload == "off" || payload == "disable" || payload == "disabled")
+  {
+    parsedValue = false;
+    return true;
+  }
+  if (payload == "toggle")
+  {
+    parsedValue = !currentValue;
+    return true;
+  }
+  return false;
+}
+
+static String getDeviceSlug()
+{
+  static String slug;
+  if (slug.length() == 0)
+  {
+    char buffer[24];
+    const uint64_t chipId = ESP.getEfuseMac();
+    snprintf(buffer, sizeof(buffer), "m5papers3-%06llx", static_cast<unsigned long long>(chipId & 0xFFFFFFULL));
+    slug = buffer;
+  }
+  return slug;
+}
+
+static String getDeviceDisplayName()
+{
+  const String slug = getDeviceSlug();
+  const int separator = slug.lastIndexOf('-');
+  const String suffix = separator >= 0 ? slug.substring(separator + 1) : slug;
+  return String(IMPROV_DEVICE_NAME) + " " + suffix;
+}
+
+static void loadUiPreferences()
+{
+  currentDarkModeEnabled = UI_THEME_DARK != 0;
+  if (!preferences.begin("ui", false))
+  {
+    Serial.println("UI_PREFS_UNAVAILABLE");
+    return;
+  }
+
+  if (preferences.isKey("dark"))
+  {
+    currentDarkModeEnabled = preferences.getBool("dark", UI_THEME_DARK != 0);
+  }
+  preferences.end();
+  Serial.printf("UI_DARK_MODE=%d\n", currentDarkModeEnabled ? 1 : 0);
+}
+
+static void saveUiPreferences()
+{
+  if (!preferences.begin("ui", false))
+  {
+    Serial.println("UI_SAVE_FAILED");
+    return;
+  }
+  preferences.putBool("dark", currentDarkModeEnabled);
+  preferences.end();
+}
+
+static uint32_t getFreePsramBytes()
+{
+#if __has_include(<esp_heap_caps.h>)
+  return heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+#else
+  return 0;
+#endif
+}
+
+static uint32_t getUptimeSeconds()
+{
+  return millis() / 1000UL;
+}
+
+static void setupPowerMonitoring()
+{
+  pinMode(PAPERS3_BATTERY_ADC_PIN, INPUT);
+  pinMode(PAPERS3_USB_DET_PIN, INPUT);
+#if defined(ADC_11db)
+  analogSetPinAttenuation(PAPERS3_BATTERY_ADC_PIN, ADC_11db);
+  analogSetPinAttenuation(PAPERS3_USB_DET_PIN, ADC_11db);
+#endif
+}
+
+static int readMilliVoltsAverage(int pin, uint8_t samples = 4)
+{
+  int total = 0;
+  int validSamples = 0;
+  for (uint8_t sampleIndex = 0; sampleIndex < samples; sampleIndex++)
+  {
+    const int sample = analogReadMilliVolts(pin);
+    if (sample > 0)
+    {
+      total += sample;
+      validSamples++;
+    }
+  }
+  return validSamples > 0 ? (total / validSamples) : 0;
+}
+
+static bool isUsbPowerConnected()
+{
+  return readMilliVoltsAverage(PAPERS3_USB_DET_PIN) >= PAPERS3_USB_DET_THRESHOLD_MV;
+}
+
+static int getBatteryVoltageMv()
+{
+  const int sensedMillivolts = readMilliVoltsAverage(PAPERS3_BATTERY_ADC_PIN);
+  if (sensedMillivolts <= 0)
+  {
+    return 0;
+  }
+  return static_cast<int>(roundf(sensedMillivolts * PAPERS3_BATTERY_DIVIDER_RATIO));
+}
+
+static int estimateBatteryLevelPercent(int batteryVoltageMv)
+{
+  struct BatteryCurvePoint
+  {
+    int millivolts;
+    int percent;
+  };
+
+  static const BatteryCurvePoint curve[] = {
+      {3300, 0},
+      {3450, 5},
+      {3600, 10},
+      {3700, 20},
+      {3750, 30},
+      {3800, 40},
+      {3850, 50},
+      {3900, 60},
+      {3950, 70},
+      {4000, 80},
+      {4100, 90},
+      {4200, 100},
+  };
+
+  if (batteryVoltageMv <= curve[0].millivolts)
+  {
+    return curve[0].percent;
+  }
+
+  for (size_t index = 1; index < sizeof(curve) / sizeof(curve[0]); index++)
+  {
+    if (batteryVoltageMv <= curve[index].millivolts)
+    {
+      const BatteryCurvePoint &lower = curve[index - 1];
+      const BatteryCurvePoint &upper = curve[index];
+      const int voltageSpan = upper.millivolts - lower.millivolts;
+      if (voltageSpan <= 0)
+      {
+        return upper.percent;
+      }
+      const float ratio = static_cast<float>(batteryVoltageMv - lower.millivolts) / static_cast<float>(voltageSpan);
+      return clampInt(
+          static_cast<int>(roundf(lower.percent + ratio * (upper.percent - lower.percent))),
+          0,
+          100);
+    }
+  }
+
+  return 100;
+}
+
+static int getBatteryLevelPercent()
+{
+  return estimateBatteryLevelPercent(getBatteryVoltageMv());
+}
+
+static String normalizeDiagnosticText(const char *value)
+{
+  return (value != nullptr && value[0] != '\0') ? String(value) : String("ok");
+}
+
+static bool mqttConfigured()
+{
+  return mqttConfig.enabled && mqttConfig.host.length() > 0;
+}
+
+static bool mqttDiscoveryConfigured()
+{
+  return mqttConfigured() && mqttConfig.discoveryEnabled;
+}
+
+static String getEffectiveMqttTopicPrefix()
+{
+  const String configuredPrefix = normalizeTopicPath(mqttConfig.topicPrefix);
+  if (configuredPrefix.length() > 0)
+  {
+    return configuredPrefix;
+  }
+  return String("m5papers3/") + getDeviceSlug();
+}
+
+static String getEffectiveMqttDiscoveryPrefix()
+{
+  const String configuredPrefix = normalizeTopicPath(mqttConfig.discoveryPrefix);
+  return configuredPrefix.length() > 0 ? configuredPrefix : String(MQTT_DEFAULT_DISCOVERY_PREFIX);
+}
+
+static String getMqttTopic(const char *suffix)
+{
+  const String topicPrefix = getEffectiveMqttTopicPrefix();
+  if (suffix == nullptr || suffix[0] == '\0')
+  {
+    return topicPrefix;
+  }
+  return topicPrefix + "/" + suffix;
+}
+
+static String getMqttDiscoveryTopic(const char *component, const char *objectId)
+{
+  return getEffectiveMqttDiscoveryPrefix() + "/" + component + "/" + getDeviceSlug() + "_" + objectId + "/config";
+}
+
+static void loadMqttConfig()
+{
+  mqttConfig = {false, "", MQTT_DEFAULT_PORT, "", "", "", true, MQTT_DEFAULT_DISCOVERY_PREFIX};
+  if (!preferences.begin("mqtt", false))
+  {
+    Serial.println("MQTT_PREFS_UNAVAILABLE");
+    return;
+  }
+
+  mqttConfig.enabled = preferences.getBool("enabled", false);
+  mqttConfig.host = preferences.getString("host", "");
+  mqttConfig.port = preferences.getUShort("port", MQTT_DEFAULT_PORT);
+  mqttConfig.username = preferences.getString("user", "");
+  mqttConfig.password = preferences.getString("pass", "");
+  mqttConfig.topicPrefix = preferences.getString("topic", "");
+  mqttConfig.discoveryEnabled = preferences.getBool("disc_en", true);
+  mqttConfig.discoveryPrefix = preferences.getString("disc_pref", MQTT_DEFAULT_DISCOVERY_PREFIX);
+  preferences.end();
+
+  mqttConfig.port = mqttConfig.port > 0 ? mqttConfig.port : MQTT_DEFAULT_PORT;
+  mqttConfig.host = normalizeMqttHost(mqttConfig.host, mqttConfig.port);
+  mqttConfig.topicPrefix = normalizeTopicPath(mqttConfig.topicPrefix);
+  mqttConfig.discoveryPrefix = normalizeTopicPath(mqttConfig.discoveryPrefix);
+  if (mqttConfig.discoveryPrefix.length() == 0)
+  {
+    mqttConfig.discoveryPrefix = MQTT_DEFAULT_DISCOVERY_PREFIX;
+  }
+}
+
+static void saveMqttConfig(const MqttConfig &config)
+{
+  if (!preferences.begin("mqtt", false))
+  {
+    Serial.println("MQTT_SAVE_FAILED");
+    return;
+  }
+
+  preferences.putBool("enabled", config.enabled);
+  preferences.putString("host", config.host);
+  preferences.putUShort("port", config.port);
+  preferences.putString("user", config.username);
+  preferences.putString("pass", config.password);
+  preferences.putString("topic", config.topicPrefix);
+  preferences.putBool("disc_en", config.discoveryEnabled);
+  preferences.putString("disc_pref", config.discoveryPrefix);
+  preferences.end();
+}
+
+static const char *mqttStateName(int state)
+{
+  switch (state)
+  {
+  case MQTT_CONNECTION_TIMEOUT:
+    return "timeout";
+  case MQTT_CONNECTION_LOST:
+    return "connection_lost";
+  case MQTT_CONNECT_FAILED:
+    return "connect_failed";
+  case MQTT_DISCONNECTED:
+    return "disconnected";
+  case MQTT_CONNECTED:
+    return "connected";
+  case MQTT_CONNECT_BAD_PROTOCOL:
+    return "bad_protocol";
+  case MQTT_CONNECT_BAD_CLIENT_ID:
+    return "bad_client_id";
+  case MQTT_CONNECT_UNAVAILABLE:
+    return "broker_unavailable";
+  case MQTT_CONNECT_BAD_CREDENTIALS:
+    return "bad_credentials";
+  case MQTT_CONNECT_UNAUTHORIZED:
+    return "unauthorized";
+  default:
+    return "unknown";
+  }
+}
+
+static void configureMqttClient()
+{
+  mqttClient.setServer(mqttConfig.host.c_str(), mqttConfig.port > 0 ? mqttConfig.port : MQTT_DEFAULT_PORT);
+  mqttClient.setCallback(handleMqttMessage);
+  mqttClient.setKeepAlive(30);
+  mqttClient.setSocketTimeout(10);
+  mqttClient.setBufferSize(2048);
+}
+
+static bool publishMqttMessage(const String &topic, const String &payload, bool retained)
+{
+  if (!mqttClient.connected())
+  {
+    return false;
+  }
+
+  const bool published = mqttClient.publish(topic.c_str(), payload.c_str(), retained);
+  if (!published)
+  {
+    setLastMqttError("publish_failed");
+  }
+  return published;
+}
+
+static void populateMqttDiscoveryDevice(JsonObject device)
+{
+  JsonArray identifiers = device.createNestedArray("identifiers");
+  identifiers.add(getDeviceSlug());
+  device["name"] = getDeviceDisplayName();
+  device["model"] = FIRMWARE_DISPLAY_NAME;
+  device["sw_version"] = FIRMWARE_VERSION_NAME;
+  device["manufacturer"] = "M5Stack";
+}
+
+static bool publishMqttDiscoveryDocument(const String &topic, JsonDocument &document)
+{
+  String payload;
+  serializeJson(document, payload);
+  return publishMqttMessage(topic, payload, true);
+}
+
+static bool clearMqttDiscoveryTopic(const String &topic)
+{
+  return mqttClient.connected() ? mqttClient.publish(topic.c_str(), "", true) : false;
+}
+
+static void populateMqttDiscoveryDocument(
+    JsonDocument &document,
+    const char *objectSuffix,
+    const char *name,
+    const String &stateTopic,
+    bool includeAvailability = true)
+{
+  const String objectId = String(getDeviceSlug()) + "_" + objectSuffix;
+  document["name"] = name;
+  document["object_id"] = objectId;
+  document["unique_id"] = objectId;
+  document["state_topic"] = stateTopic;
+  if (includeAvailability)
+  {
+    document["availability_topic"] = getMqttTopic("availability");
+    document["payload_available"] = MQTT_AVAILABILITY_ONLINE;
+    document["payload_not_available"] = MQTT_AVAILABILITY_OFFLINE;
+  }
+  populateMqttDiscoveryDevice(document.createNestedObject("device"));
+}
+
+static bool publishMqttBinarySensorDiscovery(
+    const char *objectSuffix,
+    const char *name,
+    const String &stateTopic,
+    const char *payloadOn,
+    const char *payloadOff,
+    const char *deviceClass,
+    const char *icon,
+    bool diagnostic,
+    bool includeAvailability = true)
+{
+  StaticJsonDocument<768> document;
+  populateMqttDiscoveryDocument(document, objectSuffix, name, stateTopic, includeAvailability);
+  document["payload_on"] = payloadOn;
+  document["payload_off"] = payloadOff;
+  if (deviceClass != nullptr && deviceClass[0] != '\0')
+  {
+    document["device_class"] = deviceClass;
+  }
+  if (icon != nullptr && icon[0] != '\0')
+  {
+    document["icon"] = icon;
+  }
+  if (diagnostic)
+  {
+    document["entity_category"] = "diagnostic";
+  }
+  return publishMqttDiscoveryDocument(getMqttDiscoveryTopic("binary_sensor", objectSuffix), document);
+}
+
+static bool publishMqttSensorDiscovery(
+    const char *objectSuffix,
+    const char *name,
+    const String &stateTopic,
+    const char *unit,
+    const char *deviceClass,
+    const char *icon,
+    bool diagnostic,
+    bool includeAvailability = true)
+{
+  StaticJsonDocument<768> document;
+  populateMqttDiscoveryDocument(document, objectSuffix, name, stateTopic, includeAvailability);
+  if (unit != nullptr && unit[0] != '\0')
+  {
+    document["unit_of_measurement"] = unit;
+  }
+  if (deviceClass != nullptr && deviceClass[0] != '\0')
+  {
+    document["device_class"] = deviceClass;
+  }
+  if (icon != nullptr && icon[0] != '\0')
+  {
+    document["icon"] = icon;
+  }
+  if (diagnostic)
+  {
+    document["entity_category"] = "diagnostic";
+  }
+  return publishMqttDiscoveryDocument(getMqttDiscoveryTopic("sensor", objectSuffix), document);
+}
+
+static bool publishMqttDiscoveryConfig()
+{
+  if (!mqttDiscoveryConfigured() || !mqttClient.connected())
+  {
+    return false;
+  }
+
+  bool success = true;
+
+  StaticJsonDocument<1024> pageDoc;
+  populateMqttDiscoveryDocument(pageDoc, "page", "Page", getMqttTopic("page/state"));
+  pageDoc["command_topic"] = getMqttTopic("page/set");
+  pageDoc["icon"] = "mdi:file-document-multiple-outline";
+  JsonArray pageOptions = pageDoc.createNestedArray("options");
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    pageOptions.add(UI_PAGES[pageIndex].name);
+  }
+  if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic("select", "page"), pageDoc))
+  {
+    setLastMqttError("discovery_page_failed");
+    success = false;
+  }
+
+  StaticJsonDocument<768> darkModeDoc;
+  populateMqttDiscoveryDocument(darkModeDoc, "dark_mode", "Dark Mode", getMqttTopic("dark_mode/state"));
+  darkModeDoc["command_topic"] = getMqttTopic("dark_mode/set");
+  darkModeDoc["payload_on"] = "ON";
+  darkModeDoc["payload_off"] = "OFF";
+  darkModeDoc["state_on"] = "ON";
+  darkModeDoc["state_off"] = "OFF";
+  darkModeDoc["icon"] = "mdi:theme-light-dark";
+  if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic("switch", "dark_mode"), darkModeDoc))
+  {
+    setLastMqttError("discovery_dark_mode_failed");
+    success = false;
+  }
+
+  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "partial_refresh_count")) && success;
+  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "full_refresh_count")) && success;
+  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "last_refresh_age_seconds")) && success;
+
+  success = publishMqttBinarySensorDiscovery(
+                "usb_power_connected",
+                "Plugged In",
+                getMqttTopic("power/usb_power_connected"),
+                "ON",
+                "OFF",
+                "",
+                "mdi:power-plug",
+                false) &&
+            success;
+  success = publishMqttBinarySensorDiscovery(
+                "wifi_connected",
+                "Wi-Fi Connected",
+                getMqttTopic("status/wifi_connected"),
+                "ON",
+                "OFF",
+                "connectivity",
+                "mdi:wifi-check",
+                true) &&
+            success;
+  success = publishMqttBinarySensorDiscovery(
+                "mqtt_connected",
+                "MQTT Connected",
+                getMqttTopic("availability"),
+                MQTT_AVAILABILITY_ONLINE,
+                MQTT_AVAILABILITY_OFFLINE,
+                "connectivity",
+                "mdi:lan-connect",
+                true,
+                false) &&
+            success;
+  success = publishMqttBinarySensorDiscovery(
+                "home_assistant_connected",
+                "Home Assistant Connected",
+                getMqttTopic("status/home_assistant_connected"),
+                "ON",
+                "OFF",
+                "connectivity",
+                "mdi:home-assistant",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "wifi_rssi",
+                "Wi-Fi RSSI",
+                getMqttTopic("diagnostics/wifi_rssi"),
+                "dBm",
+                "signal_strength",
+                "mdi:wifi",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "uptime_seconds",
+                "Uptime",
+                getMqttTopic("diagnostics/uptime_seconds"),
+                "s",
+                "duration",
+                "mdi:timer-outline",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "free_heap_bytes",
+                "Free Heap",
+                getMqttTopic("diagnostics/free_heap_bytes"),
+                "B",
+                "data_size",
+                "mdi:memory",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "free_psram_bytes",
+                "Free PSRAM",
+                getMqttTopic("diagnostics/free_psram_bytes"),
+                "B",
+                "data_size",
+                "mdi:memory",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "ip_address",
+                "IP Address",
+                getMqttTopic("diagnostics/ip_address"),
+                "",
+                "",
+                "mdi:ip-network-outline",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "firmware_version",
+                "Firmware Version",
+                getMqttTopic("diagnostics/firmware_version"),
+                "",
+                "",
+                "mdi:chip",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "build_id",
+                "Build ID",
+                getMqttTopic("diagnostics/build_id"),
+                "",
+                "",
+                "mdi:identifier",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "battery_level",
+                "Battery Level",
+                getMqttTopic("power/battery_level"),
+                "%",
+                "battery",
+                "mdi:battery",
+                false) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "page_index",
+                "Page Index",
+                getMqttTopic("page/index"),
+                "",
+                "",
+                "mdi:file-document-multiple-outline",
+                false) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "last_mqtt_error",
+                "Last MQTT Error",
+                getMqttTopic("diagnostics/last_mqtt_error"),
+                "",
+                "",
+                "mdi:alert-circle-outline",
+                true) &&
+            success;
+  success = publishMqttSensorDiscovery(
+                "last_home_assistant_error",
+                "Last Home Assistant Error",
+                getMqttTopic("diagnostics/last_home_assistant_error"),
+                "",
+                "",
+                "mdi:home-alert-outline",
+                true) &&
+            success;
+
+  mqttDiscoveryPublished = success;
+  return success;
+}
+
+static void publishMqttPageState()
+{
+  if (!mqttClient.connected() || UI_PAGE_COUNT <= 0)
+  {
+    return;
+  }
+
+  publishMqttMessage(getMqttTopic("page/state"), getCurrentPageName(), true);
+  publishMqttMessage(getMqttTopic("page/index"), String(currentPageIndex), true);
+}
+
+static void publishMqttDarkModeState()
+{
+  if (!mqttClient.connected())
+  {
+    return;
+  }
+
+  publishMqttMessage(getMqttTopic("dark_mode/state"), currentDarkModeEnabled ? "ON" : "OFF", true);
+}
+
+static void publishMqttTelemetryState()
+{
+  if (!mqttClient.connected())
+  {
+    return;
+  }
+
+  publishMqttMessage(getMqttTopic("power/usb_power_connected"), isUsbPowerConnected() ? "ON" : "OFF", true);
+  publishMqttMessage(getMqttTopic("power/battery_level"), String(getBatteryLevelPercent()), true);
+  publishMqttMessage(getMqttTopic("status/wifi_connected"), WiFi.status() == WL_CONNECTED ? "ON" : "OFF", true);
+  publishMqttMessage(getMqttTopic("status/home_assistant_connected"), homeAssistantAuthenticated ? "ON" : "OFF", true);
+  publishMqttMessage(getMqttTopic("diagnostics/wifi_rssi"), String(WiFi.RSSI()), true);
+  publishMqttMessage(getMqttTopic("diagnostics/uptime_seconds"), String(getUptimeSeconds()), true);
+  publishMqttMessage(getMqttTopic("diagnostics/free_heap_bytes"), String(ESP.getFreeHeap()), true);
+  publishMqttMessage(getMqttTopic("diagnostics/free_psram_bytes"), String(getFreePsramBytes()), true);
+  publishMqttMessage(getMqttTopic("diagnostics/ip_address"), WiFi.localIP().toString(), true);
+  publishMqttMessage(getMqttTopic("diagnostics/firmware_version"), FIRMWARE_VERSION_NAME, true);
+  publishMqttMessage(getMqttTopic("diagnostics/build_id"), UI_BUILD_ID, true);
+  publishMqttMessage(getMqttTopic("diagnostics/last_mqtt_error"), normalizeDiagnosticText(lastMqttError), true);
+  publishMqttMessage(getMqttTopic("diagnostics/last_home_assistant_error"), normalizeDiagnosticText(lastHomeAssistantError), true);
+  lastMqttTelemetryPublishMs = millis();
+}
+
+static void publishMqttStateSnapshot(bool includeDiscovery = true)
+{
+  if (!mqttClient.connected())
+  {
+    return;
+  }
+
+  publishMqttMessage(getMqttTopic("availability"), MQTT_AVAILABILITY_ONLINE, true);
+  if (includeDiscovery && mqttDiscoveryConfigured())
+  {
+    publishMqttDiscoveryConfig();
+  }
+  publishMqttPageState();
+  publishMqttDarkModeState();
+  publishMqttTelemetryState();
+}
+
+static int findPageIndexByName(const String &pageName)
+{
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    if (pageName.equalsIgnoreCase(UI_PAGES[pageIndex].name))
+    {
+      return pageIndex;
+    }
+  }
+  return -1;
+}
+
+static bool handleMqttPageCommand(const String &rawPayload)
+{
+  String payload = rawPayload;
+  payload.trim();
+  if (payload.length() == 0)
+  {
+    return false;
+  }
+
+  if (payload.startsWith("{"))
+  {
+    StaticJsonDocument<192> doc;
+    if (deserializeJson(doc, payload) == DeserializationError::Ok)
+    {
+      if (doc["index"].is<int>())
+      {
+        const int pageIndex = doc["index"].as<int>();
+        setActivePageIndex(pageIndex, true);
+        publishMqttPageState();
+        return true;
+      }
+      if (doc["name"].is<const char *>())
+      {
+        payload = doc["name"].as<String>();
+      }
+      else if (doc["page"].is<const char *>())
+      {
+        payload = doc["page"].as<String>();
+      }
+    }
+  }
+
+  String normalized = payload;
+  normalized.trim();
+  normalized.toLowerCase();
+  if (normalized == "next")
+  {
+    cycleActivePage(1);
+    publishMqttPageState();
+    return true;
+  }
+  if (normalized == "prev" || normalized == "previous")
+  {
+    cycleActivePage(-1);
+    publishMqttPageState();
+    return true;
+  }
+  if (normalized == "current" || normalized == "state")
+  {
+    publishMqttPageState();
+    return true;
+  }
+
+  char *endPtr = nullptr;
+  const long parsedNumber = strtol(payload.c_str(), &endPtr, 10);
+  if (endPtr != payload.c_str() && *endPtr == '\0')
+  {
+    if (parsedNumber == 0)
+    {
+      setActivePageIndex(0, true);
+      publishMqttPageState();
+      return true;
+    }
+    if (parsedNumber > 0 && parsedNumber <= UI_PAGE_COUNT)
+    {
+      setActivePageIndex(static_cast<int>(parsedNumber - 1), true);
+      publishMqttPageState();
+      return true;
+    }
+    return false;
+  }
+
+  const int pageIndex = findPageIndexByName(payload);
+  if (pageIndex < 0)
+  {
+    return false;
+  }
+
+  setActivePageIndex(pageIndex, true);
+  publishMqttPageState();
+  return true;
+}
+
+static bool handleMqttDarkModeCommand(const String &rawPayload)
+{
+  String payload = rawPayload;
+  payload.trim();
+  if (payload.length() == 0)
+  {
+    return false;
+  }
+
+  if (payload.startsWith("{"))
+  {
+    StaticJsonDocument<192> doc;
+    if (deserializeJson(doc, payload) == DeserializationError::Ok)
+    {
+      if (doc["enabled"].is<bool>())
+      {
+        const bool nextValue = doc["enabled"].as<bool>();
+        if (applyDarkModeSetting(nextValue))
+        {
+          saveUiPreferences();
+        }
+        publishMqttDarkModeState();
+        return true;
+      }
+      if (doc["dark_mode"].is<bool>())
+      {
+        const bool nextValue = doc["dark_mode"].as<bool>();
+        if (applyDarkModeSetting(nextValue))
+        {
+          saveUiPreferences();
+        }
+        publishMqttDarkModeState();
+        return true;
+      }
+    }
+  }
+
+  bool nextValue = currentDarkModeEnabled;
+  if (!parseBooleanPayload(payload, currentDarkModeEnabled, nextValue))
+  {
+    return false;
+  }
+
+  if (applyDarkModeSetting(nextValue))
+  {
+    saveUiPreferences();
+  }
+  publishMqttDarkModeState();
+  return true;
+}
+
+static void handleMqttMessage(char *topic, uint8_t *payload, unsigned int length)
+{
+  String topicValue = topic == nullptr ? "" : String(topic);
+  String payloadValue;
+  payloadValue.reserve(length);
+  for (unsigned int index = 0; index < length; index++)
+  {
+    payloadValue += static_cast<char>(payload[index]);
+  }
+  payloadValue.trim();
+
+  bool handled = false;
+  if (topicValue == getMqttTopic("page/set"))
+  {
+    handled = handleMqttPageCommand(payloadValue);
+  }
+  else if (topicValue == getMqttTopic("dark_mode/set"))
+  {
+    handled = handleMqttDarkModeCommand(payloadValue);
+  }
+
+  Serial.printf("MQTT_MESSAGE TOPIC=%s PAYLOAD=%s HANDLED=%d\n", topicValue.c_str(), payloadValue.c_str(), handled ? 1 : 0);
+  if (handled)
+  {
+    clearLastMqttError();
+  }
+}
+
+static void disconnectMqtt(bool publishOffline = false)
+{
+  if (mqttClient.connected() && publishOffline)
+  {
+    publishMqttMessage(getMqttTopic("availability"), MQTT_AVAILABILITY_OFFLINE, true);
+  }
+  mqttClient.disconnect();
+  mqttConnected = false;
+  mqttDiscoveryPublished = false;
+  lastMqttTelemetryPublishMs = 0;
+}
+
+static bool ensureMqttConnected()
+{
+  if (!mqttConfigured() || WiFi.status() != WL_CONNECTED)
+  {
+    if (mqttClient.connected())
+    {
+      disconnectMqtt(false);
+    }
+    return false;
+  }
+
+  if (mqttClient.connected())
+  {
+    mqttConnected = true;
+    return true;
+  }
+
+  if (millis() - lastMqttReconnectAttemptMs < 5000UL)
+  {
+    return false;
+  }
+
+  lastMqttReconnectAttemptMs = millis();
+  const String clientId = getDeviceSlug();
+  const String willTopic = getMqttTopic("availability");
+  bool connected = false;
+  if (mqttConfig.username.length() > 0)
+  {
+    connected = mqttClient.connect(
+        clientId.c_str(),
+        mqttConfig.username.c_str(),
+        mqttConfig.password.c_str(),
+        willTopic.c_str(),
+        0,
+        true,
+        MQTT_AVAILABILITY_OFFLINE);
+  }
+  else
+  {
+    connected = mqttClient.connect(
+        clientId.c_str(),
+        willTopic.c_str(),
+        0,
+        true,
+        MQTT_AVAILABILITY_OFFLINE);
+  }
+
+  if (!connected)
+  {
+    mqttConnected = false;
+    mqttDiscoveryPublished = false;
+    setLastMqttError(String("connect_") + mqttStateName(mqttClient.state()));
+    Serial.printf(
+        "MQTT_CONNECT_FAILED HOST=%s PORT=%u STATE=%d\n",
+        mqttConfig.host.c_str(),
+        mqttConfig.port,
+        mqttClient.state());
+    return false;
+  }
+
+  mqttConnected = true;
+  clearLastMqttError();
+
+  const bool pageSubscribed = mqttClient.subscribe(getMqttTopic("page/set").c_str());
+  const bool darkModeSubscribed = mqttClient.subscribe(getMqttTopic("dark_mode/set").c_str());
+  if (!pageSubscribed || !darkModeSubscribed)
+  {
+    setLastMqttError("subscribe_failed");
+  }
+
+  publishMqttStateSnapshot(true);
+  Serial.printf(
+      "MQTT_CONNECTED HOST=%s PORT=%u TOPIC=%s\n",
+      mqttConfig.host.c_str(),
+      mqttConfig.port,
+      getEffectiveMqttTopicPrefix().c_str());
+  return true;
+}
+
 static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
 {
   if (WiFi.status() != WL_CONNECTED)
@@ -5225,36 +6397,293 @@ static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
 
 void handleHealth()
 {
-  String payload = "{\"ok\":true,\"wifiConnected\":";
-  payload += WiFi.status() == WL_CONNECTED ? "true" : "false";
-  payload += ",\"homeAssistantConfigured\":";
-  payload += homeAssistantConfigured() ? "true" : "false";
-  payload += ",\"homeAssistantConnected\":";
-  payload += homeAssistantAuthenticated ? "true" : "false";
-  payload += ",\"ip\":\"";
-  payload += WiFi.localIP().toString();
-  payload += "\"}";
+  StaticJsonDocument<384> doc;
+  doc["ok"] = true;
+  doc["wifiConnected"] = WiFi.status() == WL_CONNECTED;
+  doc["homeAssistantConfigured"] = homeAssistantConfigured();
+  doc["homeAssistantConnected"] = homeAssistantAuthenticated;
+  doc["mqttConfigured"] = mqttConfigured();
+  doc["mqttConnected"] = mqttClient.connected();
+  doc["currentPageIndex"] = currentPageIndex;
+  doc["currentPageName"] = getCurrentPageName();
+  doc["darkMode"] = currentDarkModeEnabled;
+  doc["ip"] = WiFi.localIP().toString();
+  String payload;
+  serializeJson(doc, payload);
   server.send(200, "application/json", payload);
 }
 
 void handleRoot()
 {
+  const bool mqttIsConfigured = mqttConfigured();
+  const bool mqttIsConnected = mqttClient.connected();
+  const String currentNotice =
+      server.hasArg("saved") ? String("MQTT settings saved.") : (server.hasArg("applied") ? String("Display settings updated.") : "");
+  const String currentError =
+      server.hasArg("error") ? server.arg("error") : "";
+  const String ipAddress = WiFi.localIP().toString();
+  const String mqttTopicPrefix = getEffectiveMqttTopicPrefix();
+  const String discoveryPrefix = getEffectiveMqttDiscoveryPrefix();
+
+  String pageOptions;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    pageOptions += "<option value=\"";
+    pageOptions += htmlEscape(UI_PAGES[pageIndex].name);
+    pageOptions += "\"";
+    if (pageIndex == currentPageIndex)
+    {
+      pageOptions += " selected";
+    }
+    pageOptions += ">";
+    pageOptions += htmlEscape(UI_PAGES[pageIndex].name);
+    pageOptions += "</option>";
+  }
+
   String html = "<!doctype html><html><head><meta charset=\"utf-8\">";
   html += "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
   html += "<title>M5PaperS3</title>";
-  html += "<style>body{font-family:system-ui,sans-serif;background:#f5f5f4;color:#18181b;padding:24px;}";
-  html += ".card{max-width:520px;margin:0 auto;background:#fff;border:1px solid #d4d4d8;border-radius:18px;padding:24px;}";
-  html += "code{background:#f4f4f5;padding:2px 6px;border-radius:6px;}p{line-height:1.5;}</style></head><body>";
-  html += "<div class=\"card\"><h1>M5PaperS3 is online</h1>";
-  html += "<p>Use this IP in the web app to save the device for OTA updates.</p>";
-  html += "<p><strong>IP:</strong> <code>";
-  html += WiFi.localIP().toString();
-  html += "</code></p><p><strong>Firmware:</strong> ";
-  html += FIRMWARE_DISPLAY_NAME;
-  html += "</p><p><strong>Version:</strong> ";
-  html += FIRMWARE_VERSION_NAME;
-  html += "</p></div></body></html>";
+  html += "<style>";
+  html += "body{font-family:system-ui,sans-serif;background:#f5f5f4;color:#18181b;margin:0;padding:24px;}";
+  html += ".wrap{max-width:860px;margin:0 auto;display:grid;gap:18px;}";
+  html += ".card{background:#fff;border:1px solid #d4d4d8;border-radius:18px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.04);}";
+  html += ".grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}";
+  html += ".stack{display:grid;gap:12px;}";
+  html += "h1,h2,h3{margin:0 0 10px;}p{line-height:1.5;margin:0 0 10px;}small,.muted{color:#52525b;}";
+  html += "code{background:#f4f4f5;padding:2px 6px;border-radius:6px;word-break:break-all;}";
+  html += "label{display:grid;gap:6px;font-size:14px;color:#27272a;}";
+  html += "input,select{width:100%;padding:10px 12px;border:1px solid #d4d4d8;border-radius:10px;font:inherit;box-sizing:border-box;}";
+  html += "button{padding:10px 14px;border-radius:10px;border:0;background:#18181b;color:#fff;font:inherit;cursor:pointer;}";
+  html += ".secondary{background:#e4e4e7;color:#18181b;}";
+  html += ".row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}";
+  html += ".badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#e4e4e7;color:#18181b;}";
+  html += ".ok{background:#dcfce7;color:#166534;}.warn{background:#fef3c7;color:#92400e;}.err{background:#fee2e2;color:#991b1b;}";
+  html += ".notice{padding:12px 14px;border-radius:12px;background:#dcfce7;color:#166534;}";
+  html += ".error{padding:12px 14px;border-radius:12px;background:#fee2e2;color:#991b1b;}";
+  html += "ul{margin:10px 0 0;padding-left:20px;}hr{border:0;border-top:1px solid #e4e4e7;margin:18px 0;}";
+  html += "@media (max-width:640px){body{padding:16px;}.card{padding:18px;}}";
+  html += "</style></head><body><div class=\"wrap\">";
+
+  if (currentNotice.length() > 0)
+  {
+    html += "<div class=\"notice\">";
+    html += htmlEscape(currentNotice);
+    html += "</div>";
+  }
+
+  if (currentError.length() > 0)
+  {
+    html += "<div class=\"error\">";
+    html += htmlEscape(currentError);
+    html += "</div>";
+  }
+
+  html += "<section class=\"card stack\"><div class=\"row\" style=\"justify-content:space-between;align-items:flex-start;\">";
+  html += "<div><h1>M5PaperS3 is online</h1><p class=\"muted\">Configure MQTT directly on the device and use the topics below from Home Assistant.</p></div>";
+  html += "<span class=\"badge ";
+  html += WiFi.status() == WL_CONNECTED ? "ok" : "err";
+  html += "\">Wi-Fi ";
+  html += WiFi.status() == WL_CONNECTED ? "connected" : "offline";
+  html += "</span></div><div class=\"grid\">";
+  html += "<div><strong>IP</strong><p><code>";
+  html += htmlEscape(ipAddress);
+  html += "</code></p></div>";
+  html += "<div><strong>Firmware</strong><p>";
+  html += htmlEscape(FIRMWARE_DISPLAY_NAME);
+  html += "</p></div>";
+  html += "<div><strong>Version</strong><p>";
+  html += htmlEscape(FIRMWARE_VERSION_NAME);
+  html += "</p></div>";
+  html += "<div><strong>MQTT</strong><p><span class=\"badge ";
+  if (!mqttIsConfigured)
+  {
+    html += "warn\">disabled";
+  }
+  else if (mqttIsConnected)
+  {
+    html += "ok\">connected";
+  }
+  else
+  {
+    html += "err\">disconnected";
+  }
+  html += "</span></p></div></div></section>";
+
+  html += "<section class=\"card stack\"><h2>Display</h2><div class=\"grid\">";
+  html += "<div><strong>Current page</strong><p>";
+  html += htmlEscape(getCurrentPageName());
+  html += " <span class=\"muted\">(index ";
+  html += currentPageIndex;
+  html += ")</span></p></div>";
+  html += "<div><strong>Dark mode</strong><p>";
+  html += currentDarkModeEnabled ? "Enabled" : "Disabled";
+  html += "</p></div></div>";
+  html += "<div class=\"row\"><form method=\"post\" action=\"/api/page\"><button class=\"secondary\" type=\"submit\" name=\"action\" value=\"previous\">Previous Page</button></form>";
+  html += "<form method=\"post\" action=\"/api/page\"><button class=\"secondary\" type=\"submit\" name=\"action\" value=\"next\">Next Page</button></form>";
+  html += "<form method=\"post\" action=\"/api/dark-mode\"><button type=\"submit\" name=\"action\" value=\"toggle\">Toggle Dark Mode</button></form></div>";
+  html += "<form method=\"post\" action=\"/api/page\" class=\"stack\"><label>Open page<select name=\"page\">";
+  html += pageOptions;
+  html += "</select></label><div class=\"row\"><button type=\"submit\">Show Page</button></div></form></section>";
+
+  html += "<section class=\"card stack\"><h2>MQTT Settings</h2>";
+  html += "<p class=\"muted\">Home Assistant discovery creates an MQTT select for page changes and an MQTT switch for dark mode.</p>";
+  html += "<form method=\"post\" action=\"/api/mqtt\" class=\"stack\">";
+  html += "<label><span>Enable MQTT</span><input type=\"checkbox\" name=\"enabled\" value=\"1\"";
+  if (mqttConfig.enabled)
+  {
+    html += " checked";
+  }
+  html += "></label>";
+  html += "<div class=\"grid\">";
+  html += "<label><span>Broker host</span><input name=\"host\" placeholder=\"192.168.1.10\" value=\"";
+  html += htmlEscape(mqttConfig.host);
+  html += "\"></label>";
+  html += "<label><span>Port</span><input name=\"port\" type=\"number\" min=\"1\" max=\"65535\" value=\"";
+  html += mqttConfig.port;
+  html += "\"></label></div>";
+  html += "<div class=\"grid\">";
+  html += "<label><span>Username</span><input name=\"username\" autocomplete=\"username\" value=\"";
+  html += htmlEscape(mqttConfig.username);
+  html += "\"></label>";
+  html += "<label><span>Password</span><input name=\"password\" type=\"password\" autocomplete=\"current-password\" value=\"";
+  html += htmlEscape(mqttConfig.password);
+  html += "\"></label></div>";
+  html += "<div class=\"grid\">";
+  html += "<label><span>Topic prefix</span><input name=\"topic_prefix\" placeholder=\"m5papers3/my-frame\" value=\"";
+  html += htmlEscape(mqttConfig.topicPrefix);
+  html += "\"></label>";
+  html += "<label><span>Discovery prefix</span><input name=\"discovery_prefix\" placeholder=\"homeassistant\" value=\"";
+  html += htmlEscape(mqttConfig.discoveryPrefix);
+  html += "\"></label></div>";
+  html += "<label><span>Enable Home Assistant discovery</span><input type=\"checkbox\" name=\"discovery_enabled\" value=\"1\"";
+  if (mqttConfig.discoveryEnabled)
+  {
+    html += " checked";
+  }
+  html += "></label>";
+  html += "<div class=\"row\"><button type=\"submit\">Save MQTT Settings</button></div></form>";
+  if (lastMqttError[0] != '\0')
+  {
+    html += "<p class=\"muted\">Last MQTT status: <code>";
+    html += htmlEscape(lastMqttError);
+    html += "</code></p>";
+  }
+  html += "</section>";
+
+  html += "<section class=\"card stack\"><h2>Topics</h2>";
+  html += "<p><strong>Base topic:</strong> <code>";
+  html += htmlEscape(mqttTopicPrefix);
+  html += "</code></p><ul>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("page/set"));
+  html += "</code> accepts page name, page number, <code>next</code>, or <code>previous</code>.</li>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("page/state"));
+  html += "</code> publishes the current page name.</li>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("page/index"));
+  html += "</code> publishes the zero-based current page index.</li>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("dark_mode/set"));
+  html += "</code> accepts <code>ON</code>, <code>OFF</code>, or <code>TOGGLE</code>.</li>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("dark_mode/state"));
+  html += "</code> publishes <code>ON</code> or <code>OFF</code>.</li>";
+  html += "<li><code>";
+  html += htmlEscape(getMqttTopic("availability"));
+  html += "</code> publishes device availability.</li></ul>";
+  html += "<p><strong>Discovery prefix:</strong> <code>";
+  html += htmlEscape(discoveryPrefix);
+  html += "</code></p></section>";
+
+  html += "<section class=\"card stack\"><h2>OTA</h2><p>Use this IP in the web app to save the device for OTA updates.</p>";
+  html += "<p class=\"muted\">Firmware uploads are still available at <code>/api/ota</code> and <code>/api/ota/upload</code>.</p></section>";
+  html += "</div></body></html>";
   server.send(200, "text/html", html);
+}
+
+void handleMqttConfigSave()
+{
+  MqttConfig nextConfig = mqttConfig;
+  nextConfig.enabled = server.hasArg("enabled");
+  nextConfig.host = server.hasArg("host") ? server.arg("host") : "";
+  nextConfig.port = parsePortOrDefault(server.hasArg("port") ? server.arg("port") : "", MQTT_DEFAULT_PORT);
+  nextConfig.username = server.hasArg("username") ? server.arg("username") : "";
+  nextConfig.password = server.hasArg("password") ? server.arg("password") : "";
+  nextConfig.topicPrefix = normalizeTopicPath(server.hasArg("topic_prefix") ? server.arg("topic_prefix") : "");
+  nextConfig.discoveryEnabled = server.hasArg("discovery_enabled");
+  nextConfig.discoveryPrefix = normalizeTopicPath(server.hasArg("discovery_prefix") ? server.arg("discovery_prefix") : "");
+  nextConfig.host = normalizeMqttHost(nextConfig.host, nextConfig.port);
+  if (nextConfig.discoveryPrefix.length() == 0)
+  {
+    nextConfig.discoveryPrefix = MQTT_DEFAULT_DISCOVERY_PREFIX;
+  }
+
+  if (nextConfig.enabled && nextConfig.host.length() == 0)
+  {
+    server.sendHeader("Location", "/?error=Broker%20host%20is%20required%20when%20MQTT%20is%20enabled.", true);
+    server.send(303, "text/plain", "");
+    return;
+  }
+
+  disconnectMqtt(true);
+  mqttConfig = nextConfig;
+  saveMqttConfig(mqttConfig);
+  configureMqttClient();
+  lastMqttReconnectAttemptMs = 0;
+  if (mqttConfigured())
+  {
+    ensureMqttConnected();
+  }
+  else
+  {
+    clearLastMqttError();
+  }
+
+  server.sendHeader("Location", "/?saved=1", true);
+  server.send(303, "text/plain", "");
+}
+
+void handlePageControl()
+{
+  String command = server.hasArg("page") ? server.arg("page") : "";
+  if (command.length() == 0 && server.hasArg("action"))
+  {
+    command = server.arg("action");
+  }
+
+  if (!handleMqttPageCommand(command))
+  {
+    server.sendHeader("Location", "/?error=Invalid%20page%20command.", true);
+    server.send(303, "text/plain", "");
+    return;
+  }
+
+  server.sendHeader("Location", "/?applied=page", true);
+  server.send(303, "text/plain", "");
+}
+
+void handleDarkModeControl()
+{
+  String command = server.hasArg("action") ? server.arg("action") : "";
+  if (command.length() == 0 && server.hasArg("enabled"))
+  {
+    command = server.arg("enabled");
+  }
+  if (command.length() == 0)
+  {
+    command = "toggle";
+  }
+
+  if (!handleMqttDarkModeCommand(command))
+  {
+    server.sendHeader("Location", "/?error=Invalid%20dark%20mode%20command.", true);
+    server.send(303, "text/plain", "");
+    return;
+  }
+
+  server.sendHeader("Location", "/?applied=dark-mode", true);
+  server.send(303, "text/plain", "");
 }
 
 void handleOtaRequest()
@@ -5985,18 +7414,34 @@ static void handleSerialProvisioning()
 void setup()
 {
   Serial.begin(115200);
+  setupPowerMonitoring();
   int totalWidgets = 0;
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
     totalWidgets += UI_PAGES[pageIndex].widgetCount;
   }
+  loadUiPreferences();
+  loadMqttConfig();
+  configureMqttClient();
   Serial.printf("FW_BUILD_ID %s\n", UI_BUILD_ID);
-  Serial.printf("UI_CONFIG PAGES=%d FONT=%s THEME_DARK=%d\n", UI_PAGE_COUNT, UI_FONT_NAME, UI_THEME_DARK);
+  Serial.printf(
+      "UI_CONFIG PAGES=%d FONT=%s THEME_DARK=%d RUNTIME_DARK=%d\n",
+      UI_PAGE_COUNT,
+      UI_FONT_NAME,
+      UI_THEME_DARK,
+      currentDarkModeEnabled ? 1 : 0);
   Serial.printf(
       "UI_WIDGETS TOTAL=%d PARTIAL_MS=%d FULL_EVERY=%d\n",
       totalWidgets,
       PARTIAL_REFRESH_MS_OVERRIDE,
       FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE);
+  Serial.printf(
+      "MQTT_CONFIG ENABLED=%d HOST=%s PORT=%u TOPIC=%s DISCOVERY=%d\n",
+      mqttConfig.enabled ? 1 : 0,
+      mqttConfig.host.c_str(),
+      mqttConfig.port,
+      getEffectiveMqttTopicPrefix().c_str(),
+      mqttConfig.discoveryEnabled ? 1 : 0);
 
   setupDisplay();
 
@@ -6010,11 +7455,18 @@ void setup()
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/health", HTTP_GET, handleHealth);
+  server.on("/api/mqtt", HTTP_POST, handleMqttConfigSave);
+  server.on("/api/page", HTTP_POST, handlePageControl);
+  server.on("/api/dark-mode", HTTP_POST, handleDarkModeControl);
   server.on("/api/ota", HTTP_POST, handleOtaRequest);
   server.on("/api/ota/upload", HTTP_POST, handleOtaUploadRequest, handleOtaUploadData);
   server.on("/api/automation-switch", HTTP_GET, handleAutomationSwitchState);
   server.on("/api/automation-switch", HTTP_POST, handleAutomationSwitchSet);
   startServerIfNeeded();
+  if (mqttConfigured())
+  {
+    ensureMqttConnected();
+  }
   if (homeAssistantConfigured() && homeAssistantUrl.valid)
   {
     syncAllHomeAssistantEntityStates(false);
@@ -6033,6 +7485,20 @@ void loop()
   if (WiFi.status() == WL_CONNECTED)
   {
     startServerIfNeeded();
+    ensureMqttConnected();
+    if (mqttClient.connected())
+    {
+      if (!mqttClient.loop())
+      {
+        mqttConnected = false;
+        mqttDiscoveryPublished = false;
+        setLastMqttError(String("loop_") + mqttStateName(mqttClient.state()));
+      }
+      else if (millis() - lastMqttTelemetryPublishMs >= MQTT_TELEMETRY_PUBLISH_INTERVAL_MS)
+      {
+        publishMqttTelemetryState();
+      }
+    }
     if (homeAssistantConfigured() && homeAssistantUrl.valid)
     {
       ensureHomeAssistantSocket();
@@ -6051,6 +7517,10 @@ void loop()
 
   if (WiFi.status() != WL_CONNECTED && millis() - lastWifiRetry > 30000)
   {
+    if (mqttClient.connected())
+    {
+      disconnectMqtt(false);
+    }
     lastWifiRetry = millis();
     connectWifi(currentCredentials);
     waitForWifiOrTimeout(8000);
