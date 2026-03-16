@@ -21,6 +21,12 @@
 #else
 #define UI_MDI_ICONS_AVAILABLE 0
 #endif
+#if __has_include("generated_media_cover.h")
+#include "generated_media_cover.h"
+#define UI_MEDIA_COVER_AVAILABLE 1
+#else
+#define UI_MEDIA_COVER_AVAILABLE 0
+#endif
 #include "generated_weather_icons.h"
 #if __has_include("generated_pio_wifi.h")
 #include "generated_pio_wifi.h"
@@ -31,9 +37,69 @@
 #define FASTEPD_AVAILABLE 1
 #if __has_include("fonts/Courier_Prime_24.h")
 #include "fonts/Courier_Prime_24.h"
-#define UI_PAGE_TITLE_FONT_AVAILABLE 1
+#define UI_COURIER_24_AVAILABLE 1
 #else
-#define UI_PAGE_TITLE_FONT_AVAILABLE 0
+#define UI_COURIER_24_AVAILABLE 0
+#endif
+#if __has_include("fonts/Lora_24.h")
+#include "fonts/Lora_24.h"
+#define UI_LORA_24_AVAILABLE 1
+#else
+#define UI_LORA_24_AVAILABLE 0
+#endif
+#if __has_include("fonts/Inter_Regular_18.h")
+#include "fonts/Inter_Regular_18.h"
+#define UI_INTER_18_AVAILABLE 1
+#else
+#define UI_INTER_18_AVAILABLE 0
+#endif
+#if __has_include("fonts/Inter_Regular_16.h")
+#include "fonts/Inter_Regular_16.h"
+#define UI_INTER_16_AVAILABLE 1
+#else
+#define UI_INTER_16_AVAILABLE 0
+#endif
+#if __has_include("fonts/Inter_Regular_22.h")
+#include "fonts/Inter_Regular_22.h"
+#define UI_INTER_22_AVAILABLE 1
+#else
+#define UI_INTER_22_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexSerif_18.h")
+#include "fonts/IBMPlexSerif_18.h"
+#define UI_IBM_PLEX_SERIF_18_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_SERIF_18_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexSerif_16.h")
+#include "fonts/IBMPlexSerif_16.h"
+#define UI_IBM_PLEX_SERIF_16_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_SERIF_16_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexSerif_22.h")
+#include "fonts/IBMPlexSerif_22.h"
+#define UI_IBM_PLEX_SERIF_22_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_SERIF_22_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexMono_18.h")
+#include "fonts/IBMPlexMono_18.h"
+#define UI_IBM_PLEX_MONO_18_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_MONO_18_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexMono_16.h")
+#include "fonts/IBMPlexMono_16.h"
+#define UI_IBM_PLEX_MONO_16_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_MONO_16_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexMono_20.h")
+#include "fonts/IBMPlexMono_20.h"
+#define UI_IBM_PLEX_MONO_20_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_MONO_20_AVAILABLE 0
 #endif
 #if __has_include("fonts/Roboto_Black_30.h")
 #include "fonts/Roboto_Black_30.h"
@@ -48,8 +114,10 @@
 #endif
 #if __has_include("fonts/Roboto_Regular_20.h")
 #include "fonts/Roboto_Regular_20.h"
+#define UI_ROBOTO_REGULAR_20_AVAILABLE 1
 #define UI_THERMOSTAT_TARGET_FONT_AVAILABLE 1
 #else
+#define UI_ROBOTO_REGULAR_20_AVAILABLE 0
 #define UI_THERMOSTAT_TARGET_FONT_AVAILABLE 0
 #endif
 #if __has_include("fonts/Roboto_Black_40.h")
@@ -60,7 +128,19 @@
 #endif
 #else
 #define FASTEPD_AVAILABLE 0
-#define UI_PAGE_TITLE_FONT_AVAILABLE 0
+#define UI_COURIER_24_AVAILABLE 0
+#define UI_LORA_24_AVAILABLE 0
+#define UI_INTER_16_AVAILABLE 0
+#define UI_INTER_18_AVAILABLE 0
+#define UI_INTER_22_AVAILABLE 0
+#define UI_IBM_PLEX_SERIF_16_AVAILABLE 0
+#define UI_IBM_PLEX_SERIF_18_AVAILABLE 0
+#define UI_IBM_PLEX_SERIF_22_AVAILABLE 0
+#define UI_IBM_PLEX_MONO_16_AVAILABLE 0
+#define UI_IBM_PLEX_MONO_18_AVAILABLE 0
+#define UI_IBM_PLEX_MONO_20_AVAILABLE 0
+#define UI_ROBOTO_REGULAR_20_AVAILABLE 0
+#define UI_THERMOSTAT_TARGET_FONT_AVAILABLE 0
 #define UI_WEATHER_FONT_AVAILABLE 0
 #endif
 
@@ -163,7 +243,51 @@ static BB_RECT weatherFocusHeroRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusHeroIconRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusTimelineRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusForecastRects[4];
+static BB_RECT mediaPlayerContentRect = {0, 0, 0, 0};
+static BB_RECT mediaPlayerBodyRect = {0, 0, 0, 0};
+static BB_RECT mediaPlayerCoverRect = {0, 0, 0, 0};
+static BB_RECT mediaPlayerProgressRect = {0, 0, 0, 0};
 static char lastDebugIp[40] = "";
+
+static inline bool uiThemeDark()
+{
+  return UI_THEME_DARK != 0;
+}
+
+static inline uint16_t uiMonoInk()
+{
+  return uiThemeDark() ? BBEP_WHITE : BBEP_BLACK;
+}
+
+static inline uint16_t uiMonoPaper()
+{
+  return uiThemeDark() ? BBEP_BLACK : BBEP_WHITE;
+}
+
+static inline uint8_t uiGrayValue(uint8_t lightModeValue)
+{
+  return uiThemeDark() ? (uint8_t)(15 - lightModeValue) : lightModeValue;
+}
+
+static inline uint8_t uiGrayInk()
+{
+  return uiGrayValue(0);
+}
+
+static inline uint8_t uiGrayPaper()
+{
+  return uiGrayValue(15);
+}
+
+static inline void setThemeMonoText()
+{
+  display.setTextColor(uiMonoInk(), uiMonoPaper());
+}
+
+static inline void setThemeGrayText(uint8_t lightForeground = 0, uint8_t lightBackground = 15)
+{
+  display.setTextColor(uiGrayValue(lightForeground), uiGrayValue(lightBackground));
+}
 
 typedef struct
 {
@@ -220,6 +344,7 @@ static bool isPointInRect(int x, int y, const BB_RECT &rect)
 }
 
 static bool activePageIsWeatherFocus();
+static bool activePageUsesGrayMode();
 
 static bool isPointInRectExpanded(int x, int y, const BB_RECT &rect, int pad)
 {
@@ -279,51 +404,229 @@ static UiFontProfile getUiFontProfile()
   return UI_FONT_PROFILE_SYSTEM;
 }
 
+static void selectTextFont(UiTextRole role);
+
+static const void *getUiAccentFont()
+{
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+#if UI_IBM_PLEX_SERIF_18_AVAILABLE
+    return IBMPlexSerif_18;
+#elif UI_LORA_24_AVAILABLE
+    return Lora_24;
+#endif
+    break;
+  case UI_FONT_PROFILE_MONO:
+#if UI_IBM_PLEX_MONO_18_AVAILABLE
+    return IBMPlexMono_18;
+#elif UI_COURIER_24_AVAILABLE
+    return Courier_Prime_24;
+#endif
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+#if UI_INTER_18_AVAILABLE
+    return Inter_Regular_18;
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+    return Roboto_Regular_20;
+#endif
+    break;
+  }
+
+#if UI_INTER_18_AVAILABLE
+  return Inter_Regular_18;
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+  return Roboto_Regular_20;
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+  return IBMPlexSerif_18;
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+  return IBMPlexMono_18;
+#elif UI_LORA_24_AVAILABLE
+  return Lora_24;
+#elif UI_COURIER_24_AVAILABLE
+  return Courier_Prime_24;
+#else
+  return nullptr;
+#endif
+}
+
+static bool hasUiAccentFont()
+{
+  return getUiAccentFont() != nullptr;
+}
+
+static const void *getUiPageTitleFont()
+{
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+#if UI_IBM_PLEX_SERIF_16_AVAILABLE
+    return IBMPlexSerif_16;
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+    return IBMPlexSerif_18;
+#endif
+    break;
+  case UI_FONT_PROFILE_MONO:
+#if UI_IBM_PLEX_MONO_16_AVAILABLE
+    return IBMPlexMono_16;
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+    return IBMPlexMono_18;
+#endif
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+#if UI_INTER_16_AVAILABLE
+    return Inter_Regular_16;
+#elif UI_INTER_18_AVAILABLE
+    return Inter_Regular_18;
+#endif
+    break;
+  }
+  return getUiAccentFont();
+}
+
+static const void *getUiMediaArtistFont()
+{
+  return getUiAccentFont();
+}
+
+static const void *getUiMediaTitleFont()
+{
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+#if UI_IBM_PLEX_SERIF_22_AVAILABLE
+    return IBMPlexSerif_22;
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+    return IBMPlexSerif_18;
+#endif
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+#if UI_INTER_22_AVAILABLE
+    return Inter_Regular_22;
+#elif UI_INTER_18_AVAILABLE
+    return Inter_Regular_18;
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+    return Roboto_Regular_20;
+#endif
+    break;
+  case UI_FONT_PROFILE_MONO:
+#if UI_IBM_PLEX_MONO_20_AVAILABLE
+    return IBMPlexMono_20;
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+    return IBMPlexMono_18;
+#endif
+    break;
+  default:
+    break;
+  }
+  return nullptr;
+}
+
+static int textWidthForCurrentSelection(const char *text)
+{
+  BB_RECT bounds;
+  display.setCursor(0, 0);
+  display.getStringBox(text, &bounds);
+  display.setItalic(false);
+  return bounds.w;
+}
+
+static void truncateTextToWidth(
+    const char *input,
+    char *output,
+    size_t outputLen,
+    int maxWidth,
+    const void *customFont,
+    UiTextRole role,
+    int hardCharacterLimit = 0)
+{
+  if (outputLen == 0)
+  {
+    return;
+  }
+  output[0] = '\0';
+  if (input == nullptr)
+  {
+    return;
+  }
+
+  size_t candidateLen = strlen(input);
+  if (hardCharacterLimit > 0 && candidateLen > (size_t)hardCharacterLimit)
+  {
+    candidateLen = (size_t)hardCharacterLimit;
+  }
+  if (candidateLen >= outputLen)
+  {
+    candidateLen = outputLen - 1;
+  }
+
+  memcpy(output, input, candidateLen);
+  output[candidateLen] = '\0';
+
+  if (customFont != nullptr)
+  {
+    display.setItalic(false);
+    display.setFont(customFont);
+  }
+  else
+  {
+    selectTextFont(role);
+  }
+
+  if (textWidthForCurrentSelection(output) <= maxWidth && candidateLen == strlen(input))
+  {
+    return;
+  }
+
+  for (int len = (int)candidateLen; len >= 1; len--)
+  {
+    snprintf(output, outputLen, "%.*s...", len, input);
+    if (textWidthForCurrentSelection(output) <= maxWidth)
+    {
+      return;
+    }
+  }
+
+  snprintf(output, outputLen, "...");
+}
+
+static void drawCenteredTextRoleAtTop(const char *text, int topY, UiTextRole role, bool gray)
+{
+  display.setCursor(0, 0);
+  selectTextFont(role);
+  BB_RECT bounds;
+  display.getStringBox(text, &bounds);
+  const int x = ((display.width() - bounds.w) / 2) < 0 ? 0 : ((display.width() - bounds.w) / 2);
+  if (gray)
+  {
+    setThemeGrayText();
+  }
+  else
+  {
+    setThemeMonoText();
+  }
+  display.setCursor(x, topY - bounds.y);
+  display.print(text);
+  display.setItalic(false);
+}
+
 static void selectTextFont(UiTextRole role)
 {
   display.setItalic(false);
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-    if (role == UI_TEXT_TITLE)
-    {
-      display.setFont(FONT_16x16);
-      display.setItalic(true);
-    }
-    else if (role == UI_TEXT_HERO)
-    {
-      display.setFont(FONT_16x16);
-    }
-    else
-    {
-      display.setFont(role == UI_TEXT_META ? FONT_12x16 : FONT_16x16);
-      display.setItalic(true);
-    }
+    display.setFont(FONT_12x16);
+    display.setItalic(true);
     break;
   case UI_FONT_PROFILE_MONO:
-    if (role == UI_TEXT_HERO)
-    {
-      display.setFont(FONT_16x16);
-    }
-    else
-    {
-      display.setFont(role == UI_TEXT_TITLE ? FONT_16x16 : FONT_12x16);
-    }
+    display.setFont(FONT_12x16);
     break;
   case UI_FONT_PROFILE_SYSTEM:
   default:
-    if (role == UI_TEXT_TITLE)
-    {
-      display.setFont(FONT_16x16);
-    }
-    else if (role == UI_TEXT_HERO)
-    {
-      display.setFont(FONT_16x16);
-    }
-    else
-    {
-      display.setFont(role == UI_TEXT_META ? FONT_8x8 : FONT_12x16);
-    }
+    display.setFont(role == UI_TEXT_META ? FONT_8x8 : FONT_12x16);
     break;
   }
 }
@@ -372,6 +675,7 @@ static void drawCustomTextAtTop(const void *font, const char *text, int x, int t
 {
   display.setItalic(false);
   display.setFont(font);
+  setThemeMonoText();
   display.setCursor(x, customFontBaselineForTop(font, text, topY));
   display.print(text);
 }
@@ -385,6 +689,7 @@ static void drawCustomTextAtTopBold(const void *font, const char *text, int x, i
   const int baseline = customFontBaselineForTop(font, text, topY);
   display.setItalic(false);
   display.setFont(font);
+  setThemeMonoText();
   for (int pass = 0; pass < passes; pass++)
   {
     display.setCursor(x + pass, baseline);
@@ -396,6 +701,7 @@ static void drawCustomTextAtTopAA(const void *font, const char *text, int x, int
 {
   display.setItalic(false);
   display.setFont(font, true);
+  setThemeGrayText();
   display.setCursor(x, customFontBaselineForTop(font, text, topY));
   display.print(text);
 }
@@ -425,6 +731,7 @@ static void drawCenteredCustomTextAtTopAA(const void *font, const char *text, in
 static void drawTextRole(const char *text, int x, int y, UiTextRole role)
 {
   selectTextFont(role);
+  setThemeMonoText();
   if (role == UI_TEXT_TITLE || role == UI_TEXT_HERO)
   {
     printTextAt(text, x, y);
@@ -440,7 +747,7 @@ static void drawBoldLine(int x1, int y1, int x2, int y2, int thickness)
 {
   if (thickness <= 1)
   {
-    display.drawLine(x1, y1, x2, y2, BBEP_BLACK);
+    display.drawLine(x1, y1, x2, y2, uiMonoInk());
     return;
   }
 
@@ -452,14 +759,14 @@ static void drawBoldLine(int x1, int y1, int x2, int y2, int thickness)
   {
     for (int offset = -half; offset <= half; offset++)
     {
-      display.drawLine(x1, y1 + offset, x2, y2 + offset, BBEP_BLACK);
+      display.drawLine(x1, y1 + offset, x2, y2 + offset, uiMonoInk());
     }
   }
   else
   {
     for (int offset = -half; offset <= half; offset++)
     {
-      display.drawLine(x1 + offset, y1, x2 + offset, y2, BBEP_BLACK);
+      display.drawLine(x1 + offset, y1, x2 + offset, y2, uiMonoInk());
     }
   }
 }
@@ -542,18 +849,18 @@ static void drawDebugIpText(const char *debugIp, bool partialRefresh)
     return;
   }
 
-  if (activePageIsWeatherFocus())
+  if (activePageUsesGrayMode())
   {
     display.setMode(BB_MODE_4BPP);
-    display.setTextColor(0, 15);
-    display.fillRect(debugIpRect.x, debugIpRect.y, debugIpRect.w, debugIpRect.h, 15);
+    setThemeGrayText();
+    display.fillRect(debugIpRect.x, debugIpRect.y, debugIpRect.w, debugIpRect.h, uiGrayPaper());
     display.setFont(FONT_8x8);
   }
   else
   {
     display.setMode(BB_MODE_1BPP);
-    display.setTextColor(BBEP_BLACK, BBEP_WHITE);
-    display.fillRect(debugIpRect.x, debugIpRect.y, debugIpRect.w, debugIpRect.h, BBEP_WHITE);
+    setThemeMonoText();
+    display.fillRect(debugIpRect.x, debugIpRect.y, debugIpRect.w, debugIpRect.h, uiMonoPaper());
   }
 
   const int textWidth = textWidthForRole(debugIp, UI_TEXT_META);
@@ -566,7 +873,7 @@ static void drawDebugIpText(const char *debugIp, bool partialRefresh)
 
   if (partialRefresh)
   {
-    if (activePageIsWeatherFocus())
+    if (activePageUsesGrayMode())
     {
 #ifdef CLEAR_FAST
       display.fullUpdate(CLEAR_FAST, false, &debugIpRect);
@@ -627,7 +934,7 @@ static void drawSevenSegmentSymbol(int x, int y, int w, int h, int thickness, ch
   {
     if (on)
     {
-      display.fillRect(sx, sy, sw, sh, BBEP_BLACK);
+      display.fillRect(sx, sy, sw, sh, uiMonoInk());
     }
   };
 
@@ -658,8 +965,8 @@ static void drawSevenSegmentColon(int x, int y, int w, int h, int thickness)
   int cx = x + ((w - dotSize) / 2);
   int topY = y + (h / 3) - (dotSize / 2);
   int bottomY = y + ((2 * h) / 3) - (dotSize / 2);
-  display.fillRect(cx, topY, dotSize, dotSize, BBEP_BLACK);
-  display.fillRect(cx, bottomY, dotSize, dotSize, BBEP_BLACK);
+  display.fillRect(cx, topY, dotSize, dotSize, uiMonoInk());
+  display.fillRect(cx, bottomY, dotSize, dotSize, uiMonoInk());
 }
 
 static int clampInt(int value, int minValue, int maxValue)
@@ -698,9 +1005,24 @@ static bool pageIsWeatherFocus(int pageIndex)
   return UI_PAGES[pageIndex].pageType == UI_PAGE_WEATHER_FOCUS;
 }
 
+static bool pageIsMediaPlayer(int pageIndex)
+{
+  return UI_PAGES[pageIndex].pageType == UI_PAGE_MEDIA_PLAYER;
+}
+
 static bool activePageIsWeatherFocus()
 {
   return pageIsWeatherFocus(currentPageIndex);
+}
+
+static bool activePageIsMediaPlayer()
+{
+  return pageIsMediaPlayer(currentPageIndex);
+}
+
+static bool activePageUsesGrayMode()
+{
+  return activePageIsMediaPlayer();
 }
 
 static bool showPageChrome()
@@ -737,12 +1059,12 @@ static void fillDitherRect(int x, int y, int w, int h, uint8_t shade)
   }
   if (shade == 0)
   {
-    display.fillRect(x, y, w, h, BBEP_WHITE);
+    display.fillRect(x, y, w, h, uiMonoPaper());
     return;
   }
   if (shade >= 4)
   {
-    display.fillRect(x, y, w, h, BBEP_BLACK);
+    display.fillRect(x, y, w, h, uiMonoInk());
     return;
   }
 
@@ -765,7 +1087,7 @@ static void fillDitherRect(int x, int y, int w, int h, uint8_t shade)
       default:
         break;
       }
-      display.drawPixelFast(xx, yy, black ? BBEP_BLACK : BBEP_WHITE);
+      display.drawPixelFast(xx, yy, black ? uiMonoInk() : uiMonoPaper());
     }
   }
 }
@@ -784,12 +1106,12 @@ static void fillDitherRoundRect(int x, int y, int w, int h, int r, uint8_t shade
 
   if (shade == 0)
   {
-    display.fillRoundRect(x, y, w, h, r, BBEP_WHITE);
+    display.fillRoundRect(x, y, w, h, r, uiMonoPaper());
     return;
   }
   if (shade >= 4)
   {
-    display.fillRoundRect(x, y, w, h, r, BBEP_BLACK);
+    display.fillRoundRect(x, y, w, h, r, uiMonoInk());
     return;
   }
 
@@ -846,7 +1168,7 @@ static void fillDitherRoundRect(int x, int y, int w, int h, int r, uint8_t shade
       default:
         break;
       }
-      display.drawPixelFast(xx, yy, black ? BBEP_BLACK : BBEP_WHITE);
+      display.drawPixelFast(xx, yy, black ? uiMonoInk() : uiMonoPaper());
     }
   }
 }
@@ -869,7 +1191,7 @@ static void drawMdiMonoIconAt(const MdiMonoIconAsset *icon, int x, int y)
       {
         continue;
       }
-      display.drawPixelFast(x + xx, y + yy, BBEP_BLACK);
+      display.drawPixelFast(x + xx, y + yy, uiMonoInk());
     }
   }
 }
@@ -918,7 +1240,55 @@ static void drawMdiMonoIconScaled(const BB_RECT &rect, const MdiMonoIconAsset *i
       {
         continue;
       }
-      display.drawPixelFast(iconX + xx, iconY + yy, BBEP_BLACK);
+      display.drawPixelFast(iconX + xx, iconY + yy, uiMonoInk());
+    }
+  }
+}
+
+static void drawMdiMonoIconScaledGray(const BB_RECT &rect, const MdiMonoIconAsset *icon, uint8_t lightGray = 1, int padding = 0)
+{
+  if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
+  {
+    return;
+  }
+
+  const int availableW = rect.w - (padding * 2);
+  const int availableH = rect.h - (padding * 2);
+  if (availableW <= 0 || availableH <= 0)
+  {
+    return;
+  }
+
+  const int targetSize = availableW < availableH ? availableW : availableH;
+  const int targetW = targetSize;
+  const int targetH = targetSize;
+  const int pitch = (icon->width + 7) / 8;
+  const int iconX = rect.x + ((rect.w - targetW) / 2);
+  const int iconY = rect.y + ((rect.h - targetH) / 2);
+  const uint8_t iconShade = uiGrayValue(lightGray);
+
+  for (int yy = 0; yy < targetH; yy++)
+  {
+    const int destY = iconY + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+    const int srcY = (yy * icon->height) / targetH;
+    for (int xx = 0; xx < targetW; xx++)
+    {
+      const int destX = iconX + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+      const int srcX = (xx * icon->width) / targetW;
+      const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 8));
+      if ((packed & (0x80 >> (srcX & 7))) == 0)
+      {
+        continue;
+      }
+      display.drawPixelFast(destX, destY, iconShade);
     }
   }
 }
@@ -995,19 +1365,26 @@ static void drawPageDots()
     const int dotX = startX + (i * 16);
     if (i == currentPageIndex)
     {
-      display.fillCircle(dotX, y, 5, BBEP_BLACK);
+      display.fillCircle(dotX, y, 5, uiMonoInk());
     }
     else
     {
-      display.drawCircle(dotX, y, 4, BBEP_BLACK);
+      display.drawCircle(dotX, y, 4, uiMonoInk());
     }
   }
 }
 
 static void drawWidgetCardBase(const BB_RECT &rect)
 {
-  fillDitherRoundRect(rect.x, rect.y, rect.w, rect.h, 22, 0);
-  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, BBEP_BLACK);
+  if (uiThemeDark())
+  {
+    display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiMonoPaper());
+  }
+  else
+  {
+    fillDitherRoundRect(rect.x, rect.y, rect.w, rect.h, 22, 0);
+  }
+  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiMonoInk());
 }
 
 static void initializeWidgetStates()
@@ -1120,30 +1497,51 @@ static void layoutWeatherFocusPage()
 {
   const int width = display.width();
   const int height = display.height();
-  const int margin = 24;
-  const int contentTop = showPageChrome() ? 74 : 28;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 20);
+  const int margin = 22;
+  const int contentTop = showPageChrome() ? 74 : 20;
+  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
   const int contentHeight = footerTop - contentTop;
 
-  weatherFocusContentRect = {margin, contentTop, width - (margin * 2), contentHeight};
-  weatherFocusHeroRect = {margin, contentTop, width - (margin * 2), 210};
-  weatherFocusHeroIconRect = {weatherFocusHeroRect.x + weatherFocusHeroRect.w - 188, weatherFocusHeroRect.y + 18, 158, 158};
-  weatherFocusTimelineRect = {margin, weatherFocusHeroRect.y + weatherFocusHeroRect.h + 18, width - (margin * 2), contentTop + contentHeight - (weatherFocusHeroRect.y + weatherFocusHeroRect.h + 18)};
+  weatherFocusContentRect = {0, contentTop, width, contentHeight};
+  weatherFocusTimelineRect = {margin, footerTop - 66, width - (margin * 2), 58};
+  weatherFocusHeroRect = {margin, contentTop + 6, width - (margin * 2), weatherFocusTimelineRect.y - contentTop - 20};
+  weatherFocusHeroIconRect = {-96, contentTop + 38, 420, 420};
 
-  const int gap = 14;
-  const int cardWidth = (weatherFocusTimelineRect.w - gap) / 2;
-  const int cardHeight = (weatherFocusTimelineRect.h - gap) / 2;
+  const int gap = 6;
+  const int cardWidth = (weatherFocusTimelineRect.w - (gap * 3)) / 4;
   for (int index = 0; index < 4; index++)
   {
-    const int col = index % 2;
-    const int row = index / 2;
     weatherFocusForecastRects[index] = {
-        weatherFocusTimelineRect.x + (col * (cardWidth + gap)),
-        weatherFocusTimelineRect.y + (row * (cardHeight + gap)),
+        weatherFocusTimelineRect.x + (index * (cardWidth + gap)),
+        weatherFocusTimelineRect.y,
         cardWidth,
-        cardHeight,
+        weatherFocusTimelineRect.h,
     };
   }
+
+  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
+  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
+  debugIpRect = {width - margin - 230, height - 18, 230, 10};
+}
+
+static void layoutMediaPlayerPage()
+{
+  const int width = display.width();
+  const int height = display.height();
+  const int margin = 24;
+  const int contentTop = showPageChrome() ? 74 : 20;
+  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
+  const int contentHeight = footerTop - contentTop;
+
+  mediaPlayerContentRect = {0, contentTop, width, contentHeight};
+
+  const int bodyWidth = 420;
+  const int bodyHeight = 560;
+  const int bodyX = (width - bodyWidth) / 2;
+  const int bodyY = contentTop + ((contentHeight - bodyHeight) / 2);
+  mediaPlayerBodyRect = {bodyX, bodyY, bodyWidth, bodyHeight};
+  mediaPlayerCoverRect = {bodyX + ((bodyWidth - 384) / 2), bodyY + 8, 384, 384};
+  mediaPlayerProgressRect = {bodyX + 14, bodyY + 492, bodyWidth - 28, 12};
 
   navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
   navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
@@ -1155,6 +1553,11 @@ static void layoutCurrentPage()
   if (activePageIsWeatherFocus())
   {
     layoutWeatherFocusPage();
+    return;
+  }
+  if (activePageIsMediaPlayer())
+  {
+    layoutMediaPlayerPage();
     return;
   }
 
@@ -1216,8 +1619,8 @@ static void layoutCurrentPage()
     {
       if (widget.type == UI_WIDGET_SLIDER)
       {
-        const int sliderHeight = clampInt(state.cardRect.h - 68, 30, 40);
-        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + 48, state.cardRect.w - 36, sliderHeight};
+        const int sliderHeight = clampInt(state.cardRect.h - 42, 42, 52);
+        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - sliderHeight - 14, state.cardRect.w - 36, sliderHeight};
       }
       else
       {
@@ -1315,10 +1718,10 @@ static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntim
   const int outerRadius = radius;
   const int innerRadius = radius - 10;
 
-  display.drawCircle(cx, cy, outerRadius, BBEP_BLACK);
-  display.drawCircle(cx, cy, outerRadius - 1, BBEP_BLACK);
-  display.drawCircle(cx, cy, innerRadius, BBEP_BLACK);
-  display.drawCircle(cx, cy, innerRadius - 1, BBEP_BLACK);
+  display.drawCircle(cx, cy, outerRadius, uiMonoInk());
+  display.drawCircle(cx, cy, outerRadius - 1, uiMonoInk());
+  display.drawCircle(cx, cy, innerRadius, uiMonoInk());
+  display.drawCircle(cx, cy, innerRadius - 1, uiMonoInk());
 
   for (int marker = 0; marker < 12; marker++)
   {
@@ -1342,15 +1745,19 @@ static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntim
     drawClockHand(cx, cy, secondDegrees, outerRadius - 14, 2);
   }
 
-  display.fillCircle(cx, cy, 5, BBEP_BLACK);
+  display.fillCircle(cx, cy, 5, uiMonoInk());
 }
 
-static void drawBulbIcon(int cx, int cy)
+static void drawBulbIcon(int cx, int cy, int size, uint16_t color)
 {
-  display.drawCircle(cx, cy - 3, 5, BBEP_BLACK);
-  display.drawLine(cx - 3, cy + 2, cx + 3, cy + 2, BBEP_BLACK);
-  display.drawLine(cx - 2, cy + 4, cx + 2, cy + 4, BBEP_BLACK);
-  display.drawLine(cx - 1, cy + 5, cx + 1, cy + 5, BBEP_BLACK);
+  const int globeRadius = clampInt(size / 6, 5, 8);
+  const int globeCenterY = cy - (size / 10);
+  const int stemTopY = globeCenterY + globeRadius - 1;
+  const int stemHalf = globeRadius > 6 ? 4 : 3;
+  display.drawCircle(cx, globeCenterY, globeRadius, color);
+  display.drawLine(cx - stemHalf, stemTopY + 3, cx + stemHalf, stemTopY + 3, color);
+  display.drawLine(cx - (stemHalf - 1), stemTopY + 6, cx + (stemHalf - 1), stemTopY + 6, color);
+  display.drawLine(cx - 1, stemTopY + 9, cx + 1, stemTopY + 9, color);
 }
 
 static const WeatherIconAsset *getWeatherIconAsset(const char *condition)
@@ -1411,7 +1818,39 @@ static void drawWeatherMeteocon(const BB_RECT &rect, const char *condition)
     {
       const uint8_t packed = pgm_read_byte(icon->pixels + (yy * pitch) + (xx / 2));
       const uint8_t gray = (xx & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
-      display.drawPixelFast(iconX + xx, iconY + yy, shouldDrawBlackFromGray(gray, xx, yy) ? BBEP_BLACK : BBEP_WHITE);
+      display.drawPixelFast(iconX + xx, iconY + yy, shouldDrawBlackFromGray(gray, xx, yy) ? uiMonoInk() : uiMonoPaper());
+    }
+  }
+}
+
+static void drawWeatherMeteoconMonoRaw(const BB_RECT &rect, const char *condition)
+{
+  const WeatherIconAsset *icon = getWeatherIconAsset(condition);
+  if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
+  {
+    return;
+  }
+
+  const int pitch = (icon->width + 1) / 2;
+  for (int yy = 0; yy < rect.h; yy++)
+  {
+    const int destY = rect.y + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+    const int srcY = (yy * icon->height) / rect.h;
+    for (int xx = 0; xx < rect.w; xx++)
+    {
+      const int destX = rect.x + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+      const int srcX = (xx * icon->width) / rect.w;
+      const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 2));
+      const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
+      display.drawPixelFast(destX, destY, shouldDrawBlackFromGray(gray, destX, destY) ? uiMonoInk() : uiMonoPaper());
     }
   }
 }
@@ -1424,8 +1863,8 @@ static void drawWeatherMeteocon4bpp(const BB_RECT &rect, const char *condition, 
     return;
   }
 
-  display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 16, backgroundShade);
-  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 16, 1);
+  display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 16, uiGrayValue(backgroundShade));
+  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 16, uiGrayValue(1));
 
   const int pitch = (icon->width + 1) / 2;
   const int innerPad = rect.w >= 120 ? 10 : 6;
@@ -1452,10 +1891,116 @@ static void drawWeatherMeteocon4bpp(const BB_RECT &rect, const char *condition, 
       {
         mappedGray = 13;
       }
-      display.drawPixelFast(iconX + xx, iconY + yy, mappedGray);
+      display.drawPixelFast(iconX + xx, iconY + yy, uiGrayValue(mappedGray));
     }
   }
 }
+
+static void drawWeatherMeteocon4bppRaw(const BB_RECT &rect, const char *condition)
+{
+  const WeatherIconAsset *icon = getWeatherIconAsset(condition);
+  if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
+  {
+    return;
+  }
+
+  const int pitch = (icon->width + 1) / 2;
+  for (int yy = 0; yy < rect.h; yy++)
+  {
+    const int destY = rect.y + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+    const int srcY = (yy * icon->height) / rect.h;
+    for (int xx = 0; xx < rect.w; xx++)
+    {
+      const int destX = rect.x + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+      const int srcX = (xx * icon->width) / rect.w;
+      const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 2));
+      const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
+      if (gray >= 15)
+      {
+        continue;
+      }
+      uint8_t mappedGray = gray > 2 ? gray - 2 : 0;
+      if (mappedGray > 12)
+      {
+        mappedGray = 12;
+      }
+      display.drawPixelFast(destX, destY, uiGrayValue(mappedGray));
+    }
+  }
+}
+
+#if UI_MEDIA_COVER_AVAILABLE
+static bool pointInsideRoundedRect(int localX, int localY, int width, int height, int radius)
+{
+  if (radius <= 0)
+  {
+    return true;
+  }
+  if (localX < 0 || localY < 0 || localX >= width || localY >= height)
+  {
+    return false;
+  }
+
+  const int clampedRadius = clampInt(radius, 1, width / 2 < height / 2 ? width / 2 : height / 2);
+  if ((localX >= clampedRadius && localX < (width - clampedRadius)) ||
+      (localY >= clampedRadius && localY < (height - clampedRadius)))
+  {
+    return true;
+  }
+
+  const int circleRadius = clampedRadius - 1;
+  if (circleRadius <= 0)
+  {
+    return true;
+  }
+
+  int centerX = localX < clampedRadius ? circleRadius : width - clampedRadius;
+  int centerY = localY < clampedRadius ? circleRadius : height - clampedRadius;
+  const int dx = localX - centerX;
+  const int dy = localY - centerY;
+  return (dx * dx) + (dy * dy) <= (circleRadius * circleRadius);
+}
+
+static void drawMediaCover4bppRaw(const BB_RECT &rect, int radius)
+{
+  const MediaCoverAsset *cover = &MEDIA_COVER_ASSET_BLACK;
+  const int pitch = (cover->width + 1) / 2;
+
+  for (int yy = 0; yy < rect.h; yy++)
+  {
+    const int destY = rect.y + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+    const int srcY = (yy * cover->height) / rect.h;
+    for (int xx = 0; xx < rect.w; xx++)
+    {
+      if (!pointInsideRoundedRect(xx, yy, rect.w, rect.h, radius))
+      {
+        continue;
+      }
+      const int destX = rect.x + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+      const int srcX = (xx * cover->width) / rect.w;
+      const uint8_t packed = pgm_read_byte(cover->pixels + (srcY * pitch) + (srcX / 2));
+      const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
+      display.drawPixelFast(destX, destY, uiGrayValue(gray));
+    }
+  }
+}
+#endif
 
 static WeatherFrame getWeatherFrameAtOffset(int pageIndex, int offset)
 {
@@ -1465,29 +2010,53 @@ static WeatherFrame getWeatherFrameAtOffset(int pageIndex, int offset)
   return WEATHER_FRAMES[index];
 }
 
-static void drawWeatherFocusForecastCard(const BB_RECT &rect, const char *label, const WeatherFrame &weather)
+static void formatMediaTime(int seconds, char *out, size_t outLen)
 {
-  display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 18, 14);
-  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 18, 1);
+  const int clamped = seconds < 0 ? 0 : seconds;
+  const int minutes = clamped / 60;
+  const int remainder = clamped % 60;
+  snprintf(out, outLen, "%02d:%02d", minutes, remainder);
+}
 
-  display.setTextColor(3, 15);
+static void drawWeatherFocusForecastItem(const BB_RECT &rect, const char *label, const WeatherFrame &weather)
+{
+  setThemeMonoText();
   display.setFont(FONT_8x8);
-  printTextAt(label, rect.x + 14, rect.y + 16);
+  const int labelWidth = textWidthForRole(label, UI_TEXT_META);
+  int labelX = rect.x + ((rect.w - labelWidth) / 2);
+  if (labelX < rect.x)
+  {
+    labelX = rect.x;
+  }
+  drawReadableLine(label, labelX, rect.y + 4);
 
-  BB_RECT iconRect = {rect.x + rect.w - 48, rect.y + 12, 34, 34};
-  drawWeatherMeteocon4bpp(iconRect, weather.condition, 14);
+  BB_RECT iconRect = {rect.x + 2, rect.y + 12, 40, 40};
+#if UI_MDI_ICONS_AVAILABLE
+  const MdiMonoIconAsset *mdiIcon = getMdiWeatherIconAsset(weather.condition);
+  if (mdiIcon != nullptr)
+  {
+    drawMdiMonoIconScaled(iconRect, mdiIcon);
+  }
+  else
+#endif
+  {
+    drawWeatherMeteoconMonoRaw(iconRect, weather.condition);
+  }
 
   char tempText[12];
   snprintf(tempText, sizeof(tempText), "%d\xC2\xB0"
-                                       "C",
+                                       "",
            weather.tempC);
-  display.setTextColor(1, 15);
+  setThemeMonoText();
+  if (hasUiAccentFont())
+  {
+    drawCustomTextAtTop(getUiAccentFont(), tempText, rect.x + 46, rect.y + 20);
+  }
+  else
+  {
   display.setFont(FONT_12x16);
-  printTextAt(tempText, rect.x + 12, rect.y + 52);
-
-  display.setTextColor(4, 15);
-  display.setFont(FONT_8x8);
-  printTextAt(weather.condition, rect.x + 14, rect.y + rect.h - 16);
+  drawReadableLine(tempText, rect.x + 46, baselineForTopAlignedText(tempText, UI_TEXT_BODY, rect.y + 23));
+  }
 }
 
 static void drawWeatherFocusBody()
@@ -1499,57 +2068,158 @@ static void drawWeatherFocusBody()
       weatherFocusContentRect.y,
       weatherFocusContentRect.w,
       weatherFocusContentRect.h,
-      15);
-
-  display.fillRoundRect(
-      weatherFocusHeroRect.x,
-      weatherFocusHeroRect.y,
-      weatherFocusHeroRect.w,
-      weatherFocusHeroRect.h,
-      26,
-      13);
-  display.drawRoundRect(
-      weatherFocusHeroRect.x,
-      weatherFocusHeroRect.y,
-      weatherFocusHeroRect.w,
-      weatherFocusHeroRect.h,
-      26,
-      1);
-
-  display.setTextColor(2, 15);
-  display.setFont(FONT_8x8);
-  printTextAt("Now", weatherFocusHeroRect.x + 20, weatherFocusHeroRect.y + 18);
+      uiMonoPaper());
 
   char tempText[12];
   snprintf(tempText, sizeof(tempText), "%d\xC2\xB0"
                                        "C",
            current.tempC);
+  drawWeatherMeteoconMonoRaw(weatherFocusHeroIconRect, current.condition);
+
+  int tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - 164;
 #if UI_WEATHER_FONT_AVAILABLE
-  display.setTextColor(0, 15);
-  drawCustomTextAtTopAA(Roboto_Black_40, tempText, weatherFocusHeroRect.x + 18, weatherFocusHeroRect.y + 44);
+  setThemeMonoText();
+  const int tempWidth = customFontTextWidth(Roboto_Black_40, tempText);
+  tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - tempWidth - 8;
+  drawCustomTextAtTop(Roboto_Black_40, tempText, tempX, weatherFocusHeroRect.y + 86);
 #else
-  display.setTextColor(0, 15);
-  display.setFont(FONT_16x16);
-  printTextAt(tempText, weatherFocusHeroRect.x + 18, weatherFocusHeroRect.y + 96);
+  setThemeMonoText();
+  display.setCursor(0, 0);
+  display.setFont(FONT_12x16);
+  BB_RECT tempBounds;
+  display.getStringBox(tempText, &tempBounds);
+  tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - tempBounds.w - 8;
+  printTextAt(tempText, tempX, weatherFocusHeroRect.y + 132);
 #endif
 
-  display.setTextColor(1, 15);
-#if UI_PAGE_TITLE_FONT_AVAILABLE
-  drawCustomTextAtTopAA(Courier_Prime_24, current.condition, weatherFocusHeroRect.x + 22, weatherFocusHeroRect.y + 134);
-#else
-  display.setFont(FONT_16x16);
-  printTextAt(current.condition, weatherFocusHeroRect.x + 20, weatherFocusHeroRect.y + 160);
-#endif
+  setThemeMonoText();
+  if (hasUiAccentFont())
+  {
+    const void *accentFont = getUiAccentFont();
+    const int conditionWidth = customFontTextWidth(accentFont, current.condition);
+    drawCustomTextAtTop(accentFont, current.condition, weatherFocusHeroRect.x + weatherFocusHeroRect.w - conditionWidth - 8, weatherFocusHeroRect.y + 174);
+  }
+  else
+  {
+  display.setFont(FONT_12x16);
+  BB_RECT conditionBounds;
+  display.setCursor(0, 0);
+  display.getStringBox(current.condition, &conditionBounds);
+  printTextAt(current.condition, weatherFocusHeroRect.x + weatherFocusHeroRect.w - conditionBounds.w - 8, weatherFocusHeroRect.y + 194);
+  }
 
-  drawWeatherMeteocon4bpp(weatherFocusHeroIconRect, current.condition, 12);
+  display.drawLine(
+      weatherFocusTimelineRect.x,
+      weatherFocusTimelineRect.y - 10,
+      weatherFocusTimelineRect.x + weatherFocusTimelineRect.w,
+      weatherFocusTimelineRect.y - 10,
+      uiMonoInk());
 
   for (int index = 0; index < 4; index++)
   {
-    drawWeatherFocusForecastCard(
+    drawWeatherFocusForecastItem(
         weatherFocusForecastRects[index],
         WEATHER_FORECAST_LABELS[index],
         getWeatherFrameAtOffset(currentPageIndex, index + 1));
   }
+}
+
+static void drawMediaPlayerBody()
+{
+  static const char *MEDIA_TITLE = "Welcome To The Black";
+  static const char *MEDIA_ARTIST = "My Chemical Romance";
+  static const int MEDIA_ELAPSED_SECONDS = 102;
+  static const int MEDIA_DURATION_SECONDS = 237;
+  const int coverRadius = 38;
+  const int coverBottom = mediaPlayerCoverRect.y + mediaPlayerCoverRect.h;
+  const int artistTop = coverBottom + 18;
+  const int titleTop = coverBottom + 50;
+  const int timeTop = mediaPlayerProgressRect.y + 28;
+  const int mediaTitleMaxWidth = mediaPlayerContentRect.w - 32;
+  char mediaTitle[48];
+  const void *mediaTitleFont = getUiMediaTitleFont();
+
+  display.fillRect(
+      mediaPlayerContentRect.x,
+      mediaPlayerContentRect.y,
+      mediaPlayerContentRect.w,
+      mediaPlayerContentRect.h,
+      uiGrayPaper());
+
+#if UI_MEDIA_COVER_AVAILABLE
+  drawMediaCover4bppRaw(mediaPlayerCoverRect, coverRadius);
+#else
+  display.fillRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(12));
+  display.drawRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(1));
+  display.drawLine(mediaPlayerCoverRect.x + 24, mediaPlayerCoverRect.y + 24, mediaPlayerCoverRect.x + mediaPlayerCoverRect.w - 24, mediaPlayerCoverRect.y + mediaPlayerCoverRect.h - 24, uiGrayValue(2));
+  display.drawLine(mediaPlayerCoverRect.x + mediaPlayerCoverRect.w - 24, mediaPlayerCoverRect.y + 24, mediaPlayerCoverRect.x + 24, mediaPlayerCoverRect.y + mediaPlayerCoverRect.h - 24, uiGrayValue(2));
+#endif
+
+  display.drawRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(2));
+
+  const void *artistFont = getUiMediaArtistFont();
+  setThemeGrayText(7, 15);
+  if (artistFont != nullptr)
+  {
+    const int artistWidth = customFontTextWidth(artistFont, MEDIA_ARTIST);
+    drawCustomTextAtTopAA(artistFont, MEDIA_ARTIST, mediaPlayerBodyRect.x + ((mediaPlayerBodyRect.w - artistWidth) / 2), artistTop);
+  }
+  else
+  {
+    selectTextFont(UI_TEXT_BODY);
+    display.setCursor(0, 0);
+    BB_RECT artistBounds;
+    display.getStringBox(MEDIA_ARTIST, &artistBounds);
+    const int artistWidth = artistBounds.w;
+    display.setCursor(
+        mediaPlayerBodyRect.x + ((mediaPlayerBodyRect.w - artistWidth) / 2),
+        artistTop - artistBounds.y);
+    display.print(MEDIA_ARTIST);
+    display.setItalic(false);
+  }
+
+  truncateTextToWidth(
+      MEDIA_TITLE,
+      mediaTitle,
+      sizeof(mediaTitle),
+      mediaTitleMaxWidth,
+      mediaTitleFont,
+      UI_TEXT_TITLE,
+      getUiFontProfile() == UI_FONT_PROFILE_MONO ? 22 : 30);
+
+  if (mediaTitleFont != nullptr)
+  {
+    setThemeGrayText(1, 15);
+    const int titleWidth = customFontTextWidth(mediaTitleFont, mediaTitle);
+    drawCustomTextAtTopAA(mediaTitleFont, mediaTitle, mediaPlayerContentRect.x + ((mediaPlayerContentRect.w - titleWidth) / 2), titleTop);
+  }
+  else
+  {
+    display.setCursor(0, 0);
+    selectTextFont(UI_TEXT_TITLE);
+    BB_RECT titleBounds;
+    display.getStringBox(mediaTitle, &titleBounds);
+    setThemeGrayText(1, 15);
+    printTextAt(
+        mediaTitle,
+        mediaPlayerContentRect.x + ((mediaPlayerContentRect.w - titleBounds.w) / 2),
+        titleTop - titleBounds.y);
+    display.setItalic(false);
+  }
+
+  display.fillRoundRect(mediaPlayerProgressRect.x, mediaPlayerProgressRect.y, mediaPlayerProgressRect.w, mediaPlayerProgressRect.h, mediaPlayerProgressRect.h / 2, uiGrayValue(13));
+  const int fillWidth = (mediaPlayerProgressRect.w * MEDIA_ELAPSED_SECONDS) / MEDIA_DURATION_SECONDS;
+  display.fillRoundRect(mediaPlayerProgressRect.x, mediaPlayerProgressRect.y, fillWidth, mediaPlayerProgressRect.h, mediaPlayerProgressRect.h / 2, uiGrayValue(2));
+
+  char elapsedText[8];
+  char durationText[8];
+  formatMediaTime(MEDIA_ELAPSED_SECONDS, elapsedText, sizeof(elapsedText));
+  formatMediaTime(MEDIA_DURATION_SECONDS, durationText, sizeof(durationText));
+  setThemeGrayText(4, 15);
+  display.setFont(FONT_12x16);
+  printTextAt(elapsedText, mediaPlayerProgressRect.x, timeTop);
+  const int durationWidth = textWidthForRole(durationText, UI_TEXT_BODY);
+  printTextAt(durationText, mediaPlayerProgressRect.x + mediaPlayerProgressRect.w - durationWidth, timeTop);
 }
 
 static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
@@ -1568,7 +2238,7 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
   const int iconH = rect.h;
   const int radius = iconH / 5;
   fillDitherRoundRect(iconX, iconY, iconW, iconH, radius, 1);
-  display.drawRoundRect(iconX, iconY, iconW, iconH, radius, BBEP_BLACK);
+  display.drawRoundRect(iconX, iconY, iconW, iconH, radius, uiMonoInk());
 
   const bool rainy = strstr(condition, "rain") != nullptr || strstr(condition, "Rain") != nullptr;
   const bool clear = strstr(condition, "Clear") != nullptr;
@@ -1578,30 +2248,30 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
     const int cx = iconX + (iconW / 2);
     const int cy = iconY + (iconH / 2);
     const int sunR = iconH / 5;
-    display.fillCircle(cx, cy, sunR, BBEP_WHITE);
-    display.drawCircle(cx, cy, sunR, BBEP_BLACK);
-    display.drawLine(cx - sunR - 8, cy, cx - sunR - 2, cy, BBEP_BLACK);
-    display.drawLine(cx + sunR + 2, cy, cx + sunR + 8, cy, BBEP_BLACK);
-    display.drawLine(cx, cy - sunR - 8, cx, cy - sunR - 2, BBEP_BLACK);
-    display.drawLine(cx, cy + sunR + 2, cx, cy + sunR + 8, BBEP_BLACK);
+    display.fillCircle(cx, cy, sunR, uiMonoPaper());
+    display.drawCircle(cx, cy, sunR, uiMonoInk());
+    display.drawLine(cx - sunR - 8, cy, cx - sunR - 2, cy, uiMonoInk());
+    display.drawLine(cx + sunR + 2, cy, cx + sunR + 8, cy, uiMonoInk());
+    display.drawLine(cx, cy - sunR - 8, cx, cy - sunR - 2, uiMonoInk());
+    display.drawLine(cx, cy + sunR + 2, cx, cy + sunR + 8, uiMonoInk());
     return;
   }
 
   const int cloudY = iconY + (iconH / 2) - 8;
-  display.fillCircle(iconX + 24, cloudY + 10, 11, BBEP_WHITE);
-  display.fillCircle(iconX + 39, cloudY + 6, 14, BBEP_WHITE);
-  display.fillCircle(iconX + 56, cloudY + 11, 11, BBEP_WHITE);
-  display.fillRect(iconX + 22, cloudY + 12, 40, 14, BBEP_WHITE);
-  display.drawCircle(iconX + 24, cloudY + 10, 11, BBEP_BLACK);
-  display.drawCircle(iconX + 39, cloudY + 6, 14, BBEP_BLACK);
-  display.drawCircle(iconX + 56, cloudY + 11, 11, BBEP_BLACK);
-  display.drawLine(iconX + 21, cloudY + 26, iconX + 63, cloudY + 26, BBEP_BLACK);
+  display.fillCircle(iconX + 24, cloudY + 10, 11, uiMonoPaper());
+  display.fillCircle(iconX + 39, cloudY + 6, 14, uiMonoPaper());
+  display.fillCircle(iconX + 56, cloudY + 11, 11, uiMonoPaper());
+  display.fillRect(iconX + 22, cloudY + 12, 40, 14, uiMonoPaper());
+  display.drawCircle(iconX + 24, cloudY + 10, 11, uiMonoInk());
+  display.drawCircle(iconX + 39, cloudY + 6, 14, uiMonoInk());
+  display.drawCircle(iconX + 56, cloudY + 11, 11, uiMonoInk());
+  display.drawLine(iconX + 21, cloudY + 26, iconX + 63, cloudY + 26, uiMonoInk());
 
   if (rainy)
   {
-    display.drawLine(iconX + 28, cloudY + 32, iconX + 25, cloudY + 40, BBEP_BLACK);
-    display.drawLine(iconX + 40, cloudY + 32, iconX + 37, cloudY + 40, BBEP_BLACK);
-    display.drawLine(iconX + 52, cloudY + 32, iconX + 49, cloudY + 40, BBEP_BLACK);
+    display.drawLine(iconX + 28, cloudY + 32, iconX + 25, cloudY + 40, uiMonoInk());
+    display.drawLine(iconX + 40, cloudY + 32, iconX + 37, cloudY + 40, uiMonoInk());
+    display.drawLine(iconX + 52, cloudY + 32, iconX + 49, cloudY + 40, uiMonoInk());
   }
 }
 
@@ -1615,10 +2285,10 @@ static void drawClockWidget(int widgetIndex, bool pushPartial)
   readClockText(widget, clockText, sizeof(clockText));
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-  display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, BBEP_WHITE);
+  display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, uiMonoPaper());
 
   if (clockWidgetIsAnalog(widget) && hasTime && state.faceRect.w > 0 && state.faceRect.h > 0)
   {
@@ -1648,8 +2318,8 @@ static void drawClockSecondsPartial(int widgetIndex, const char *clockText)
     return;
   }
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
-  display.fillRect(state.secondsRect.x, state.secondsRect.y, state.secondsRect.w, state.secondsRect.h, BBEP_WHITE);
+  setThemeMonoText();
+  display.fillRect(state.secondsRect.x, state.secondsRect.y, state.secondsRect.w, state.secondsRect.h, uiMonoPaper());
   drawLargeClockText(state, clockText, 6, strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : 7);
   display.partialUpdate(false);
   partialCounter++;
@@ -1663,7 +2333,7 @@ static void drawProgressWidget(int widgetIndex, bool pushPartial)
   const int safeValue = clampInt(state.value, 0, state.maxValue > 0 ? state.maxValue : 100);
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
 
@@ -1673,7 +2343,7 @@ static void drawProgressWidget(int widgetIndex, bool pushPartial)
   drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 14, UI_TEXT_BODY);
 
   fillDitherRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, 1);
-  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, BBEP_BLACK);
+  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, uiMonoInk());
 
   const int fillWidth = (state.controlRect.w * safeValue) / (state.maxValue > 0 ? state.maxValue : 100);
   if (fillWidth > 4)
@@ -1699,30 +2369,47 @@ static void drawSliderWidget(int widgetIndex, bool pushPartial)
 {
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const int safeValue = clampInt(state.value, 0, state.maxValue > 0 ? state.maxValue : 100);
+  const int safeMax = state.maxValue > 0 ? state.maxValue : 100;
+  const int safeValue = clampInt(state.value, 0, safeMax);
+  const int buttonSize = state.controlRect.h;
+  const int radius = buttonSize / 2;
+  const int controlX = state.controlRect.x;
+  const int controlY = state.controlRect.y;
+  const int controlW = state.controlRect.w;
+  const int centerY = controlY + radius;
+  const int sliderStart = controlX + buttonSize;
+  const int sliderEnd = controlX + controlW - radius;
+  const int sliderTravel = sliderEnd - sliderStart;
+  const bool sliderEnabled = safeValue > 0;
+  const int knobCenterX = sliderTravel > 0 ? sliderStart + ((safeValue * sliderTravel) / safeMax) : sliderStart;
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
 
   char valueText[16];
   snprintf(valueText, sizeof(valueText), "%d%%", safeValue);
-  const int valueWidth = textWidthForRole(valueText, UI_TEXT_BODY);
-  drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 16, UI_TEXT_BODY);
+  const int valueWidth = textWidthForRole(valueText, UI_TEXT_META);
+  drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 18, UI_TEXT_META);
 
-  const int trackY = state.controlRect.y + (state.controlRect.h / 2) - 10;
-  const int trackHeight = 20;
-  fillDitherRoundRect(state.controlRect.x, trackY, state.controlRect.w, trackHeight, trackHeight / 2, 1);
-  display.drawRoundRect(state.controlRect.x, trackY, state.controlRect.w, trackHeight, trackHeight / 2, BBEP_BLACK);
+  display.fillRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoPaper());
+  display.drawRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoInk());
 
-  const int knobSize = state.controlRect.h;
-  const int knobTravel = state.controlRect.w - knobSize;
-  const int knobX = state.controlRect.x + (knobTravel * safeValue) / (state.maxValue > 0 ? state.maxValue : 100);
-  const int knobY = state.controlRect.y;
-  display.fillCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, BBEP_WHITE);
-  display.drawCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, BBEP_BLACK);
-  drawBulbIcon(knobX + (knobSize / 2), knobY + (knobSize / 2));
+  if (sliderEnabled)
+  {
+    const int fillStart = controlX + radius;
+    const int fillWidth = knobCenterX - fillStart;
+    if (fillWidth > 0)
+    {
+      display.fillRect(fillStart, controlY, fillWidth, buttonSize, uiMonoInk());
+    }
+    display.fillCircle(controlX + radius, centerY, radius, uiMonoInk());
+    display.fillCircle(knobCenterX, centerY, radius - 1, uiMonoInk());
+  }
+
+  display.drawCircle(controlX + radius, centerY, radius, uiMonoInk());
+  drawBulbIcon(controlX + radius, centerY, buttonSize, sliderEnabled ? uiMonoPaper() : uiMonoInk());
 
   if (pushPartial)
   {
@@ -1739,7 +2426,7 @@ static void drawWeatherWidget(int widgetIndex, bool pushPartial)
   const WeatherFrame weather = WEATHER_FRAMES[state.phase % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]))];
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
 
@@ -1771,7 +2458,7 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
   // drawTextRole(state.enabled ? "Enabled" : "Disabled", state.cardRect.x + 18, state.cardRect.y + 34, UI_TEXT_BODY);
@@ -1784,7 +2471,7 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
       state.controlRect.h,
       state.controlRect.h / 2,
       trackShade);
-  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, BBEP_BLACK);
+  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, uiMonoInk());
 
   const int knobMargin = 4;
   const int knobSize = state.controlRect.h - (2 * knobMargin);
@@ -1793,7 +2480,7 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
                         : (state.controlRect.x + knobMargin);
   const int knobY = state.controlRect.y + knobMargin;
   display.fillCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, BBEP_WHITE);
-  display.drawCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, BBEP_BLACK);
+  display.drawCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, uiMonoInk());
 
   if (pushPartial)
   {
@@ -1813,7 +2500,7 @@ static void drawThermostatWidget(int widgetIndex, bool pushPartial)
   state.value = targetTemp;
 
   display.setMode(BB_MODE_1BPP);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
   const int leftX = state.cardRect.x + 18;
   const int topY = state.cardRect.y;
@@ -1834,18 +2521,18 @@ static void drawThermostatWidget(int widgetIndex, bool pushPartial)
   const int currentWidth = customFontTextWidth(UI_THERMOSTAT_CURRENT_FONT, currentDigits);
 
   display.setFont(FONT_8x8);
-  drawReadableLine("°C", rightBlockX + currentWidth, topY + 87);
+  drawReadableLine("°C", rightBlockX + currentWidth, topY + 88);
 
   const int slashX = rightBlockX + currentWidth + 18;
   display.setFont(FONT_8x8);
-  drawReadableLine("/", slashX, topY + 87);
+  drawReadableLine("/", slashX, topY + 88);
 
   char targetDigits[12];
   formatTemperatureTenths(targetTemp, targetDigits, sizeof(targetDigits));
   drawCustomTextAtTop(Roboto_Regular_20, targetDigits, state.tertiaryRect.x, targetTop);
   const int targetWidth = customFontTextWidth(Roboto_Regular_20, targetDigits);
   display.setFont(FONT_8x8);
-  drawReadableLine("°C", state.tertiaryRect.x + targetWidth + 2, topY + 87);
+  drawReadableLine("°C", state.tertiaryRect.x + targetWidth + 2, topY + 88);
 
   drawMiniChevron(state.controlRect, true);
   drawMiniChevron(state.secondaryRect, false);
@@ -1886,6 +2573,20 @@ static void drawWidgetByType(int widgetIndex, bool pushPartial)
   }
 }
 
+static int sliderValueFromTouch(const WidgetRuntimeState &state, int tx)
+{
+  const int safeMax = state.maxValue > 0 ? state.maxValue : 100;
+  const int buttonSize = state.controlRect.h;
+  const int sliderStart = state.controlRect.x + buttonSize;
+  const int sliderEnd = state.controlRect.x + state.controlRect.w - (buttonSize / 2);
+  const int clampedX = clampInt(tx, sliderStart, sliderEnd);
+  if (sliderEnd <= sliderStart)
+  {
+    return 0;
+  }
+  return ((clampedX - sliderStart) * safeMax) / (sliderEnd - sliderStart);
+}
+
 static void refreshWeatherFocusContentRegion()
 {
   if (!displayReady)
@@ -1893,13 +2594,11 @@ static void refreshWeatherFocusContentRegion()
     return;
   }
 
-  display.setMode(BB_MODE_4BPP);
+  display.setMode(BB_MODE_1BPP);
+  setThemeMonoText();
   drawWeatherFocusBody();
-#ifdef CLEAR_FAST
-  display.fullUpdate(CLEAR_FAST, false, &weatherFocusContentRect);
-#else
-  display.fullUpdate(1, false, &weatherFocusContentRect);
-#endif
+  display.partialUpdate(false);
+  partialCounter++;
   lastPartialRefresh = millis();
 }
 
@@ -1916,22 +2615,26 @@ static void renderActivePage(bool pageTransition = false)
     display.clearWhite(true);
   }
 
-  if (activePageIsWeatherFocus())
+  if (activePageIsMediaPlayer())
   {
     display.setMode(BB_MODE_4BPP);
-    display.setTextColor(0, 15);
-    display.fillScreen(15);
+    setThemeGrayText();
+    display.fillScreen(uiGrayPaper());
 
     if (showPageChrome())
     {
-#if UI_PAGE_TITLE_FONT_AVAILABLE
-      drawCenteredCustomTextAtTopAA(Courier_Prime_24, UI_PAGES[currentPageIndex].name, 24);
-#else
-      drawCenteredTextRole(UI_PAGES[currentPageIndex].name, 34, UI_TEXT_TITLE);
-#endif
+      const void *pageTitleFont = getUiPageTitleFont();
+      if (pageTitleFont != nullptr)
+      {
+        drawCenteredCustomTextAtTopAA(pageTitleFont, UI_PAGES[currentPageIndex].name, 24);
+      }
+      else
+      {
+        drawCenteredTextRoleAtTop(UI_PAGES[currentPageIndex].name, 24, UI_TEXT_META, true);
+      }
     }
 
-    drawWeatherFocusBody();
+    drawMediaPlayerBody();
     if (showPageChrome())
     {
       drawChevronButton(navLeftRect, true);
@@ -1942,21 +2645,32 @@ static void renderActivePage(bool pageTransition = false)
   else
   {
     display.setMode(BB_MODE_1BPP);
-    display.setTextColor(BBEP_BLACK, BBEP_WHITE);
-    display.fillScreen(BBEP_WHITE);
+    setThemeMonoText();
+    display.fillScreen(uiMonoPaper());
 
     if (showPageChrome())
     {
-#if UI_PAGE_TITLE_FONT_AVAILABLE
-      drawCenteredCustomTextAtTop(Courier_Prime_24, UI_PAGES[currentPageIndex].name, 26);
-#else
-      drawCenteredTextRole(UI_PAGES[currentPageIndex].name, 36, UI_TEXT_TITLE);
-#endif
+      const void *pageTitleFont = getUiPageTitleFont();
+      if (pageTitleFont != nullptr)
+      {
+        drawCenteredCustomTextAtTop(pageTitleFont, UI_PAGES[currentPageIndex].name, 26);
+      }
+      else
+      {
+        drawCenteredTextRoleAtTop(UI_PAGES[currentPageIndex].name, 26, UI_TEXT_META, false);
+      }
     }
 
-    for (int widgetIndex = 0; widgetIndex < UI_PAGES[currentPageIndex].widgetCount; widgetIndex++)
+    if (activePageIsWeatherFocus())
     {
-      drawWidgetByType(widgetIndex, false);
+      drawWeatherFocusBody();
+    }
+    else
+    {
+      for (int widgetIndex = 0; widgetIndex < UI_PAGES[currentPageIndex].widgetCount; widgetIndex++)
+      {
+        drawWidgetByType(widgetIndex, false);
+      }
     }
 
     if (showPageChrome())
@@ -2115,11 +2829,10 @@ static void pollTouchInput()
           return;
         }
 
-        if (widget.type == UI_WIDGET_SLIDER && isPointInRectExpanded(tx, ty, state.controlRect, 10))
+        if (widget.type == UI_WIDGET_SLIDER && isPointInRectExpanded(tx, ty, state.controlRect, 14))
         {
           lastTouchActionMs = now;
-          const int relative = clampInt((tx - state.controlRect.x) * 100 / state.controlRect.w, 0, 100);
-          state.value = relative;
+          state.value = sliderValueFromTouch(state, tx);
           drawSliderWidget(widgetIndex, true);
           Serial.printf(
               "SLIDER_TOUCH VALUE=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -2223,6 +2936,16 @@ static void runDisplayLoop()
     if (rerenderWeatherPage)
     {
       renderActivePage();
+    }
+    return;
+  }
+
+  if (activePageIsMediaPlayer())
+  {
+    if (strcmp(currentDebugIp, lastDebugIp) != 0)
+    {
+      drawDebugIpText(currentDebugIp, true);
+      snprintf(lastDebugIp, sizeof(lastDebugIp), "%s", currentDebugIp);
     }
     return;
   }
@@ -2397,8 +3120,8 @@ static void renderStatusScreen(const char *title, const char *line1, const char 
   }
 
   display.setMode(BB_MODE_1BPP);
-  display.fillScreen(BBEP_WHITE);
-  display.setTextColor(BBEP_BLACK, BBEP_WHITE);
+  display.fillScreen(uiMonoPaper());
+  setThemeMonoText();
 
   const char *lines[3] = {title, line1, line2};
   int visibleLines = 0;

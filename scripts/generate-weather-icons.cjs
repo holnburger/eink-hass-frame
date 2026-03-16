@@ -5,7 +5,7 @@ const sharp = require("sharp");
 const { icons } = require("@iconify-json/meteocons");
 const { getIconData, iconToSVG, iconToHTML, replaceIDs } = require("@iconify/utils");
 
-const ICON_SIZE = 64;
+const ICON_SIZE = 256;
 const OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_weather_icons.h");
 
 const ICONS = [

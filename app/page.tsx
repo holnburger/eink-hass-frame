@@ -19,7 +19,13 @@ import { OtaFlashCard } from "@/components/dashboard/ota-flash";
 import { UsbFlashCard } from "@/components/dashboard/usb-flash";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -75,7 +81,10 @@ type EditableWidgetCardProps = {
   widgetIndex: number;
   widgetsCount: number;
   onRemove: (widgetId: string) => void;
-  onUpdate: (widgetId: string, updater: (widget: WidgetConfig) => WidgetConfig) => void;
+  onUpdate: (
+    widgetId: string,
+    updater: (widget: WidgetConfig) => WidgetConfig,
+  ) => void;
 };
 
 function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
@@ -88,7 +97,13 @@ function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
   );
 }
 
-function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpdate }: EditableWidgetCardProps) {
+function EditableWidgetCard({
+  widget,
+  widgetIndex,
+  widgetsCount,
+  onRemove,
+  onUpdate,
+}: EditableWidgetCardProps) {
   const dragControls = useDragControls();
 
   return (
@@ -120,7 +135,9 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
           </button>
           <div>
             <p className="text-sm font-medium text-zinc-100">
-              {widgetIndex + 1}. {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)?.label ?? widget.type}
+              {widgetIndex + 1}.{" "}
+              {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)
+                ?.label ?? widget.type}
             </p>
             <p className="text-xs text-zinc-500">
               Type: {widget.type} · Position {widgetIndex + 1} of {widgetsCount}
@@ -144,7 +161,12 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
           <Input
             id={`${widget.id}-label`}
             value={widget.label}
-            onChange={(event) => onUpdate(widget.id, (current) => ({ ...current, label: event.target.value }))}
+            onChange={(event) =>
+              onUpdate(widget.id, (current) => ({
+                ...current,
+                label: event.target.value,
+              }))
+            }
           />
         </div>
 
@@ -160,7 +182,10 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
               onChange={(event) =>
                 onUpdate(widget.id, (current) => ({
                   ...current,
-                  value: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
+                  value: Math.max(
+                    0,
+                    Math.min(100, Number(event.target.value) || 0),
+                  ),
                   max: 100,
                 }))
               }
@@ -171,7 +196,9 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
         {widget.type === "thermostat" && (
           <>
             <div className="space-y-2">
-              <Label htmlFor={`${widget.id}-current`}>Current Temperature (°C)</Label>
+              <Label htmlFor={`${widget.id}-current`}>
+                Current Temperature (°C)
+              </Label>
               <Input
                 id={`${widget.id}-current`}
                 type="number"
@@ -183,14 +210,19 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
                   onUpdate(widget.id, (current) => ({
                     ...current,
                     currentValue: Number(
-                      Math.max(12, Math.min(30, Number(event.target.value) || 20)).toFixed(1),
+                      Math.max(
+                        12,
+                        Math.min(30, Number(event.target.value) || 20),
+                      ).toFixed(1),
                     ),
                   }))
                 }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${widget.id}-target`}>Target Temperature (°C)</Label>
+              <Label htmlFor={`${widget.id}-target`}>
+                Target Temperature (°C)
+              </Label>
               <Input
                 id={`${widget.id}-target`}
                 type="number"
@@ -202,7 +234,14 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
                   onUpdate(widget.id, (current) => ({
                     ...current,
                     value: Number(
-                      (Math.round(Math.max(12, Math.min(30, Number(event.target.value) || 22)) * 2) / 2).toFixed(1),
+                      (
+                        Math.round(
+                          Math.max(
+                            12,
+                            Math.min(30, Number(event.target.value) || 22),
+                          ) * 2,
+                        ) / 2
+                      ).toFixed(1),
                     ),
                     max: 30,
                   }))
@@ -223,7 +262,8 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
                 onChange={(event) =>
                   onUpdate(widget.id, (current) => ({
                     ...current,
-                    clockStyle: event.target.value === "analog" ? "analog" : "digital",
+                    clockStyle:
+                      event.target.value === "analog" ? "analog" : "digital",
                   }))
                 }
               >
@@ -243,7 +283,12 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
                   id={`${widget.id}-seconds`}
                   label="Show seconds"
                   checked={widget.showSeconds !== false}
-                  onCheckedChange={(checked) => onUpdate(widget.id, (current) => ({ ...current, showSeconds: checked }))}
+                  onCheckedChange={(checked) =>
+                    onUpdate(widget.id, (current) => ({
+                      ...current,
+                      showSeconds: checked,
+                    }))
+                  }
                 />
               </div>
             </div>
@@ -260,7 +305,12 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
                 id={`${widget.id}-enabled`}
                 label="Default enabled"
                 checked={Boolean(widget.enabled)}
-                onCheckedChange={(checked) => onUpdate(widget.id, (current) => ({ ...current, enabled: checked }))}
+                onCheckedChange={(checked) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    enabled: checked,
+                  }))
+                }
               />
             </div>
           </div>
@@ -271,9 +321,18 @@ function EditableWidgetCard({ widget, widgetIndex, widgetsCount, onRemove, onUpd
 }
 
 export default function Home() {
-  const [darkMode, setDarkMode] = useLocalStorage("hass.darkMode", DEFAULT_BUILD_CONFIG.darkMode);
-  const [selectedFont, setSelectedFont] = useLocalStorage<FontName>("hass.layout.font", DEFAULT_BUILD_CONFIG.fontName);
-  const [pages, setPages] = useLocalStorage<PageConfig[]>("hass.layout.pages", DEFAULT_BUILD_CONFIG.pages);
+  const [darkMode, setDarkMode] = useLocalStorage(
+    "hass.darkMode",
+    DEFAULT_BUILD_CONFIG.darkMode,
+  );
+  const [selectedFont, setSelectedFont] = useLocalStorage<FontName>(
+    "hass.layout.font",
+    DEFAULT_BUILD_CONFIG.fontName,
+  );
+  const [pages, setPages] = useLocalStorage<PageConfig[]>(
+    "hass.layout.pages",
+    DEFAULT_BUILD_CONFIG.pages,
+  );
   const [fullRefreshEvery, setFullRefreshEvery] = useLocalStorage<number>(
     "hass.layout.fullRefreshEvery",
     DEFAULT_BUILD_CONFIG.fullRefreshEvery,
@@ -282,7 +341,9 @@ export default function Home() {
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
   const [activeDeviceId, setActiveDeviceId] = useState("");
   const [deviceStoreReady, setDeviceStoreReady] = useState(false);
-  const [editorPageId, setEditorPageId] = useState(DEFAULT_BUILD_CONFIG.pages[0]?.id ?? "");
+  const [editorPageId, setEditorPageId] = useState(
+    DEFAULT_BUILD_CONFIG.pages[0]?.id ?? "",
+  );
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -295,19 +356,26 @@ export default function Home() {
       }),
     [darkMode, fullRefreshEvery, pages, selectedFont],
   );
-  const fontClass = useMemo(() => getFontClass(buildConfig.fontName), [buildConfig.fontName]);
+  const fontClass = useMemo(
+    () => getFontClass(buildConfig.fontName),
+    [buildConfig.fontName],
+  );
   const validSavedDevices = useMemo(
-    () => (Array.isArray(savedDevices) ? savedDevices.filter(isSavedDevice) : []),
+    () =>
+      Array.isArray(savedDevices) ? savedDevices.filter(isSavedDevice) : [],
     [savedDevices],
   );
   const activeDevice = useMemo(
-    () => validSavedDevices.find((device) => device.id === activeDeviceId) ?? null,
+    () =>
+      validSavedDevices.find((device) => device.id === activeDeviceId) ?? null,
     [activeDeviceId, validSavedDevices],
   );
   const pageCount = buildConfig.pages.length;
   const widgetCount = countWidgets(buildConfig.pages);
   const editorPageIndex = useMemo(() => {
-    const index = buildConfig.pages.findIndex((page) => page.id === editorPageId);
+    const index = buildConfig.pages.findIndex(
+      (page) => page.id === editorPageId,
+    );
     return index >= 0 ? index : 0;
   }, [buildConfig.pages, editorPageId]);
   const editorPage = buildConfig.pages[editorPageIndex] ?? buildConfig.pages[0];
@@ -348,7 +416,10 @@ export default function Home() {
       return;
     }
     try {
-      window.localStorage.setItem("hass.savedDevices", JSON.stringify(validSavedDevices));
+      window.localStorage.setItem(
+        "hass.savedDevices",
+        JSON.stringify(validSavedDevices),
+      );
       window.localStorage.setItem("hass.activeDeviceId", activeDeviceId);
     } catch {
       // ignore persistence issues
@@ -365,7 +436,9 @@ export default function Home() {
   }
 
   function updatePages(updater: (current: PageConfig[]) => PageConfig[]) {
-    setPages((current) => updater(Array.isArray(current) ? current : DEFAULT_BUILD_CONFIG.pages));
+    setPages((current) =>
+      updater(Array.isArray(current) ? current : DEFAULT_BUILD_CONFIG.pages),
+    );
   }
 
   function updateCurrentPage(updater: (page: PageConfig) => PageConfig) {
@@ -399,14 +472,25 @@ export default function Home() {
     }
     updateCurrentPage((page) => ({
       ...page,
-      widgets: [...page.widgets, createWidget(type, page.widgets.filter((widget) => widget.type === type).length)],
+      widgets: [
+        ...page.widgets,
+        createWidget(
+          type,
+          page.widgets.filter((widget) => widget.type === type).length,
+        ),
+      ],
     }));
   }
 
-  function updateWidget(widgetId: string, updater: (widget: WidgetConfig) => WidgetConfig) {
+  function updateWidget(
+    widgetId: string,
+    updater: (widget: WidgetConfig) => WidgetConfig,
+  ) {
     updateCurrentPage((page) => ({
       ...page,
-      widgets: page.widgets.map((widget) => (widget.id === widgetId ? updater(widget) : widget)),
+      widgets: page.widgets.map((widget) =>
+        widget.id === widgetId ? updater(widget) : widget,
+      ),
     }));
   }
 
@@ -419,14 +503,17 @@ export default function Home() {
 
   function reorderWidgets(widgetIds: string[]) {
     updateCurrentPage((page) => {
-      const currentById = new Map(page.widgets.map((widget) => [widget.id, widget]));
+      const currentById = new Map(
+        page.widgets.map((widget) => [widget.id, widget]),
+      );
       const reordered = widgetIds
         .map((widgetId) => currentById.get(widgetId))
         .filter((widget): widget is WidgetConfig => Boolean(widget));
 
       return {
         ...page,
-        widgets: reordered.length === page.widgets.length ? reordered : page.widgets,
+        widgets:
+          reordered.length === page.widgets.length ? reordered : page.widgets,
       };
     });
   }
@@ -439,81 +526,106 @@ export default function Home() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
           <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">E-Ink Home Assistant Manager</h1>
-              <p className="text-zinc-400">M5PaperS3 + FastEPD with a clear USB-to-OTA workflow</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge>grayscale</Badge>
-              <Badge>touch</Badge>
-              <Badge>OTA</Badge>
-              <Button variant="outline" onClick={() => setDarkMode(!darkMode)}>
-                {darkMode ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                {darkMode ? "Light" : "Dark"} UI
-              </Button>
+              <h1 className="text-3xl font-semibold tracking-tight">
+                E-Ink Home Assistant Manager
+              </h1>
+              <p className="text-zinc-400">
+                M5PaperS3 + FastEPD with a clear USB-to-OTA workflow
+              </p>
             </div>
           </header>
 
-          <section className="grid gap-4 md:grid-cols-3">
+          {/* <section className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Step 1: USB Flash</CardTitle>
-                <CardDescription>Build the current layout, flash over USB, then provision Wi-Fi via Improv.</CardDescription>
+                <CardDescription>
+                  Build the current layout, flash over USB, then provision Wi-Fi
+                  via Improv.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <StepStateBadge done={hasActiveDevice} pendingLabel="Pending USB setup" />
+                <StepStateBadge
+                  done={hasActiveDevice}
+                  pendingLabel="Pending USB setup"
+                />
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Step 2: Configure Layout</CardTitle>
-                <CardDescription>Compose pages, add widgets, and preview the exact OTA layout.</CardDescription>
+                <CardTitle className="text-base">
+                  Step 2: Configure Layout
+                </CardTitle>
+                <CardDescription>
+                  Compose pages, add widgets, and preview the exact OTA layout.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <StepStateBadge done={pageCount > 0} pendingLabel="Add your first page" />
+                <StepStateBadge
+                  done={pageCount > 0}
+                  pendingLabel="Add your first page"
+                />
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Step 3: OTA Update</CardTitle>
-                <CardDescription>Build from the current page set and push it to the active device.</CardDescription>
+                <CardDescription>
+                  Build from the current page set and push it to the active
+                  device.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <StepStateBadge done={false} pendingLabel={hasActiveDevice ? "Ready for OTA" : "Needs active device"} />
+                <StepStateBadge
+                  done={false}
+                  pendingLabel={
+                    hasActiveDevice ? "Ready for OTA" : "Needs active device"
+                  }
+                />
               </CardContent>
             </Card>
-          </section>
+          </section> */}
 
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <Usb className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">1. USB Setup & Initial Flash</h2>
+              <h2 className="text-xl font-semibold">
+                1. USB Setup & Initial Flash
+              </h2>
             </div>
-            <UsbFlashCard buildConfig={buildConfig} onSaveActiveDevice={handleSaveActiveDevice} />
+            <UsbFlashCard
+              buildConfig={buildConfig}
+              onSaveActiveDevice={handleSaveActiveDevice}
+            />
           </section>
 
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">2. Active Device + Interactive Layout</h2>
+              <h2 className="text-xl font-semibold">
+                2. Active Device + Interactive Layout
+              </h2>
             </div>
             <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
               <Card>
                 <CardHeader>
                   <CardTitle>Layout Builder</CardTitle>
                   <CardDescription>
-                    Add pages, stack widgets in order, and set the full-refresh cadence. Widget partial refresh stays in
-                    firmware logic.
+                    Add pages, stack widgets in order, and set the full-refresh
+                    cadence. Widget partial refresh stays in firmware logic.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="fontSelect">Font Profile</Label>
                       <select
                         id="fontSelect"
                         className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
                         value={selectedFont}
-                        onChange={(event) => setSelectedFont(event.target.value as FontName)}
+                        onChange={(event) =>
+                          setSelectedFont(event.target.value as FontName)
+                        }
                       >
                         {FONT_OPTIONS.map((font) => (
                           <option key={font.name} value={font.name}>
@@ -522,29 +634,55 @@ export default function Home() {
                         ))}
                       </select>
                       <p className="text-xs text-zinc-500">
-                        The selected profile now affects both the browser preview and the on-device text rendering.
+                        The selected profile now affects both the browser
+                        preview and the on-device text rendering.
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="fullRefreshEvery">Full refresh interval (seconds)</Label>
+                      <Label htmlFor="fullRefreshEvery">
+                        Full refresh interval (seconds)
+                      </Label>
                       <Input
                         id="fullRefreshEvery"
                         type="number"
                         min={10}
                         step={10}
                         value={fullRefreshEvery}
-                        onChange={(event) => setFullRefreshEvery(Number(event.target.value) || 60)}
+                        onChange={(event) =>
+                          setFullRefreshEvery(Number(event.target.value) || 60)
+                        }
                       />
-                      <p className="text-xs text-zinc-500">Widgets keep their own partial update cadence between full refreshes.</p>
+                      <p className="text-xs text-zinc-500">
+                        Widgets keep their own partial update cadence between
+                        full refreshes.
+                      </p>
+                    </div>
+                    <div className="space-y-2 flex-col flex">
+                      <Label htmlFor="fontSelect">Mode</Label>
+                      <Button
+                        variant="outline"
+                        onClick={() => setDarkMode(!darkMode)}
+                      >
+                        {darkMode ? (
+                          <Sun className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Moon className="mr-2 h-4 w-4" />
+                        )}
+                        {darkMode ? "Light" : "Dark"} UI
+                      </Button>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-zinc-100">Pages</p>
+                        <p className="text-sm font-medium text-zinc-100">
+                          Pages
+                        </p>
                         <p className="text-xs text-zinc-500">
-                          {pageCount} page{pageCount === 1 ? "" : "s"} and {widgetCount} widget{widgetCount === 1 ? "" : "s"} in this layout.
+                          {pageCount} page{pageCount === 1 ? "" : "s"} and{" "}
+                          {widgetCount} widget{widgetCount === 1 ? "" : "s"} in
+                          this layout.
                         </p>
                       </div>
                       <Button
@@ -564,6 +702,15 @@ export default function Home() {
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Add Weather Page
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addPage("media-player")}
+                        disabled={buildConfig.pages.length >= MAX_PAGES}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Media Page
                       </Button>
                     </div>
 
@@ -594,7 +741,10 @@ export default function Home() {
                             id="page-name"
                             value={editorPage.name}
                             onChange={(event) =>
-                              updateCurrentPage((page) => ({ ...page, name: event.target.value || "Untitled Page" }))
+                              updateCurrentPage((page) => ({
+                                ...page,
+                                name: event.target.value || "Untitled Page",
+                              }))
                             }
                           />
                         </div>
@@ -606,8 +756,13 @@ export default function Home() {
                             value={editorPage.type}
                             onChange={(event) =>
                               updateCurrentPage((page) => {
-                                const nextType = event.target.value === "weather-focus" ? "weather-focus" : "standard";
-                                if (nextType === "weather-focus") {
+                                const nextType =
+                                  event.target.value === "weather-focus"
+                                    ? "weather-focus"
+                                    : event.target.value === "media-player"
+                                      ? "media-player"
+                                    : "standard";
+                                if (nextType === "weather-focus" || nextType === "media-player") {
                                   return {
                                     ...page,
                                     type: nextType,
@@ -620,7 +775,10 @@ export default function Home() {
                                   widgets:
                                     page.widgets.length > 0
                                       ? page.widgets
-                                      : [createWidget("clock"), createWidget("weather")],
+                                      : [
+                                          createWidget("clock"),
+                                          createWidget("weather"),
+                                        ],
                                 };
                               })
                             }
@@ -632,7 +790,9 @@ export default function Home() {
                             ))}
                           </select>
                           <p className="text-xs text-zinc-500">
-                            Weather Grayscale Page uses a dedicated weather render path on the device instead of normal widgets.
+                            Weather Focus and Media Player pages use dedicated
+                            device render paths instead of the normal widget
+                            stack.
                           </p>
                         </div>
                         <Button
@@ -649,16 +809,32 @@ export default function Home() {
 
                       {editorPage.type === "weather-focus" ? (
                         <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
-                          <p className="font-medium text-zinc-100">Dedicated weather page</p>
+                          <p className="font-medium text-zinc-100">
+                            Dedicated weather page
+                          </p>
                           <p className="mt-2 text-zinc-400">
-                            This page renders a large grayscale weather overview with forecast blocks on the device. It does not use the
-                            normal widget stack and is refreshed separately for stability.
+                            This page renders a large weather composition on
+                            the device instead of normal widgets. It is now
+                            optimized for a crisp 1-bit render path.
+                          </p>
+                        </div>
+                      ) : editorPage.type === "media-player" ? (
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+                          <p className="font-medium text-zinc-100">
+                            Dedicated media player page
+                          </p>
+                          <p className="mt-2 text-zinc-400">
+                            This page renders a centered grayscale album view
+                            with cover art, runtime progress and playtime. It
+                            does not use the normal widget stack.
                           </p>
                         </div>
                       ) : (
                         <>
                           <div className="space-y-2">
-                            <p className="text-sm font-medium text-zinc-100">Add Widget</p>
+                            <p className="text-sm font-medium text-zinc-100">
+                              Add Widget
+                            </p>
                             <div className="flex flex-wrap gap-2">
                               {WIDGET_OPTIONS.map((widgetOption) => (
                                 <Button
@@ -667,7 +843,10 @@ export default function Home() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => addWidget(widgetOption.type)}
-                                  disabled={editorPage.widgets.length >= MAX_WIDGETS_PER_PAGE}
+                                  disabled={
+                                    editorPage.widgets.length >=
+                                    MAX_WIDGETS_PER_PAGE
+                                  }
                                 >
                                   <Plus className="mr-2 h-4 w-4" />
                                   {widgetOption.label}
@@ -675,13 +854,16 @@ export default function Home() {
                               ))}
                             </div>
                             <p className="text-xs text-zinc-500">
-                              Up to {MAX_WIDGETS_PER_PAGE} widgets per page. Widget order maps directly to the device layout.
+                              Up to {MAX_WIDGETS_PER_PAGE} widgets per page.
+                              Widget order maps directly to the device layout.
                             </p>
                           </div>
 
                           <Reorder.Group
                             axis="y"
-                            values={editorPage.widgets.map((widget) => widget.id)}
+                            values={editorPage.widgets.map(
+                              (widget) => widget.id,
+                            )}
                             onReorder={reorderWidgets}
                             className="space-y-3"
                           >
@@ -708,27 +890,6 @@ export default function Home() {
               <div className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Active Device</CardTitle>
-                    <CardDescription>Target used for OTA updates.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm text-zinc-300">
-                    {activeDevice ? (
-                      <>
-                        <p>
-                          <span className="text-zinc-400">Name:</span> {activeDevice.name}
-                        </p>
-                        <p>
-                          <span className="text-zinc-400">IP:</span> {activeDevice.ip}
-                        </p>
-                      </>
-                    ) : (
-                      <p>No active device yet. Complete step 1 first.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
                     <CardTitle>Live Preview</CardTitle>
                     <CardDescription>
                       {editorPage?.name ?? "Preview"} · {buildConfig.fontName}
@@ -740,25 +901,22 @@ export default function Home() {
                       fontClass={fontClass}
                       pages={buildConfig.pages}
                       activePageIndex={editorPageIndex}
-                      onPageChange={(pageIndex) => setEditorPageId(buildConfig.pages[pageIndex]?.id ?? editorPageId)}
+                      onPageChange={(pageIndex) =>
+                        setEditorPageId(
+                          buildConfig.pages[pageIndex]?.id ?? editorPageId,
+                        )
+                      }
                     />
                   </CardContent>
                 </Card>
+                <OtaFlashCard
+                  buildConfig={buildConfig}
+                  devices={validSavedDevices}
+                  activeDeviceId={activeDeviceId}
+                  onActiveDeviceChange={setActiveDeviceId}
+                />
               </div>
             </div>
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">3. OTA Update To Active Device</h2>
-            </div>
-            <OtaFlashCard
-              buildConfig={buildConfig}
-              devices={validSavedDevices}
-              activeDeviceId={activeDeviceId}
-              onActiveDeviceChange={setActiveDeviceId}
-            />
           </section>
         </div>
       </main>

@@ -4,7 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { UsbInstallButton } from "@/components/dashboard/usb-install-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BuildConfig } from "@/lib/layout-config";
@@ -21,7 +27,10 @@ type UsbFlashCardProps = {
   onSaveActiveDevice: (device: SavedDevice) => void;
 };
 
-export function UsbFlashCard({ buildConfig, onSaveActiveDevice }: UsbFlashCardProps) {
+export function UsbFlashCard({
+  buildConfig,
+  onSaveActiveDevice,
+}: UsbFlashCardProps) {
   const [artifactsReady, setArtifactsReady] = useState(false);
   const [checkingBinaries, setCheckingBinaries] = useState(true);
   const [buildStatus, setBuildStatus] = useState("Not built yet");
@@ -130,19 +139,16 @@ export function UsbFlashCard({ buildConfig, onSaveActiveDevice }: UsbFlashCardPr
       <CardHeader>
         <CardTitle>USB Flash Setup</CardTitle>
         <CardDescription>
-          First boot happens via USB. ESP Web Tools now handles Wi-Fi provisioning over Improv after flashing.
+          First boot happens via USB. ESP Web Tools now handles Wi-Fi
+          provisioning over Improv after flashing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm text-zinc-300">
-        <p>1. Build firmware from the current layout.</p>
-        <p>2. Flash over USB with ESP Web Tools.</p>
-        <p>3. ESP Web Tools asks for Wi-Fi credentials over Improv.</p>
-        <p>4. Save the detected device IP as the active OTA target.</p>
-
         <div className="space-y-2 rounded-md border border-zinc-700 p-3">
           <p className="font-medium text-zinc-100">Build Current Layout</p>
           <p className="text-xs text-zinc-400">
-            The build uses your current widget/layout settings. Wi-Fi is configured afterwards by ESP Web Tools.
+            The build uses your current widget/layout settings. Wi-Fi is
+            configured afterwards by ESP Web Tools.
           </p>
           <Button onClick={buildFirmware} disabled={isBuilding}>
             {isBuilding ? "Building..." : "Build Firmware"}
@@ -156,10 +162,13 @@ export function UsbFlashCard({ buildConfig, onSaveActiveDevice }: UsbFlashCardPr
         </div>
 
         <div className="space-y-2 rounded-md border border-zinc-700 p-3">
-          <p className="font-medium text-zinc-100">Flash & Wi-Fi Provisioning</p>
+          <p className="font-medium text-zinc-100">
+            Flash & Wi-Fi Provisioning
+          </p>
           <p className="text-xs text-zinc-400">
-            After writing the firmware, ESP Web Tools will detect Improv and ask for your Wi-Fi credentials. When the
-            device joins the network, the detected IP will appear below automatically.
+            After writing the firmware, ESP Web Tools will detect Improv and ask
+            for your Wi-Fi credentials. When the device joins the network, the
+            detected IP will appear below automatically.
           </p>
           {checkingBinaries ? (
             <p className="text-xs text-zinc-500">Checking build status...</p>
@@ -169,11 +178,16 @@ export function UsbFlashCard({ buildConfig, onSaveActiveDevice }: UsbFlashCardPr
               onDetectedDeviceUrl={handleDetectedDeviceUrl}
             />
           ) : (
-            <p className="text-xs text-zinc-500">Build firmware first to enable USB flashing.</p>
+            <p className="text-xs text-zinc-500">
+              Build firmware first to enable USB flashing.
+            </p>
           )}
         </div>
 
-        <div id="finalize-setup" className="space-y-2 rounded-md border border-zinc-700 p-3">
+        <div
+          id="finalize-setup"
+          className="space-y-2 rounded-md border border-zinc-700 p-3"
+        >
           <p className="font-medium text-zinc-100">Save As Active Device</p>
           <div className="space-y-1">
             <Label htmlFor="device-name-final">Device Name</Label>
@@ -197,13 +211,14 @@ export function UsbFlashCard({ buildConfig, onSaveActiveDevice }: UsbFlashCardPr
             Save Active Device
           </Button>
           <p className="text-xs text-zinc-400">
-            {deviceSaveStatus || "After Wi-Fi provisioning, the detected IP will be filled in here."}
+            {deviceSaveStatus ||
+              "After Wi-Fi provisioning, the detected IP will be filled in here."}
           </p>
         </div>
 
         <p className="text-xs text-zinc-500">
-          Manifest and binaries are served by backend API endpoints. For local `pio` runs, your `.env` Wi-Fi fallback
-          still works.
+          Manifest and binaries are served by backend API endpoints. For local
+          `pio` runs, your `.env` Wi-Fi fallback still works.
         </p>
       </CardContent>
     </Card>

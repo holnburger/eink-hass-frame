@@ -14,7 +14,8 @@ export const CLOCK_STYLE_OPTIONS = [
 
 export const PAGE_TYPE_OPTIONS = [
   { value: "standard", label: "Standard Page" },
-  { value: "weather-focus", label: "Weather Grayscale Page" },
+  { value: "weather-focus", label: "Weather Focus Page" },
+  { value: "media-player", label: "Media Player Page" },
 ] as const;
 
 export type FontName = (typeof FONT_OPTIONS)[number]["name"];
@@ -166,12 +167,24 @@ export function createPage(index = 0): PageConfig {
 }
 
 export function createPageOfType(index = 0, type: PageType = "standard"): PageConfig {
+  const isWeatherFocus = type === "weather-focus";
+  const isMediaPlayer = type === "media-player";
   return {
     id: makeLocalId("page"),
-    name: type === "weather-focus" ? (index === 0 ? "Weather" : `Weather ${index + 1}`) : index === 0 ? "Home" : `Page ${index + 1}`,
+    name: isWeatherFocus
+      ? index === 0
+        ? "Weather"
+        : `Weather ${index + 1}`
+      : isMediaPlayer
+        ? index === 0
+          ? "Player"
+          : `Player ${index + 1}`
+        : index === 0
+          ? "Home"
+          : `Page ${index + 1}`,
     type,
     widgets:
-      type === "weather-focus"
+      isWeatherFocus || isMediaPlayer
         ? []
         : [
             createWidget("clock"),
@@ -333,10 +346,15 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
               typeof rawPage.id === "string" && rawPage.id.trim().length > 0
                 ? rawPage.id
                 : `page-${pageIndex + 1}`;
-            const type: PageType = rawPage.type === "weather-focus" ? "weather-focus" : "standard";
+            const type: PageType =
+              rawPage.type === "weather-focus"
+                ? "weather-focus"
+                : rawPage.type === "media-player"
+                  ? "media-player"
+                  : "standard";
             const widgetsInput = Array.isArray(rawPage.widgets) ? rawPage.widgets : [];
             const widgets =
-              type === "weather-focus"
+              type === "weather-focus" || type === "media-player"
                 ? []
                 : widgetsInput
                     .slice(0, MAX_WIDGETS_PER_PAGE)

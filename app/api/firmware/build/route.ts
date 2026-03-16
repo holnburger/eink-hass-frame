@@ -80,7 +80,13 @@ function clockStyleToCpp(style: unknown) {
 }
 
 function pageTypeToCpp(type: unknown) {
-  return type === "weather-focus" ? "UI_PAGE_WEATHER_FOCUS" : "UI_PAGE_STANDARD";
+  if (type === "weather-focus") {
+    return "UI_PAGE_WEATHER_FOCUS";
+  }
+  if (type === "media-player") {
+    return "UI_PAGE_MEDIA_PLAYER";
+  }
+  return "UI_PAGE_STANDARD";
 }
 
 async function runCommand(command: string, args: string[], cwd: string) {
@@ -169,6 +175,7 @@ enum UiClockStyle : uint8_t {
 enum UiPageType : uint8_t {
   UI_PAGE_STANDARD = 0,
   UI_PAGE_WEATHER_FOCUS = 1,
+  UI_PAGE_MEDIA_PLAYER = 2,
 };
 
 typedef struct {
