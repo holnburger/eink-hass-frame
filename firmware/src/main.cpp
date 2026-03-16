@@ -1245,6 +1245,43 @@ static void drawMdiMonoIconScaled(const BB_RECT &rect, const MdiMonoIconAsset *i
   }
 }
 
+static void drawMdiMonoIconScaledColor(const BB_RECT &rect, const MdiMonoIconAsset *icon, uint16_t color, int padding = 0)
+{
+  if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
+  {
+    return;
+  }
+
+  const int availableW = rect.w - (padding * 2);
+  const int availableH = rect.h - (padding * 2);
+  if (availableW <= 0 || availableH <= 0)
+  {
+    return;
+  }
+
+  const int targetSize = availableW < availableH ? availableW : availableH;
+  const int targetW = targetSize;
+  const int targetH = targetSize;
+  const int pitch = (icon->width + 7) / 8;
+  const int iconX = rect.x + ((rect.w - targetW) / 2);
+  const int iconY = rect.y + ((rect.h - targetH) / 2);
+
+  for (int yy = 0; yy < targetH; yy++)
+  {
+    const int srcY = (yy * icon->height) / targetH;
+    for (int xx = 0; xx < targetW; xx++)
+    {
+      const int srcX = (xx * icon->width) / targetW;
+      const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 8));
+      if ((packed & (0x80 >> (srcX & 7))) == 0)
+      {
+        continue;
+      }
+      display.drawPixelFast(iconX + xx, iconY + yy, color);
+    }
+  }
+}
+
 static void drawMdiMonoIconScaledGray(const BB_RECT &rect, const MdiMonoIconAsset *icon, uint8_t lightGray = 1, int padding = 0)
 {
   if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
@@ -1324,6 +1361,55 @@ static const MdiMonoIconAsset *getMdiWeatherIconAsset(const char *condition)
 #endif
 }
 
+static const MdiMonoIconAsset *getSliderIconAssetByName(const char *iconName)
+{
+#if UI_MDI_ICONS_AVAILABLE
+  if (iconName == nullptr || iconName[0] == '\0' || strcmp(iconName, "lightbulb") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_LIGHTBULB;
+  }
+  if (strcmp(iconName, "lamp") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_LAMP;
+  }
+  if (strcmp(iconName, "fan") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_FAN;
+  }
+  if (strcmp(iconName, "speaker") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_SPEAKER;
+  }
+  if (strcmp(iconName, "volume-high") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_VOLUME_HIGH;
+  }
+  if (strcmp(iconName, "blinds-horizontal") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_BLINDS_HORIZONTAL;
+  }
+  if (strcmp(iconName, "water-percent") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_WATER_PERCENT;
+  }
+  if (strcmp(iconName, "thermometer") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_THERMOMETER;
+  }
+  if (strcmp(iconName, "air-humidifier") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_AIR_HUMIDIFIER;
+  }
+  if (strcmp(iconName, "brightness-6") == 0)
+  {
+    return &MDI_ICON_ASSET_SLIDER_BRIGHTNESS_6;
+  }
+#else
+  (void)iconName;
+#endif
+  return nullptr;
+}
+
 static void drawChevronButton(const BB_RECT &rect, bool left)
 {
 #if UI_MDI_ICONS_AVAILABLE
@@ -1387,378 +1473,8 @@ static void drawWidgetCardBase(const BB_RECT &rect)
   display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiMonoInk());
 }
 
-static void initializeWidgetStates()
-{
-  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
-  {
-    weatherPagePhases[pageIndex] = pageIndex % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
-    for (int widgetIndex = 0; widgetIndex < UI_MAX_WIDGETS_PER_PAGE; widgetIndex++)
-    {
-      WidgetRuntimeState &state = widgetStates[pageIndex][widgetIndex];
-      memset(&state, 0, sizeof(state));
-
-      if (widgetIndex >= UI_PAGES[pageIndex].widgetCount)
-      {
-        continue;
-      }
-
-      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
-      if (widget.type == UI_WIDGET_THERMOSTAT)
-      {
-        state.value = clampInt(widget.value, 120, widget.maxValue > 0 ? widget.maxValue : 300);
-        state.maxValue = widget.maxValue > 0 ? widget.maxValue : 300;
-      }
-      else
-      {
-        state.value = clampInt(widget.value, 0, widget.maxValue > 0 ? widget.maxValue : 100);
-        state.maxValue = widget.maxValue > 0 ? widget.maxValue : 100;
-      }
-      state.enabled = widget.enabled != 0;
-      state.direction = 1;
-      state.phase = widgetIndex % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
-      snprintf(state.lastClockText, sizeof(state.lastClockText), "--:--:--");
-    }
-  }
-}
-
-static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState &state)
-{
-  memset(state.digitRects, 0, sizeof(state.digitRects));
-  state.secondsRect = {0, 0, 0, 0};
-  state.faceRect = {0, 0, 0, 0};
-
-  if (clockWidgetIsAnalog(widget))
-  {
-    const int faceSize = (state.contentRect.w < state.contentRect.h ? state.contentRect.w : state.contentRect.h);
-    const int inset = 8;
-    state.faceRect = {
-        state.contentRect.x + ((state.contentRect.w - faceSize) / 2) + inset,
-        state.contentRect.y + ((state.contentRect.h - faceSize) / 2) + inset,
-        faceSize - (inset * 2),
-        faceSize - (inset * 2),
-    };
-    return;
-  }
-
-  const bool showSeconds = clockWidgetShowsSeconds(widget);
-  const int totalChars = showSeconds ? 8 : 5;
-  const int colonCount = showSeconds ? 2 : 1;
-  const int digitCount = showSeconds ? 6 : 4;
-  const int gap = getUiFontProfile() == UI_FONT_PROFILE_MONO ? 10 : 8;
-  const int colonW = getUiFontProfile() == UI_FONT_PROFILE_SERIF ? 18 : 16;
-  int digitW = (state.contentRect.w - (colonCount * colonW) - ((totalChars - 1) * gap)) / digitCount;
-  digitW = clampInt(digitW, 28, 58);
-  int digitH = state.contentRect.h - 10;
-  digitH = clampInt(digitH, 68, 150);
-
-  const int totalWidth = (digitCount * digitW) + (colonCount * colonW) + ((totalChars - 1) * gap);
-  int x = state.contentRect.x + ((state.contentRect.w - totalWidth) / 2);
-  const int y = state.contentRect.y + ((state.contentRect.h - digitH) / 2);
-
-  for (int i = 0; i < totalChars; i++)
-  {
-    const bool isColon = i == 2 || (showSeconds && i == 5);
-    const int symbolW = isColon ? colonW : digitW;
-    state.digitRects[i] = {x, y, symbolW, digitH};
-    x += symbolW + gap;
-  }
-
-  if (showSeconds)
-  {
-    state.secondsRect = state.digitRects[6];
-    const int right = state.digitRects[7].x + state.digitRects[7].w;
-    state.secondsRect.w = right - state.secondsRect.x;
-    state.secondsRect.x -= 2;
-    state.secondsRect.y -= 2;
-    state.secondsRect.w += 4;
-    state.secondsRect.h += 4;
-    if (state.secondsRect.x < state.contentRect.x)
-    {
-      state.secondsRect.x = state.contentRect.x;
-    }
-    if (state.secondsRect.y < state.contentRect.y)
-    {
-      state.secondsRect.y = state.contentRect.y;
-    }
-    const int maxRight = state.contentRect.x + state.contentRect.w;
-    const int maxBottom = state.contentRect.y + state.contentRect.h;
-    if (state.secondsRect.x + state.secondsRect.w > maxRight)
-    {
-      state.secondsRect.w = maxRight - state.secondsRect.x;
-    }
-    if (state.secondsRect.y + state.secondsRect.h > maxBottom)
-    {
-      state.secondsRect.h = maxBottom - state.secondsRect.y;
-    }
-  }
-}
-
-static void layoutWeatherFocusPage()
-{
-  const int width = display.width();
-  const int height = display.height();
-  const int margin = 22;
-  const int contentTop = showPageChrome() ? 74 : 20;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
-  const int contentHeight = footerTop - contentTop;
-
-  weatherFocusContentRect = {0, contentTop, width, contentHeight};
-  weatherFocusTimelineRect = {margin, footerTop - 66, width - (margin * 2), 58};
-  weatherFocusHeroRect = {margin, contentTop + 6, width - (margin * 2), weatherFocusTimelineRect.y - contentTop - 20};
-  weatherFocusHeroIconRect = {-96, contentTop + 38, 420, 420};
-
-  const int gap = 6;
-  const int cardWidth = (weatherFocusTimelineRect.w - (gap * 3)) / 4;
-  for (int index = 0; index < 4; index++)
-  {
-    weatherFocusForecastRects[index] = {
-        weatherFocusTimelineRect.x + (index * (cardWidth + gap)),
-        weatherFocusTimelineRect.y,
-        cardWidth,
-        weatherFocusTimelineRect.h,
-    };
-  }
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
-}
-
-static void layoutMediaPlayerPage()
-{
-  const int width = display.width();
-  const int height = display.height();
-  const int margin = 24;
-  const int contentTop = showPageChrome() ? 74 : 20;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
-  const int contentHeight = footerTop - contentTop;
-
-  mediaPlayerContentRect = {0, contentTop, width, contentHeight};
-
-  const int bodyWidth = 420;
-  const int bodyHeight = 560;
-  const int bodyX = (width - bodyWidth) / 2;
-  const int bodyY = contentTop + ((contentHeight - bodyHeight) / 2);
-  mediaPlayerBodyRect = {bodyX, bodyY, bodyWidth, bodyHeight};
-  mediaPlayerCoverRect = {bodyX + ((bodyWidth - 384) / 2), bodyY + 8, 384, 384};
-  mediaPlayerProgressRect = {bodyX + 14, bodyY + 492, bodyWidth - 28, 12};
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
-}
-
-static void layoutCurrentPage()
-{
-  if (activePageIsWeatherFocus())
-  {
-    layoutWeatherFocusPage();
-    return;
-  }
-  if (activePageIsMediaPlayer())
-  {
-    layoutMediaPlayerPage();
-    return;
-  }
-
-  const int width = display.width();
-  const int height = display.height();
-  const UiPageConfig &page = UI_PAGES[currentPageIndex];
-  const int margin = 24;
-  const int topY = showPageChrome() ? 76 : 28;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 20);
-  const int gap = 16;
-  const int availableHeight = footerTop - topY - (page.widgetCount > 0 ? (page.widgetCount - 1) * gap : 0);
-
-  int totalWeight = 0;
-  for (int i = 0; i < page.widgetCount; i++)
-  {
-    totalWeight += widgetWeight(page.widgets[i].type);
-  }
-  if (totalWeight <= 0)
-  {
-    totalWeight = 1;
-  }
-
-  int currentY = topY;
-  int remainingHeight = availableHeight;
-  int remainingWeight = totalWeight;
-
-  for (int i = 0; i < page.widgetCount; i++)
-  {
-    const UiWidgetConfig widget = page.widgets[i];
-    WidgetRuntimeState &state = getWidgetState(currentPageIndex, i);
-    const int weight = widgetWeight(widget.type);
-    int cardHeight = (i == page.widgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
-    const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? 100
-                                                                                                     : 88;
-    const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? 132
-                                                                                                     : 340;
-    cardHeight = clampInt(cardHeight, minHeight, maxHeight);
-    state.cardRect = {margin, currentY, width - (margin * 2), cardHeight};
-    state.contentRect = {state.cardRect.x + 18, state.cardRect.y + 52, state.cardRect.w - 36, state.cardRect.h - 70};
-    state.controlRect = {0, 0, 0, 0};
-    state.secondaryRect = {0, 0, 0, 0};
-    state.tertiaryRect = {0, 0, 0, 0};
-    state.faceRect = {0, 0, 0, 0};
-    state.secondsRect = {0, 0, 0, 0};
-
-    if (widget.type == UI_WIDGET_CLOCK)
-    {
-      state.contentRect = {state.cardRect.x + 18, state.cardRect.y + 50, state.cardRect.w - 36, state.cardRect.h - 68};
-      computeClockLayout(widget, state);
-    }
-    else if (widget.type == UI_WIDGET_WEATHER)
-    {
-      const int iconSize = clampInt(state.cardRect.h - 18, 112, 128);
-      state.secondaryRect = {state.cardRect.x + state.cardRect.w - iconSize - 14, state.cardRect.y + 9, iconSize, iconSize};
-    }
-    else if (widget.type == UI_WIDGET_PROGRESS || widget.type == UI_WIDGET_SLIDER)
-    {
-      if (widget.type == UI_WIDGET_SLIDER)
-      {
-        const int sliderHeight = clampInt(state.cardRect.h - 42, 42, 52);
-        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - sliderHeight - 14, state.cardRect.w - 36, sliderHeight};
-      }
-      else
-      {
-        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - 21, state.cardRect.w - 36, 9};
-      }
-    }
-    else if (widget.type == UI_WIDGET_SWITCH)
-    {
-      state.controlRect = {state.cardRect.x + state.cardRect.w - 130, state.cardRect.y + (state.cardRect.h / 2) - 18, 96, 36};
-    }
-    else if (widget.type == UI_WIDGET_THERMOSTAT)
-    {
-      const int valueTop = state.cardRect.y + 46;
-      const int chevronX = state.cardRect.x + state.cardRect.w - 44;
-      state.tertiaryRect = {chevronX - 90, valueTop + 1, 84, 24};
-      state.controlRect = {chevronX, valueTop - 6, 24, 24};
-      state.secondaryRect = {chevronX, valueTop + 50, 24, 24};
-    }
-
-    currentY += cardHeight + gap;
-    remainingHeight -= cardHeight;
-    remainingWeight -= weight;
-  }
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
-}
-
-static void drawClockSymbolAtIndex(const WidgetRuntimeState &state, int index, char symbol)
-{
-  if (index < 0 || index >= (int)(sizeof(state.digitRects) / sizeof(state.digitRects[0])))
-  {
-    return;
-  }
-  const BB_RECT rect = state.digitRects[index];
-  if (rect.w <= 0 || rect.h <= 0)
-  {
-    return;
-  }
-  int thickness = rect.w / (getUiFontProfile() == UI_FONT_PROFILE_SERIF ? 6 : 5);
-  thickness = clampInt(thickness, 6, 12);
-  if (symbol == ':')
-  {
-    drawSevenSegmentColon(rect.x, rect.y, rect.w, rect.h, thickness);
-  }
-  else
-  {
-    drawSevenSegmentSymbol(rect.x, rect.y, rect.w, rect.h, thickness, symbol);
-  }
-}
-
-static void drawLargeClockText(const WidgetRuntimeState &state, const char *clockText, int fromIndex, int toIndex)
-{
-  const int maxIndex = strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : -1;
-  if (maxIndex < 0)
-  {
-    return;
-  }
-  if (fromIndex < 0)
-  {
-    fromIndex = 0;
-  }
-  if (toIndex > maxIndex)
-  {
-    toIndex = maxIndex;
-  }
-
-  for (int i = fromIndex; i <= toIndex && clockText[i] != '\0'; i++)
-  {
-    if (clockText[i] == ':')
-    {
-      drawClockSymbolAtIndex(state, i, ':');
-    }
-    else
-    {
-      drawClockSymbolAtIndex(state, i, clockText[i]);
-    }
-  }
-}
-
-static void drawClockHand(int cx, int cy, float degrees, int length, int thickness)
-{
-  const float radians = (degrees - 90.0f) * 0.01745329252f;
-  const int x2 = cx + (int)roundf(cosf(radians) * length);
-  const int y2 = cy + (int)roundf(sinf(radians) * length);
-  drawBoldLine(cx, cy, x2, y2, thickness);
-}
-
-static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntimeState &state, const struct tm &timeInfo)
-{
-  const int radius = state.faceRect.w / 2;
-  const int cx = state.faceRect.x + radius;
-  const int cy = state.faceRect.y + radius;
-  const int outerRadius = radius;
-  const int innerRadius = radius - 10;
-
-  display.drawCircle(cx, cy, outerRadius, uiMonoInk());
-  display.drawCircle(cx, cy, outerRadius - 1, uiMonoInk());
-  display.drawCircle(cx, cy, innerRadius, uiMonoInk());
-  display.drawCircle(cx, cy, innerRadius - 1, uiMonoInk());
-
-  for (int marker = 0; marker < 12; marker++)
-  {
-    const float radians = (marker * 30.0f - 90.0f) * 0.01745329252f;
-    const bool majorMarker = marker % 3 == 0;
-    const int outerX = cx + (int)roundf(cosf(radians) * (outerRadius - 6));
-    const int outerY = cy + (int)roundf(sinf(radians) * (outerRadius - 6));
-    const int innerX = cx + (int)roundf(cosf(radians) * (outerRadius - (majorMarker ? 20 : 14)));
-    const int innerY = cy + (int)roundf(sinf(radians) * (outerRadius - (majorMarker ? 20 : 14)));
-    drawBoldLine(innerX, innerY, outerX, outerY, majorMarker ? 3 : 2);
-  }
-
-  const float hourDegrees = ((timeInfo.tm_hour % 12) + (timeInfo.tm_min / 60.0f)) * 30.0f;
-  const float minuteDegrees = (timeInfo.tm_min + (timeInfo.tm_sec / 60.0f)) * 6.0f;
-  drawClockHand(cx, cy, hourDegrees, outerRadius - 34, 7);
-  drawClockHand(cx, cy, minuteDegrees, outerRadius - 20, 5);
-
-  if (clockWidgetShowsSeconds(widget))
-  {
-    const float secondDegrees = timeInfo.tm_sec * 6.0f;
-    drawClockHand(cx, cy, secondDegrees, outerRadius - 14, 2);
-  }
-
-  display.fillCircle(cx, cy, 5, uiMonoInk());
-}
-
-static void drawBulbIcon(int cx, int cy, int size, uint16_t color)
-{
-  const int globeRadius = clampInt(size / 6, 5, 8);
-  const int globeCenterY = cy - (size / 10);
-  const int stemTopY = globeCenterY + globeRadius - 1;
-  const int stemHalf = globeRadius > 6 ? 4 : 3;
-  display.drawCircle(cx, globeCenterY, globeRadius, color);
-  display.drawLine(cx - stemHalf, stemTopY + 3, cx + stemHalf, stemTopY + 3, color);
-  display.drawLine(cx - (stemHalf - 1), stemTopY + 6, cx + (stemHalf - 1), stemTopY + 6, color);
-  display.drawLine(cx - 1, stemTopY + 9, cx + 1, stemTopY + 9, color);
-}
+#include "ui/widget_layout.inc"
+#include "ui/widgets/clock_widget.inc"
 
 static const WeatherIconAsset *getWeatherIconAsset(const char *condition)
 {
@@ -1937,290 +1653,8 @@ static void drawWeatherMeteocon4bppRaw(const BB_RECT &rect, const char *conditio
   }
 }
 
-#if UI_MEDIA_COVER_AVAILABLE
-static bool pointInsideRoundedRect(int localX, int localY, int width, int height, int radius)
-{
-  if (radius <= 0)
-  {
-    return true;
-  }
-  if (localX < 0 || localY < 0 || localX >= width || localY >= height)
-  {
-    return false;
-  }
-
-  const int clampedRadius = clampInt(radius, 1, width / 2 < height / 2 ? width / 2 : height / 2);
-  if ((localX >= clampedRadius && localX < (width - clampedRadius)) ||
-      (localY >= clampedRadius && localY < (height - clampedRadius)))
-  {
-    return true;
-  }
-
-  const int circleRadius = clampedRadius - 1;
-  if (circleRadius <= 0)
-  {
-    return true;
-  }
-
-  int centerX = localX < clampedRadius ? circleRadius : width - clampedRadius;
-  int centerY = localY < clampedRadius ? circleRadius : height - clampedRadius;
-  const int dx = localX - centerX;
-  const int dy = localY - centerY;
-  return (dx * dx) + (dy * dy) <= (circleRadius * circleRadius);
-}
-
-static void drawMediaCover4bppRaw(const BB_RECT &rect, int radius)
-{
-  const MediaCoverAsset *cover = &MEDIA_COVER_ASSET_BLACK;
-  const int pitch = (cover->width + 1) / 2;
-
-  for (int yy = 0; yy < rect.h; yy++)
-  {
-    const int destY = rect.y + yy;
-    if (destY < 0 || destY >= display.height())
-    {
-      continue;
-    }
-    const int srcY = (yy * cover->height) / rect.h;
-    for (int xx = 0; xx < rect.w; xx++)
-    {
-      if (!pointInsideRoundedRect(xx, yy, rect.w, rect.h, radius))
-      {
-        continue;
-      }
-      const int destX = rect.x + xx;
-      if (destX < 0 || destX >= display.width())
-      {
-        continue;
-      }
-      const int srcX = (xx * cover->width) / rect.w;
-      const uint8_t packed = pgm_read_byte(cover->pixels + (srcY * pitch) + (srcX / 2));
-      const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
-      display.drawPixelFast(destX, destY, uiGrayValue(gray));
-    }
-  }
-}
-#endif
-
-static WeatherFrame getWeatherFrameAtOffset(int pageIndex, int offset)
-{
-  const int frameCount = (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
-  const int safePageIndex = clampInt(pageIndex, 0, UI_PAGE_COUNT - 1);
-  const int index = (weatherPagePhases[safePageIndex] + offset + frameCount) % frameCount;
-  return WEATHER_FRAMES[index];
-}
-
-static void formatMediaTime(int seconds, char *out, size_t outLen)
-{
-  const int clamped = seconds < 0 ? 0 : seconds;
-  const int minutes = clamped / 60;
-  const int remainder = clamped % 60;
-  snprintf(out, outLen, "%02d:%02d", minutes, remainder);
-}
-
-static void drawWeatherFocusForecastItem(const BB_RECT &rect, const char *label, const WeatherFrame &weather)
-{
-  setThemeMonoText();
-  display.setFont(FONT_8x8);
-  const int labelWidth = textWidthForRole(label, UI_TEXT_META);
-  int labelX = rect.x + ((rect.w - labelWidth) / 2);
-  if (labelX < rect.x)
-  {
-    labelX = rect.x;
-  }
-  drawReadableLine(label, labelX, rect.y + 4);
-
-  BB_RECT iconRect = {rect.x + 2, rect.y + 12, 40, 40};
-#if UI_MDI_ICONS_AVAILABLE
-  const MdiMonoIconAsset *mdiIcon = getMdiWeatherIconAsset(weather.condition);
-  if (mdiIcon != nullptr)
-  {
-    drawMdiMonoIconScaled(iconRect, mdiIcon);
-  }
-  else
-#endif
-  {
-    drawWeatherMeteoconMonoRaw(iconRect, weather.condition);
-  }
-
-  char tempText[12];
-  snprintf(tempText, sizeof(tempText), "%d\xC2\xB0"
-                                       "",
-           weather.tempC);
-  setThemeMonoText();
-  if (hasUiAccentFont())
-  {
-    drawCustomTextAtTop(getUiAccentFont(), tempText, rect.x + 46, rect.y + 20);
-  }
-  else
-  {
-  display.setFont(FONT_12x16);
-  drawReadableLine(tempText, rect.x + 46, baselineForTopAlignedText(tempText, UI_TEXT_BODY, rect.y + 23));
-  }
-}
-
-static void drawWeatherFocusBody()
-{
-  const WeatherFrame current = getWeatherFrameAtOffset(currentPageIndex, 0);
-
-  display.fillRect(
-      weatherFocusContentRect.x,
-      weatherFocusContentRect.y,
-      weatherFocusContentRect.w,
-      weatherFocusContentRect.h,
-      uiMonoPaper());
-
-  char tempText[12];
-  snprintf(tempText, sizeof(tempText), "%d\xC2\xB0"
-                                       "C",
-           current.tempC);
-  drawWeatherMeteoconMonoRaw(weatherFocusHeroIconRect, current.condition);
-
-  int tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - 164;
-#if UI_WEATHER_FONT_AVAILABLE
-  setThemeMonoText();
-  const int tempWidth = customFontTextWidth(Roboto_Black_40, tempText);
-  tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - tempWidth - 8;
-  drawCustomTextAtTop(Roboto_Black_40, tempText, tempX, weatherFocusHeroRect.y + 86);
-#else
-  setThemeMonoText();
-  display.setCursor(0, 0);
-  display.setFont(FONT_12x16);
-  BB_RECT tempBounds;
-  display.getStringBox(tempText, &tempBounds);
-  tempX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - tempBounds.w - 8;
-  printTextAt(tempText, tempX, weatherFocusHeroRect.y + 132);
-#endif
-
-  setThemeMonoText();
-  if (hasUiAccentFont())
-  {
-    const void *accentFont = getUiAccentFont();
-    const int conditionWidth = customFontTextWidth(accentFont, current.condition);
-    drawCustomTextAtTop(accentFont, current.condition, weatherFocusHeroRect.x + weatherFocusHeroRect.w - conditionWidth - 8, weatherFocusHeroRect.y + 174);
-  }
-  else
-  {
-  display.setFont(FONT_12x16);
-  BB_RECT conditionBounds;
-  display.setCursor(0, 0);
-  display.getStringBox(current.condition, &conditionBounds);
-  printTextAt(current.condition, weatherFocusHeroRect.x + weatherFocusHeroRect.w - conditionBounds.w - 8, weatherFocusHeroRect.y + 194);
-  }
-
-  display.drawLine(
-      weatherFocusTimelineRect.x,
-      weatherFocusTimelineRect.y - 10,
-      weatherFocusTimelineRect.x + weatherFocusTimelineRect.w,
-      weatherFocusTimelineRect.y - 10,
-      uiMonoInk());
-
-  for (int index = 0; index < 4; index++)
-  {
-    drawWeatherFocusForecastItem(
-        weatherFocusForecastRects[index],
-        WEATHER_FORECAST_LABELS[index],
-        getWeatherFrameAtOffset(currentPageIndex, index + 1));
-  }
-}
-
-static void drawMediaPlayerBody()
-{
-  static const char *MEDIA_TITLE = "Welcome To The Black";
-  static const char *MEDIA_ARTIST = "My Chemical Romance";
-  static const int MEDIA_ELAPSED_SECONDS = 102;
-  static const int MEDIA_DURATION_SECONDS = 237;
-  const int coverRadius = 38;
-  const int coverBottom = mediaPlayerCoverRect.y + mediaPlayerCoverRect.h;
-  const int artistTop = coverBottom + 18;
-  const int titleTop = coverBottom + 50;
-  const int timeTop = mediaPlayerProgressRect.y + 28;
-  const int mediaTitleMaxWidth = mediaPlayerContentRect.w - 32;
-  char mediaTitle[48];
-  const void *mediaTitleFont = getUiMediaTitleFont();
-
-  display.fillRect(
-      mediaPlayerContentRect.x,
-      mediaPlayerContentRect.y,
-      mediaPlayerContentRect.w,
-      mediaPlayerContentRect.h,
-      uiGrayPaper());
-
-#if UI_MEDIA_COVER_AVAILABLE
-  drawMediaCover4bppRaw(mediaPlayerCoverRect, coverRadius);
-#else
-  display.fillRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(12));
-  display.drawRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(1));
-  display.drawLine(mediaPlayerCoverRect.x + 24, mediaPlayerCoverRect.y + 24, mediaPlayerCoverRect.x + mediaPlayerCoverRect.w - 24, mediaPlayerCoverRect.y + mediaPlayerCoverRect.h - 24, uiGrayValue(2));
-  display.drawLine(mediaPlayerCoverRect.x + mediaPlayerCoverRect.w - 24, mediaPlayerCoverRect.y + 24, mediaPlayerCoverRect.x + 24, mediaPlayerCoverRect.y + mediaPlayerCoverRect.h - 24, uiGrayValue(2));
-#endif
-
-  display.drawRoundRect(mediaPlayerCoverRect.x, mediaPlayerCoverRect.y, mediaPlayerCoverRect.w, mediaPlayerCoverRect.h, coverRadius, uiGrayValue(2));
-
-  const void *artistFont = getUiMediaArtistFont();
-  setThemeGrayText(7, 15);
-  if (artistFont != nullptr)
-  {
-    const int artistWidth = customFontTextWidth(artistFont, MEDIA_ARTIST);
-    drawCustomTextAtTopAA(artistFont, MEDIA_ARTIST, mediaPlayerBodyRect.x + ((mediaPlayerBodyRect.w - artistWidth) / 2), artistTop);
-  }
-  else
-  {
-    selectTextFont(UI_TEXT_BODY);
-    display.setCursor(0, 0);
-    BB_RECT artistBounds;
-    display.getStringBox(MEDIA_ARTIST, &artistBounds);
-    const int artistWidth = artistBounds.w;
-    display.setCursor(
-        mediaPlayerBodyRect.x + ((mediaPlayerBodyRect.w - artistWidth) / 2),
-        artistTop - artistBounds.y);
-    display.print(MEDIA_ARTIST);
-    display.setItalic(false);
-  }
-
-  truncateTextToWidth(
-      MEDIA_TITLE,
-      mediaTitle,
-      sizeof(mediaTitle),
-      mediaTitleMaxWidth,
-      mediaTitleFont,
-      UI_TEXT_TITLE,
-      getUiFontProfile() == UI_FONT_PROFILE_MONO ? 22 : 30);
-
-  if (mediaTitleFont != nullptr)
-  {
-    setThemeGrayText(1, 15);
-    const int titleWidth = customFontTextWidth(mediaTitleFont, mediaTitle);
-    drawCustomTextAtTopAA(mediaTitleFont, mediaTitle, mediaPlayerContentRect.x + ((mediaPlayerContentRect.w - titleWidth) / 2), titleTop);
-  }
-  else
-  {
-    display.setCursor(0, 0);
-    selectTextFont(UI_TEXT_TITLE);
-    BB_RECT titleBounds;
-    display.getStringBox(mediaTitle, &titleBounds);
-    setThemeGrayText(1, 15);
-    printTextAt(
-        mediaTitle,
-        mediaPlayerContentRect.x + ((mediaPlayerContentRect.w - titleBounds.w) / 2),
-        titleTop - titleBounds.y);
-    display.setItalic(false);
-  }
-
-  display.fillRoundRect(mediaPlayerProgressRect.x, mediaPlayerProgressRect.y, mediaPlayerProgressRect.w, mediaPlayerProgressRect.h, mediaPlayerProgressRect.h / 2, uiGrayValue(13));
-  const int fillWidth = (mediaPlayerProgressRect.w * MEDIA_ELAPSED_SECONDS) / MEDIA_DURATION_SECONDS;
-  display.fillRoundRect(mediaPlayerProgressRect.x, mediaPlayerProgressRect.y, fillWidth, mediaPlayerProgressRect.h, mediaPlayerProgressRect.h / 2, uiGrayValue(2));
-
-  char elapsedText[8];
-  char durationText[8];
-  formatMediaTime(MEDIA_ELAPSED_SECONDS, elapsedText, sizeof(elapsedText));
-  formatMediaTime(MEDIA_DURATION_SECONDS, durationText, sizeof(durationText));
-  setThemeGrayText(4, 15);
-  display.setFont(FONT_12x16);
-  printTextAt(elapsedText, mediaPlayerProgressRect.x, timeTop);
-  const int durationWidth = textWidthForRole(durationText, UI_TEXT_BODY);
-  printTextAt(durationText, mediaPlayerProgressRect.x + mediaPlayerProgressRect.w - durationWidth, timeTop);
-}
+#include "ui/pages/media_player_page.inc"
+#include "ui/pages/weather_focus_page.inc"
 
 static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
 {
@@ -2275,332 +1709,12 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
   }
 }
 
-static void drawClockWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  char clockText[16];
-  struct tm timeInfo;
-  const bool hasTime = readClockTime(timeInfo);
-  readClockText(widget, clockText, sizeof(clockText));
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-  display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, uiMonoPaper());
-
-  if (clockWidgetIsAnalog(widget) && hasTime && state.faceRect.w > 0 && state.faceRect.h > 0)
-  {
-    drawAnalogClockFace(widget, state, timeInfo);
-  }
-  else
-  {
-    const int lastIndex = strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : 0;
-    drawLargeClockText(state, clockText, 0, lastIndex);
-  }
-
-  snprintf(state.lastClockText, sizeof(state.lastClockText), "%s", clockText);
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawClockSecondsPartial(int widgetIndex, const char *clockText)
-{
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  if (state.secondsRect.w <= 0 || state.secondsRect.h <= 0)
-  {
-    return;
-  }
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  display.fillRect(state.secondsRect.x, state.secondsRect.y, state.secondsRect.w, state.secondsRect.h, uiMonoPaper());
-  drawLargeClockText(state, clockText, 6, strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : 7);
-  display.partialUpdate(false);
-  partialCounter++;
-  lastPartialRefresh = millis();
-}
-
-static void drawProgressWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const int safeValue = clampInt(state.value, 0, state.maxValue > 0 ? state.maxValue : 100);
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-
-  char valueText[16];
-  snprintf(valueText, sizeof(valueText), "%d%%", safeValue);
-  const int valueWidth = textWidthForRole(valueText, UI_TEXT_BODY);
-  drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 14, UI_TEXT_BODY);
-
-  fillDitherRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, 1);
-  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, uiMonoInk());
-
-  const int fillWidth = (state.controlRect.w * safeValue) / (state.maxValue > 0 ? state.maxValue : 100);
-  if (fillWidth > 4)
-  {
-    fillDitherRoundRect(
-        state.controlRect.x + 2,
-        state.controlRect.y + 2,
-        fillWidth - 4,
-        state.controlRect.h - 4,
-        (state.controlRect.h - 4) / 2,
-        3);
-  }
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawSliderWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const int safeMax = state.maxValue > 0 ? state.maxValue : 100;
-  const int safeValue = clampInt(state.value, 0, safeMax);
-  const int buttonSize = state.controlRect.h;
-  const int radius = buttonSize / 2;
-  const int controlX = state.controlRect.x;
-  const int controlY = state.controlRect.y;
-  const int controlW = state.controlRect.w;
-  const int centerY = controlY + radius;
-  const int sliderStart = controlX + buttonSize;
-  const int sliderEnd = controlX + controlW - radius;
-  const int sliderTravel = sliderEnd - sliderStart;
-  const bool sliderEnabled = safeValue > 0;
-  const int knobCenterX = sliderTravel > 0 ? sliderStart + ((safeValue * sliderTravel) / safeMax) : sliderStart;
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-
-  char valueText[16];
-  snprintf(valueText, sizeof(valueText), "%d%%", safeValue);
-  const int valueWidth = textWidthForRole(valueText, UI_TEXT_META);
-  drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 18, UI_TEXT_META);
-
-  display.fillRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoPaper());
-  display.drawRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoInk());
-
-  if (sliderEnabled)
-  {
-    const int fillStart = controlX + radius;
-    const int fillWidth = knobCenterX - fillStart;
-    if (fillWidth > 0)
-    {
-      display.fillRect(fillStart, controlY, fillWidth, buttonSize, uiMonoInk());
-    }
-    display.fillCircle(controlX + radius, centerY, radius, uiMonoInk());
-    display.fillCircle(knobCenterX, centerY, radius - 1, uiMonoInk());
-  }
-
-  display.drawCircle(controlX + radius, centerY, radius, uiMonoInk());
-  drawBulbIcon(controlX + radius, centerY, buttonSize, sliderEnabled ? uiMonoPaper() : uiMonoInk());
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawWeatherWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const WeatherFrame weather = WEATHER_FRAMES[state.phase % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]))];
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-
-  char line1[32];
-  snprintf(line1, sizeof(line1), "%d°C", weather.tempC);
-#if UI_WEATHER_FONT_AVAILABLE
-  drawCustomTextAtTop(Roboto_Black_40, line1, state.cardRect.x + 18, state.cardRect.y + 58);
-#else
-  drawTextRole(
-      line1,
-      state.cardRect.x + 18,
-      baselineForTopAlignedText(line1, UI_TEXT_HERO, state.cardRect.y + 44),
-      UI_TEXT_HERO);
-#endif
-  drawTextRole(weather.condition, state.cardRect.x + 18, state.cardRect.y + 130, UI_TEXT_BODY);
-  drawWeatherIcon(state.secondaryRect, weather.condition);
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawSwitchWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
-  // drawTextRole(state.enabled ? "Enabled" : "Disabled", state.cardRect.x + 18, state.cardRect.y + 34, UI_TEXT_BODY);
-
-  const uint8_t trackShade = state.enabled ? 3 : 1;
-  fillDitherRoundRect(
-      state.controlRect.x,
-      state.controlRect.y,
-      state.controlRect.w,
-      state.controlRect.h,
-      state.controlRect.h / 2,
-      trackShade);
-  display.drawRoundRect(state.controlRect.x, state.controlRect.y, state.controlRect.w, state.controlRect.h, state.controlRect.h / 2, uiMonoInk());
-
-  const int knobMargin = 4;
-  const int knobSize = state.controlRect.h - (2 * knobMargin);
-  const int knobX = state.enabled
-                        ? (state.controlRect.x + state.controlRect.w - knobMargin - knobSize)
-                        : (state.controlRect.x + knobMargin);
-  const int knobY = state.controlRect.y + knobMargin;
-  display.fillCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, BBEP_WHITE);
-  display.drawCircle(knobX + (knobSize / 2), knobY + (knobSize / 2), knobSize / 2, uiMonoInk());
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawThermostatWidget(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const int currentTemp = widget.currentValue != 0 ? widget.currentValue : 205;
-  const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
-  const int targetTemp = clampInt(state.value > 0 ? state.value : widget.value, 120, maxTemp);
-  state.value = targetTemp;
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  const int leftX = state.cardRect.x + 18;
-  const int topY = state.cardRect.y;
-  const int valueTop = topY + 46;
-  const int rightBlockX = state.cardRect.x + state.cardRect.w - 305;
-  const int currentTop = topY + 50;
-  const int targetTop = topY + 66;
-  const int metaWidth = textWidthForRole("Current / Target", UI_TEXT_META);
-  const int metaX = state.cardRect.x + state.cardRect.w - 18 - metaWidth;
-
-  drawTextRole(widget.label, leftX, topY + 14, UI_TEXT_META);
-  drawTextRole("Current / Target", metaX, topY + 14, UI_TEXT_META);
-
-  char currentDigits[12];
-  formatTemperatureTenths(currentTemp, currentDigits, sizeof(currentDigits));
-
-  drawCustomTextAtTop(UI_THERMOSTAT_CURRENT_FONT, currentDigits, rightBlockX, currentTop);
-  const int currentWidth = customFontTextWidth(UI_THERMOSTAT_CURRENT_FONT, currentDigits);
-
-  display.setFont(FONT_8x8);
-  drawReadableLine("°C", rightBlockX + currentWidth, topY + 88);
-
-  const int slashX = rightBlockX + currentWidth + 18;
-  display.setFont(FONT_8x8);
-  drawReadableLine("/", slashX, topY + 88);
-
-  char targetDigits[12];
-  formatTemperatureTenths(targetTemp, targetDigits, sizeof(targetDigits));
-  drawCustomTextAtTop(Roboto_Regular_20, targetDigits, state.tertiaryRect.x, targetTop);
-  const int targetWidth = customFontTextWidth(Roboto_Regular_20, targetDigits);
-  display.setFont(FONT_8x8);
-  drawReadableLine("°C", state.tertiaryRect.x + targetWidth + 2, topY + 88);
-
-  drawMiniChevron(state.controlRect, true);
-  drawMiniChevron(state.secondaryRect, false);
-
-  if (pushPartial)
-  {
-    display.partialUpdate(false);
-    partialCounter++;
-    lastPartialRefresh = millis();
-  }
-}
-
-static void drawWidgetByType(int widgetIndex, bool pushPartial)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  switch (widget.type)
-  {
-  case UI_WIDGET_CLOCK:
-    drawClockWidget(widgetIndex, pushPartial);
-    break;
-  case UI_WIDGET_WEATHER:
-    drawWeatherWidget(widgetIndex, pushPartial);
-    break;
-  case UI_WIDGET_PROGRESS:
-    drawProgressWidget(widgetIndex, pushPartial);
-    break;
-  case UI_WIDGET_SWITCH:
-    drawSwitchWidget(widgetIndex, pushPartial);
-    break;
-  case UI_WIDGET_SLIDER:
-    drawSliderWidget(widgetIndex, pushPartial);
-    break;
-  case UI_WIDGET_THERMOSTAT:
-    drawThermostatWidget(widgetIndex, pushPartial);
-    break;
-  default:
-    break;
-  }
-}
-
-static int sliderValueFromTouch(const WidgetRuntimeState &state, int tx)
-{
-  const int safeMax = state.maxValue > 0 ? state.maxValue : 100;
-  const int buttonSize = state.controlRect.h;
-  const int sliderStart = state.controlRect.x + buttonSize;
-  const int sliderEnd = state.controlRect.x + state.controlRect.w - (buttonSize / 2);
-  const int clampedX = clampInt(tx, sliderStart, sliderEnd);
-  if (sliderEnd <= sliderStart)
-  {
-    return 0;
-  }
-  return ((clampedX - sliderStart) * safeMax) / (sliderEnd - sliderStart);
-}
-
-static void refreshWeatherFocusContentRegion()
-{
-  if (!displayReady)
-  {
-    return;
-  }
-
-  display.setMode(BB_MODE_1BPP);
-  setThemeMonoText();
-  drawWeatherFocusBody();
-  display.partialUpdate(false);
-  partialCounter++;
-  lastPartialRefresh = millis();
-}
+#include "ui/widgets/progress_widget.inc"
+#include "ui/widgets/slider_widget.inc"
+#include "ui/widgets/weather_widget.inc"
+#include "ui/widgets/switch_widget.inc"
+#include "ui/widgets/thermostat_widget.inc"
+#include "ui/widgets/widget_dispatch.inc"
 
 static void renderActivePage(bool pageTransition = false)
 {

@@ -10,11 +10,13 @@ import {
   Trash2,
   Usb,
   Wrench,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "motion/react";
 
 import { DevicePreview } from "@/components/dashboard/device-preview";
+import { MdiIcon } from "@/components/dashboard/mdi-icon";
 import { OtaFlashCard } from "@/components/dashboard/ota-flash";
 import { UsbFlashCard } from "@/components/dashboard/usb-flash";
 import { Badge } from "@/components/ui/badge";
@@ -42,10 +44,12 @@ import {
   MAX_WIDGETS_PER_PAGE,
   normalizeBuildConfig,
   PAGE_TYPE_OPTIONS,
+  SLIDER_ICON_OPTIONS,
   type BuildConfig,
   type FontName,
   type PageConfig,
   type PageType,
+  type SliderIconName,
   type WidgetConfig,
   type WidgetType,
   WIDGET_OPTIONS,
@@ -97,6 +101,94 @@ function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
   );
 }
 
+type SliderIconPickerDialogProps = {
+  open: boolean;
+  selectedIcon: SliderIconName;
+  onClose: () => void;
+  onSelect: (icon: SliderIconName) => void;
+};
+
+function SliderIconPickerDialog({
+  open,
+  selectedIcon,
+  onClose,
+  onSelect,
+}: SliderIconPickerDialogProps) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-100">
+                  Choose Slider Icon
+                </h3>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Pick the MDI icon that should be rendered on the device and in
+                  the preview.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+                aria-label="Close slider icon picker"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {SLIDER_ICON_OPTIONS.map((option) => {
+                const isSelected = option.value === selectedIcon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onSelect(option.value);
+                      onClose();
+                    }}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      isSelected
+                        ? "border-zinc-100 bg-zinc-100 text-zinc-950"
+                        : "border-zinc-800 bg-zinc-900/70 text-zinc-100 hover:border-zinc-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`flex h-10 w-10 items-center justify-center rounded-full border ${
+                          isSelected
+                            ? "border-zinc-300 bg-zinc-950/5"
+                            : "border-zinc-700 bg-zinc-950"
+                        }`}
+                      >
+                        <MdiIcon
+                          icon={option.value}
+                          size={18}
+                          className="h-[1.05rem] w-[1.05rem]"
+                        />
+                      </span>
+                      <span className="text-sm font-medium">{option.label}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 function EditableWidgetCard({
   widget,
   widgetIndex,
@@ -105,6 +197,10 @@ function EditableWidgetCard({
   onUpdate,
 }: EditableWidgetCardProps) {
   const dragControls = useDragControls();
+  const [sliderIconPickerOpen, setSliderIconPickerOpen] = useState(false);
+  const sliderIconOption = widget.type === "slider"
+    ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
+    : null;
 
   return (
     <Reorder.Item
@@ -190,6 +286,29 @@ function EditableWidgetCard({
                 }))
               }
             />
+          </div>
+        )}
+
+        {widget.type === "slider" && (
+          <div className="space-y-2">
+            <Label>Slider Icon</Label>
+            <button
+              type="button"
+              onClick={() => setSliderIconPickerOpen(true)}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 transition hover:border-zinc-500"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900">
+                  <MdiIcon
+                    icon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
+                    size={16}
+                    className="h-4 w-4"
+                  />
+                </span>
+                <span>{sliderIconOption?.label ?? "Lightbulb"}</span>
+              </span>
+              <span className="text-xs text-zinc-500">Choose</span>
+            </button>
           </div>
         )}
 
@@ -316,6 +435,20 @@ function EditableWidgetCard({
           </div>
         )}
       </div>
+
+      {widget.type === "slider" ? (
+        <SliderIconPickerDialog
+          open={sliderIconPickerOpen}
+          selectedIcon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
+          onClose={() => setSliderIconPickerOpen(false)}
+          onSelect={(icon) =>
+            onUpdate(widget.id, (current) => ({
+              ...current,
+              icon,
+            }))
+          }
+        />
+      ) : null}
     </Reorder.Item>
   );
 }

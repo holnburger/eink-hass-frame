@@ -121,13 +121,14 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1}";
 
   const pageSource = config.pages
     .map((page) => {
       const widgets = page.widgets
         .map((widget) => {
           const label = sanitizeCString(widget.label);
+          const icon = sanitizeCString(widget.type === "slider" ? (widget.icon ?? "lightbulb") : "");
           const isThermostat = widget.type === "thermostat";
           const value = isThermostat ? normalizeThermostatTenths(widget.value, 225, 5) : normalizeNumber(widget.value, 0);
           const currentValue = isThermostat ? normalizeThermostatTenths(widget.currentValue, 205, 1) : normalizeNumber(widget.currentValue, 0);
@@ -135,7 +136,7 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
           const enabled = widget.enabled ? 1 : 0;
           const clockStyle = clockStyleToCpp(widget.clockStyle);
           const showSeconds = widget.showSeconds !== false ? 1 : 0;
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}}`;
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
@@ -181,6 +182,7 @@ enum UiPageType : uint8_t {
 typedef struct {
   uint8_t type;
   const char *label;
+  const char *icon;
   int16_t value;
   int16_t currentValue;
   int16_t maxValue;

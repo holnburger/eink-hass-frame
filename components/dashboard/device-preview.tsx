@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, Cloud, CloudRain, Lightbulb, SunMedium, Wind } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MdiIcon } from "@/components/dashboard/mdi-icon";
 import type { PageConfig, WidgetConfig } from "@/lib/layout-config";
 
 type DevicePreviewProps = {
@@ -189,7 +190,15 @@ function PreviewSlider({ widget, darkMode }: { widget: WidgetConfig; darkMode: b
                   : "border-zinc-900 bg-white text-zinc-900"
             }`}
           >
-            <Lightbulb className="h-[1.05rem] w-[1.05rem]" />
+            {widget.icon ? (
+              <MdiIcon
+                icon={widget.icon}
+                size={18}
+                className="h-[1.05rem] w-[1.05rem]"
+              />
+            ) : (
+              <Lightbulb className="h-[1.05rem] w-[1.05rem]" />
+            )}
           </div>
           {value > 0 ? (
             <div

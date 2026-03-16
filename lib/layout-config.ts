@@ -12,6 +12,19 @@ export const CLOCK_STYLE_OPTIONS = [
   { value: "analog", label: "Analog" },
 ] as const;
 
+export const SLIDER_ICON_OPTIONS = [
+  { value: "lightbulb", label: "Lightbulb" },
+  { value: "lamp", label: "Lamp" },
+  { value: "fan", label: "Fan" },
+  { value: "speaker", label: "Speaker" },
+  { value: "volume-high", label: "Volume" },
+  { value: "blinds-horizontal", label: "Blinds" },
+  { value: "water-percent", label: "Water" },
+  { value: "thermometer", label: "Thermostat" },
+  { value: "air-humidifier", label: "Humidifier" },
+  { value: "brightness-6", label: "Brightness" },
+] as const;
+
 export const PAGE_TYPE_OPTIONS = [
   { value: "standard", label: "Standard Page" },
   { value: "weather-focus", label: "Weather Focus Page" },
@@ -20,6 +33,7 @@ export const PAGE_TYPE_OPTIONS = [
 
 export type FontName = (typeof FONT_OPTIONS)[number]["name"];
 export type ClockStyle = (typeof CLOCK_STYLE_OPTIONS)[number]["value"];
+export type SliderIconName = (typeof SLIDER_ICON_OPTIONS)[number]["value"];
 export type PageType = (typeof PAGE_TYPE_OPTIONS)[number]["value"];
 export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider" | "thermostat";
 
@@ -29,6 +43,7 @@ export type WidgetConfig = {
   label: string;
   clockStyle?: ClockStyle;
   showSeconds?: boolean;
+  icon?: SliderIconName;
   value?: number;
   currentValue?: number;
   max?: number;
@@ -96,6 +111,14 @@ export function isFontName(value: unknown): value is FontName {
   return FONT_OPTIONS.some((font) => font.name === value);
 }
 
+export function isSliderIconName(value: unknown): value is SliderIconName {
+  return SLIDER_ICON_OPTIONS.some((icon) => icon.value === value);
+}
+
+export function normalizeSliderIcon(value: unknown): SliderIconName {
+  return isSliderIconName(value) ? value : SLIDER_ICON_OPTIONS[0].value;
+}
+
 export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
   const count = index + 1;
   switch (type) {
@@ -140,6 +163,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       ...base,
       value: 40,
       max: 100,
+      ...(type === "slider" ? { icon: SLIDER_ICON_OPTIONS[0].value } : {}),
     };
   }
 
@@ -253,6 +277,9 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
   if (type === "progress" || type === "slider") {
     normalized.value = clampPercent(candidate.value, 40);
     normalized.max = 100;
+    if (type === "slider") {
+      normalized.icon = normalizeSliderIcon(candidate.icon);
+    }
   }
 
   if (type === "thermostat") {

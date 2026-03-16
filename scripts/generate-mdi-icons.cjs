@@ -17,6 +17,16 @@ const ICONS = [
   { key: "weather_rainy", icon: "weather-rainy", width: 128, height: 128, threshold: 208 },
   { key: "weather_pouring", icon: "weather-pouring", width: 128, height: 128, threshold: 208 },
   { key: "weather_windy", icon: "weather-windy", width: 128, height: 128, threshold: 208 },
+  { key: "slider_lightbulb", icon: "lightbulb", width: 28, height: 28, threshold: 208 },
+  { key: "slider_lamp", icon: "lamp", width: 28, height: 28, threshold: 208 },
+  { key: "slider_fan", icon: "fan", width: 28, height: 28, threshold: 208 },
+  { key: "slider_speaker", icon: "speaker", width: 28, height: 28, threshold: 208 },
+  { key: "slider_volume_high", icon: "volume-high", width: 28, height: 28, threshold: 208 },
+  { key: "slider_blinds_horizontal", icon: "blinds-horizontal", width: 28, height: 28, threshold: 208 },
+  { key: "slider_water_percent", icon: "water-percent", width: 28, height: 28, threshold: 208 },
+  { key: "slider_thermometer", icon: "thermometer", width: 28, height: 28, threshold: 208 },
+  { key: "slider_air_humidifier", icon: "air-humidifier", width: 28, height: 28, threshold: 208 },
+  { key: "slider_brightness_6", icon: "brightness-6", width: 28, height: 28, threshold: 208 },
 ];
 
 function renderIconSvg(iconName, width, height) {
