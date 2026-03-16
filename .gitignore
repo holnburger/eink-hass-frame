@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+/third_party
 
 # debug
 npm-debug.log*

@@ -1,3 +1,11 @@
+import {
+  DEFAULT_HOME_ASSISTANT_CONFIG,
+  normalizeHomeAssistantBinding,
+  normalizeHomeAssistantConfig,
+  type HomeAssistantBinding,
+  type HomeAssistantConfig,
+} from "@/lib/home-assistant";
+
 export const MAX_PAGES = 5;
 export const MAX_WIDGETS_PER_PAGE = 6;
 
@@ -48,12 +56,14 @@ export type WidgetConfig = {
   currentValue?: number;
   max?: number;
   enabled?: boolean;
+  homeAssistant?: HomeAssistantBinding;
 };
 
 export type PageConfig = {
   id: string;
   name: string;
   type: PageType;
+  homeAssistant?: HomeAssistantBinding;
   widgets: WidgetConfig[];
 };
 
@@ -63,6 +73,7 @@ export type BuildConfig = {
   partialRefreshMs: number;
   fullRefreshEvery: number;
   pages: PageConfig[];
+  homeAssistant: HomeAssistantConfig;
 };
 
 export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
@@ -207,6 +218,7 @@ export function createPageOfType(index = 0, type: PageType = "standard"): PageCo
           ? "Home"
           : `Page ${index + 1}`,
     type,
+    homeAssistant: undefined,
     widgets:
       isWeatherFocus || isMediaPlayer
         ? []
@@ -224,11 +236,13 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
   fontName: FONT_OPTIONS[0].name,
   partialRefreshMs: 30000,
   fullRefreshEvery: 60,
+  homeAssistant: DEFAULT_HOME_ASSISTANT_CONFIG,
   pages: [
     {
       id: "page-home",
       name: "Home",
       type: "standard",
+      homeAssistant: undefined,
       widgets: [
         { id: "widget-clock", type: "clock", label: "Clock", clockStyle: "digital", showSeconds: true },
         { id: "widget-weather", type: "weather", label: "Weather" },
@@ -292,6 +306,10 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     normalized.enabled = Boolean(candidate.enabled);
   }
 
+  normalized.homeAssistant = normalizeHomeAssistantBinding(
+    candidate.homeAssistant,
+  );
+
   return normalized;
 }
 
@@ -347,6 +365,7 @@ function normalizePagesFromLegacy(candidate: Record<string, unknown>): PageConfi
       id: "page-home",
       name: pageName,
       type: "standard",
+      homeAssistant: undefined,
       widgets,
     },
   ];
@@ -387,11 +406,15 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
                     .slice(0, MAX_WIDGETS_PER_PAGE)
                     .map((widget, widgetIndex) => normalizeWidget(widget, widgetIndex))
                     .filter((widget): widget is WidgetConfig => widget !== null);
+            const homeAssistant = normalizeHomeAssistantBinding(
+              rawPage.homeAssistant,
+            );
 
             return {
               id,
               name,
               type,
+              homeAssistant,
               widgets,
             };
           })
@@ -402,6 +425,7 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
     fontName: isFontName(candidate.fontName) ? candidate.fontName : DEFAULT_BUILD_CONFIG.fontName,
     partialRefreshMs: toPositiveInt(candidate.partialRefreshMs, DEFAULT_BUILD_CONFIG.partialRefreshMs),
     fullRefreshEvery: toPositiveInt(candidate.fullRefreshEvery, DEFAULT_BUILD_CONFIG.fullRefreshEvery),
+    homeAssistant: normalizeHomeAssistantConfig(candidate.homeAssistant),
     pages: pages.length > 0 ? pages : DEFAULT_BUILD_CONFIG.pages,
   };
 }

@@ -108,7 +108,7 @@ static void drawClockWidget(int widgetIndex, bool pushPartial)
   display.setMode(BB_MODE_1BPP);
   setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
+  drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
   display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, uiMonoPaper());
 
   if (clockWidgetIsAnalog(widget) && hasTime && state.faceRect.w > 0 && state.faceRect.h > 0)

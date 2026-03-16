@@ -3,6 +3,8 @@ static void initializeWidgetStates()
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
     weatherPagePhases[pageIndex] = pageIndex % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
+    memset(&weatherPageStates[pageIndex], 0, sizeof(weatherPageStates[pageIndex]));
+    memset(&mediaPageStates[pageIndex], 0, sizeof(mediaPageStates[pageIndex]));
     for (int widgetIndex = 0; widgetIndex < UI_MAX_WIDGETS_PER_PAGE; widgetIndex++)
     {
       WidgetRuntimeState &state = widgetStates[pageIndex][widgetIndex];
@@ -17,17 +19,23 @@ static void initializeWidgetStates()
       if (widget.type == UI_WIDGET_THERMOSTAT)
       {
         state.value = clampInt(widget.value, 120, widget.maxValue > 0 ? widget.maxValue : 300);
+        state.currentValue = widget.currentValue != 0 ? widget.currentValue : 205;
         state.maxValue = widget.maxValue > 0 ? widget.maxValue : 300;
       }
       else
       {
         state.value = clampInt(widget.value, 0, widget.maxValue > 0 ? widget.maxValue : 100);
+        state.currentValue = widget.currentValue;
         state.maxValue = widget.maxValue > 0 ? widget.maxValue : 100;
       }
       state.enabled = widget.enabled != 0;
       state.direction = 1;
       state.phase = widgetIndex % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
+      state.homeAssistantBound = widgetHasHomeAssistantBinding(widget);
+      state.homeAssistantAvailable = false;
+      state.lastHomeAssistantUpdateMs = 0;
       snprintf(state.lastClockText, sizeof(state.lastClockText), "--:--:--");
+      snprintf(state.detailText, sizeof(state.detailText), "%s", "");
     }
   }
 }
@@ -109,30 +117,64 @@ static void layoutWeatherFocusPage()
   const int width = display.width();
   const int height = display.height();
   const int margin = 22;
-  const int contentTop = showPageChrome() ? 74 : 20;
+  const int contentTop = showPageChrome() ? 24 : 20;
   const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
   const int contentHeight = footerTop - contentTop;
+  const int heroHeight = 300;
+  const int statsGap = 14;
+  const int statsHeight = 68;
+  const int chartGap = 12;
+  const int hourlyChartHeight = 224;
+  const int forecastGap = 12;
 
   weatherFocusContentRect = {0, contentTop, width, contentHeight};
-  weatherFocusTimelineRect = {margin, footerTop - 66, width - (margin * 2), 58};
-  weatherFocusHeroRect = {margin, contentTop + 6, width - (margin * 2), weatherFocusTimelineRect.y - contentTop - 20};
-  weatherFocusHeroIconRect = {-96, contentTop + 38, 420, 420};
+  weatherFocusHeroRect = {margin, contentTop + 8, width - (margin * 2), heroHeight};
+  weatherFocusHeroIconRect = {weatherFocusHeroRect.x + 12, weatherFocusHeroRect.y + 36, 236, 236};
+  weatherFocusStatsRect = {
+      margin,
+      weatherFocusHeroRect.y + weatherFocusHeroRect.h + statsGap,
+      width - (margin * 2),
+      statsHeight,
+  };
+  weatherFocusTemperatureChartRect = {
+      margin,
+      weatherFocusStatsRect.y + weatherFocusStatsRect.h + chartGap,
+      width - (margin * 2),
+      hourlyChartHeight,
+  };
+  weatherFocusRainChartRect = {
+      0,
+      0,
+      0,
+      0,
+  };
+  weatherFocusTimelineRect = {
+      margin,
+      weatherFocusTemperatureChartRect.y + weatherFocusTemperatureChartRect.h + forecastGap,
+      width - (margin * 2),
+      footerTop - (weatherFocusTemperatureChartRect.y + weatherFocusTemperatureChartRect.h + forecastGap) - 8,
+  };
 
-  const int gap = 6;
-  const int cardWidth = (weatherFocusTimelineRect.w - (gap * 3)) / 4;
-  for (int index = 0; index < 4; index++)
+  const int gap = 0;
+  const int cardWidth = weatherFocusTimelineRect.w / WEATHER_FOCUS_FORECAST_DAY_COUNT;
+  for (int index = 0; index < WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
   {
+    const int cardX = weatherFocusTimelineRect.x + (cardWidth * index);
+    const int nextX =
+        index == (WEATHER_FOCUS_FORECAST_DAY_COUNT - 1)
+            ? weatherFocusTimelineRect.x + weatherFocusTimelineRect.w
+            : cardX + cardWidth;
     weatherFocusForecastRects[index] = {
-        weatherFocusTimelineRect.x + (index * (cardWidth + gap)),
+        cardX,
         weatherFocusTimelineRect.y,
-        cardWidth,
+        nextX - cardX,
         weatherFocusTimelineRect.h,
     };
   }
 
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
+  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  debugIpRect = {0, 0, 0, 0};
 }
 
 static void layoutMediaPlayerPage()
@@ -140,7 +182,7 @@ static void layoutMediaPlayerPage()
   const int width = display.width();
   const int height = display.height();
   const int margin = 24;
-  const int contentTop = showPageChrome() ? 74 : 20;
+  const int contentTop = showPageChrome() ? 24 : 20;
   const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
   const int contentHeight = footerTop - contentTop;
 
@@ -150,13 +192,24 @@ static void layoutMediaPlayerPage()
   const int bodyHeight = 560;
   const int bodyX = (width - bodyWidth) / 2;
   const int bodyY = contentTop + ((contentHeight - bodyHeight) / 2);
+  const int controlGap = 14;
+  const int prevButtonWidth = 48;
+  const int playPauseButtonWidth = 48;
+  const int nextButtonWidth = 48;
+  const int controlHeight = 48;
+  const int controlsTop = bodyY + 512;
+  const int controlsWidth = prevButtonWidth + playPauseButtonWidth + nextButtonWidth + (controlGap * 2);
+  const int controlsX = bodyX + ((bodyWidth - controlsWidth) / 2);
   mediaPlayerBodyRect = {bodyX, bodyY, bodyWidth, bodyHeight};
   mediaPlayerCoverRect = {bodyX + ((bodyWidth - 384) / 2), bodyY + 8, 384, 384};
   mediaPlayerProgressRect = {bodyX + 14, bodyY + 492, bodyWidth - 28, 12};
+  mediaPlayerPrevButtonRect = {controlsX, controlsTop, prevButtonWidth, controlHeight};
+  mediaPlayerPlayPauseButtonRect = {controlsX + prevButtonWidth + controlGap, controlsTop, playPauseButtonWidth, controlHeight};
+  mediaPlayerNextButtonRect = {controlsX + prevButtonWidth + controlGap + playPauseButtonWidth + controlGap, controlsTop, nextButtonWidth, controlHeight};
 
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
+  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  debugIpRect = {0, 0, 0, 0};
 }
 
 static void layoutCurrentPage()
@@ -232,6 +285,7 @@ static void layoutCurrentPage()
       {
         const int sliderHeight = clampInt(state.cardRect.h - 42, 42, 52);
         state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - sliderHeight - 14, state.cardRect.w - 36, sliderHeight};
+        state.secondaryRect = {state.controlRect.x, state.controlRect.y, sliderHeight, sliderHeight};
       }
       else
       {
@@ -256,7 +310,7 @@ static void layoutCurrentPage()
     remainingWeight -= weight;
   }
 
-  navLeftRect = showPageChrome() ? BB_RECT{margin + 4, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 38, height - 60, 34, 34} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {width - margin - 230, height - 18, 230, 10};
+  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  debugIpRect = {0, 0, 0, 0};
 }

@@ -1,9 +1,21 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WebServer.h>
+#include <WebSocketsClient.h>
+#if __has_include(<esp_heap_caps.h>)
+#include <esp_heap_caps.h>
+#endif
+#if __has_include(<esp_rom_tjpgd.h>)
+#include <esp_rom_tjpgd.h>
+#define UI_ROM_JPEG_DECODER_AVAILABLE 1
+#else
+#define UI_ROM_JPEG_DECODER_AVAILABLE 0
+#endif
 #include <math.h>
 #include <time.h>
 #if __has_include(<bb_captouch.h>)
@@ -41,11 +53,23 @@
 #else
 #define UI_COURIER_24_AVAILABLE 0
 #endif
+#if __has_include("Courier_Prime_10.h")
+#include "Courier_Prime_10.h"
+#define UI_COURIER_10_AVAILABLE 1
+#else
+#define UI_COURIER_10_AVAILABLE 0
+#endif
 #if __has_include("fonts/Lora_24.h")
 #include "fonts/Lora_24.h"
 #define UI_LORA_24_AVAILABLE 1
 #else
 #define UI_LORA_24_AVAILABLE 0
+#endif
+#if __has_include("Lora_10.h")
+#include "Lora_10.h"
+#define UI_LORA_10_AVAILABLE 1
+#else
+#define UI_LORA_10_AVAILABLE 0
 #endif
 #if __has_include("fonts/Inter_Regular_18.h")
 #include "fonts/Inter_Regular_18.h"
@@ -58,6 +82,18 @@
 #define UI_INTER_16_AVAILABLE 1
 #else
 #define UI_INTER_16_AVAILABLE 0
+#endif
+#if __has_include("fonts/Inter_Regular_9.h")
+#include "fonts/Inter_Regular_9.h"
+#define UI_INTER_9_AVAILABLE 1
+#else
+#define UI_INTER_9_AVAILABLE 0
+#endif
+#if __has_include("fonts/Inter_Regular_10.h")
+#include "fonts/Inter_Regular_10.h"
+#define UI_INTER_10_AVAILABLE 1
+#else
+#define UI_INTER_10_AVAILABLE 0
 #endif
 #if __has_include("fonts/Inter_Regular_22.h")
 #include "fonts/Inter_Regular_22.h"
@@ -77,6 +113,18 @@
 #else
 #define UI_IBM_PLEX_SERIF_16_AVAILABLE 0
 #endif
+#if __has_include("fonts/IBMPlexSerif_9.h")
+#include "fonts/IBMPlexSerif_9.h"
+#define UI_IBM_PLEX_SERIF_9_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_SERIF_9_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexSerif_10.h")
+#include "fonts/IBMPlexSerif_10.h"
+#define UI_IBM_PLEX_SERIF_10_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_SERIF_10_AVAILABLE 0
+#endif
 #if __has_include("fonts/IBMPlexSerif_22.h")
 #include "fonts/IBMPlexSerif_22.h"
 #define UI_IBM_PLEX_SERIF_22_AVAILABLE 1
@@ -94,6 +142,18 @@
 #define UI_IBM_PLEX_MONO_16_AVAILABLE 1
 #else
 #define UI_IBM_PLEX_MONO_16_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexMono_9.h")
+#include "fonts/IBMPlexMono_9.h"
+#define UI_IBM_PLEX_MONO_9_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_MONO_9_AVAILABLE 0
+#endif
+#if __has_include("fonts/IBMPlexMono_10.h")
+#include "fonts/IBMPlexMono_10.h"
+#define UI_IBM_PLEX_MONO_10_AVAILABLE 1
+#else
+#define UI_IBM_PLEX_MONO_10_AVAILABLE 0
 #endif
 #if __has_include("fonts/IBMPlexMono_20.h")
 #include "fonts/IBMPlexMono_20.h"
@@ -126,20 +186,35 @@
 #else
 #define UI_WEATHER_FONT_AVAILABLE 0
 #endif
+#if __has_include("Roboto_Thin_10.h")
+#include "Roboto_Thin_10.h"
+#define UI_ROBOTO_THIN_10_AVAILABLE 1
+#else
+#define UI_ROBOTO_THIN_10_AVAILABLE 0
+#endif
 #else
 #define FASTEPD_AVAILABLE 0
+#define UI_COURIER_10_AVAILABLE 0
 #define UI_COURIER_24_AVAILABLE 0
+#define UI_LORA_10_AVAILABLE 0
 #define UI_LORA_24_AVAILABLE 0
+#define UI_INTER_9_AVAILABLE 0
+#define UI_INTER_10_AVAILABLE 0
 #define UI_INTER_16_AVAILABLE 0
 #define UI_INTER_18_AVAILABLE 0
 #define UI_INTER_22_AVAILABLE 0
+#define UI_IBM_PLEX_SERIF_9_AVAILABLE 0
+#define UI_IBM_PLEX_SERIF_10_AVAILABLE 0
 #define UI_IBM_PLEX_SERIF_16_AVAILABLE 0
 #define UI_IBM_PLEX_SERIF_18_AVAILABLE 0
 #define UI_IBM_PLEX_SERIF_22_AVAILABLE 0
+#define UI_IBM_PLEX_MONO_9_AVAILABLE 0
+#define UI_IBM_PLEX_MONO_10_AVAILABLE 0
 #define UI_IBM_PLEX_MONO_16_AVAILABLE 0
 #define UI_IBM_PLEX_MONO_18_AVAILABLE 0
 #define UI_IBM_PLEX_MONO_20_AVAILABLE 0
 #define UI_ROBOTO_REGULAR_20_AVAILABLE 0
+#define UI_ROBOTO_THIN_10_AVAILABLE 0
 #define UI_THERMOSTAT_TARGET_FONT_AVAILABLE 0
 #define UI_WEATHER_FONT_AVAILABLE 0
 #endif
@@ -166,6 +241,18 @@
 
 #ifndef WIFI_PASSWORD_PIO
 #define WIFI_PASSWORD_PIO ""
+#endif
+
+#ifndef HOME_ASSISTANT_URL_BUILD
+#define HOME_ASSISTANT_URL_BUILD ""
+#endif
+
+#ifndef HOME_ASSISTANT_TOKEN_BUILD
+#define HOME_ASSISTANT_TOKEN_BUILD ""
+#endif
+
+#ifndef HOME_ASSISTANT_ENABLED_BUILD
+#define HOME_ASSISTANT_ENABLED_BUILD 0
 #endif
 
 #if CAPTOUCH_AVAILABLE
@@ -223,12 +310,40 @@ static uint8_t improvPacketBuffer[256];
 static size_t improvPacketLength = 0;
 static size_t improvExpectedLength = 0;
 
+struct ParsedUrl
+{
+  bool valid;
+  bool secure;
+  uint16_t port;
+  String host;
+  String basePath;
+};
+
+static ParsedUrl homeAssistantUrl = {false, false, 0, "", ""};
+static WebSocketsClient homeAssistantSocket;
+static bool homeAssistantSocketStarted = false;
+static bool homeAssistantSocketConnected = false;
+static bool homeAssistantAuthenticated = false;
+static bool homeAssistantSubscriptionActive = false;
+static uint32_t lastHomeAssistantPollMs = 0;
+static uint32_t lastHomeAssistantSocketSetupMs = 0;
+static char lastHomeAssistantError[96] = "";
+static const int WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
+static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 6;
+
 static void renderStatusScreen(const char *title, const char *line1 = "", const char *line2 = "");
+static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget);
+static bool pageHasHomeAssistantBinding(int pageIndex);
+static bool ensureMediaPageCoverLoaded(int pageIndex, bool forceReload = false);
+static bool drawCachedMediaCover(int pageIndex, const BB_RECT &rect, int radius);
 
 #if FASTEPD_AVAILABLE
 static FASTEPD display;
 static bool displayReady = false;
 static bool pageReady = false;
+// The panel can retain a previously rendered grayscale page across resets, so
+// start in a "gray was shown" state and scrub the first mono page render.
+static bool lastRenderedPageUsedGrayMode = true;
 static bool ntpConfigured = false;
 static uint32_t lastClockUpdateMs = 0;
 static uint32_t lastValueUpdateMs = 0;
@@ -241,13 +356,21 @@ static BB_RECT navRightRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusContentRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusHeroRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusHeroIconRect = {0, 0, 0, 0};
+static BB_RECT weatherFocusStatsRect = {0, 0, 0, 0};
+static BB_RECT weatherFocusTemperatureChartRect = {0, 0, 0, 0};
+static BB_RECT weatherFocusRainChartRect = {0, 0, 0, 0};
 static BB_RECT weatherFocusTimelineRect = {0, 0, 0, 0};
-static BB_RECT weatherFocusForecastRects[4];
+static BB_RECT weatherFocusForecastRects[WEATHER_FOCUS_FORECAST_DAY_COUNT];
 static BB_RECT mediaPlayerContentRect = {0, 0, 0, 0};
 static BB_RECT mediaPlayerBodyRect = {0, 0, 0, 0};
 static BB_RECT mediaPlayerCoverRect = {0, 0, 0, 0};
 static BB_RECT mediaPlayerProgressRect = {0, 0, 0, 0};
-static char lastDebugIp[40] = "";
+static BB_RECT mediaPlayerPrevButtonRect = {0, 0, 0, 0};
+static BB_RECT mediaPlayerPlayPauseButtonRect = {0, 0, 0, 0};
+static BB_RECT mediaPlayerNextButtonRect = {0, 0, 0, 0};
+static constexpr int UI_MEDIA_COVER_SIZE = 384;
+static constexpr size_t UI_MEDIA_COVER_BUFFER_BYTES = (UI_MEDIA_COVER_SIZE * UI_MEDIA_COVER_SIZE) / 2;
+static constexpr int UI_MEDIA_PLAYBACK_REFRESH_INTERVAL_SECONDS = 5;
 
 static inline bool uiThemeDark()
 {
@@ -321,15 +444,79 @@ typedef struct
   BB_RECT digitRects[8];
   BB_RECT secondsRect;
   int value;
+  int currentValue;
   int maxValue;
   bool enabled;
   int direction;
   int phase;
+  bool homeAssistantBound;
+  bool homeAssistantAvailable;
+  uint32_t lastHomeAssistantUpdateMs;
   char lastClockText[16];
+  char detailText[48];
 } WidgetRuntimeState;
+
+typedef struct
+{
+  char label[12];
+  int temperature;
+  int lowTemperature;
+  bool lowTemperatureAvailable;
+  int precipitationProbability;
+  bool precipitationProbabilityAvailable;
+  char condition[32];
+} WeatherForecastRuntime;
+
+typedef struct
+{
+  char label[8];
+  int temperature;
+  bool temperatureAvailable;
+  int precipitationProbability;
+  bool precipitationProbabilityAvailable;
+} WeatherHourlyForecastRuntime;
+
+typedef struct
+{
+  bool available;
+  int temperature;
+  char temperatureUnit[8];
+  char feelsLikeText[20];
+  char humidityText[20];
+  char windText[24];
+  char pressureText[24];
+  bool hasFeelsLike;
+  bool hasHumidity;
+  bool hasWind;
+  bool hasPressure;
+  char condition[32];
+  uint8_t forecastCount;
+  WeatherForecastRuntime forecast[WEATHER_FOCUS_FORECAST_DAY_COUNT];
+  uint8_t hourlyForecastCount;
+  WeatherHourlyForecastRuntime hourlyForecast[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+} WeatherPageRuntimeState;
+
+typedef struct
+{
+  bool available;
+  bool playing;
+  bool coverAvailable;
+  int elapsedSeconds;
+  int durationSeconds;
+  int progress;
+  uint32_t lastCoverFetchMs;
+  uint32_t lastPlaybackTickMs;
+  uint8_t *coverPixels;
+  char title[80];
+  char artist[48];
+  char stateLabel[24];
+  char coverUrl[256];
+} MediaPageRuntimeState;
 
 static WidgetRuntimeState widgetStates[UI_PAGE_COUNT][UI_MAX_WIDGETS_PER_PAGE];
 static int weatherPagePhases[UI_PAGE_COUNT];
+static WeatherPageRuntimeState weatherPageStates[UI_PAGE_COUNT];
+static MediaPageRuntimeState mediaPageStates[UI_PAGE_COUNT];
 
 #if CAPTOUCH_AVAILABLE
 static BBCapTouch capTouch;
@@ -345,6 +532,10 @@ static bool isPointInRect(int x, int y, const BB_RECT &rect)
 
 static bool activePageIsWeatherFocus();
 static bool activePageUsesGrayMode();
+static bool activeMediaPageUsesHomeAssistant();
+static bool advanceMediaPagePlaybackClock(int pageIndex, uint32_t nowMs);
+static void fillForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex);
+static void fillHourlyForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex);
 
 static bool isPointInRectExpanded(int x, int y, const BB_RECT &rect, int pad)
 {
@@ -356,10 +547,106 @@ static bool isPointInRectExpanded(int x, int y, const BB_RECT &rect, int pad)
   return isPointInRect(x, y, expanded);
 }
 
+static String normalizeDisplayText(const char *text)
+{
+  return text == nullptr ? "" : String(text);
+}
+
+static void getDisplayStringBox(const char *text, BB_RECT *bounds)
+{
+  const String normalized = normalizeDisplayText(text);
+  display.getStringBox(normalized.c_str(), bounds);
+}
+
+static size_t utf8CodepointLength(const char *text)
+{
+  if (text == nullptr || text[0] == '\0')
+  {
+    return 0;
+  }
+
+  const uint8_t lead = static_cast<uint8_t>(text[0]);
+  if (lead < 0x80)
+  {
+    return 1;
+  }
+  if ((lead & 0xE0) == 0xC0 && text[1] != '\0' && (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80)
+  {
+    return 2;
+  }
+  if ((lead & 0xF0) == 0xE0 &&
+      text[1] != '\0' &&
+      text[2] != '\0' &&
+      (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80 &&
+      (static_cast<uint8_t>(text[2]) & 0xC0) == 0x80)
+  {
+    return 3;
+  }
+  if ((lead & 0xF8) == 0xF0 &&
+      text[1] != '\0' &&
+      text[2] != '\0' &&
+      text[3] != '\0' &&
+      (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80 &&
+      (static_cast<uint8_t>(text[2]) & 0xC0) == 0x80 &&
+      (static_cast<uint8_t>(text[3]) & 0xC0) == 0x80)
+  {
+    return 4;
+  }
+  return 1;
+}
+
+static size_t utf8CharacterCount(const char *text)
+{
+  if (text == nullptr)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  for (size_t offset = 0; text[offset] != '\0';)
+  {
+    const size_t charLen = utf8CodepointLength(text + offset);
+    offset += charLen > 0 ? charLen : 1;
+    count++;
+  }
+  return count;
+}
+
+static size_t copyUtf8Prefix(const char *input, size_t maxChars, char *output, size_t outputLen)
+{
+  if (outputLen == 0)
+  {
+    return 0;
+  }
+
+  output[0] = '\0';
+  if (input == nullptr || maxChars == 0)
+  {
+    return 0;
+  }
+
+  const size_t maxBytes = outputLen - 1;
+  size_t bytesWritten = 0;
+  size_t charsWritten = 0;
+  while (input[bytesWritten] != '\0' && charsWritten < maxChars)
+  {
+    const size_t charLen = utf8CodepointLength(input + bytesWritten);
+    if (charLen == 0 || bytesWritten + charLen > maxBytes)
+    {
+      break;
+    }
+    memcpy(output + bytesWritten, input + bytesWritten, charLen);
+    bytesWritten += charLen;
+    charsWritten++;
+  }
+  output[bytesWritten] = '\0';
+  return charsWritten;
+}
+
 static int centeredX(const char *text)
 {
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
   const int x = (display.width() - bounds.w) / 2;
   return x < 0 ? 0 : x;
 }
@@ -367,7 +654,8 @@ static int centeredX(const char *text)
 static void printTextAt(const char *text, int x, int y)
 {
   display.setCursor(x, y);
-  display.print(text);
+  const String normalized = normalizeDisplayText(text);
+  display.print(normalized.c_str());
 }
 
 static void drawReadableLine(const char *text, int x, int y)
@@ -524,11 +812,117 @@ static const void *getUiMediaTitleFont()
   return nullptr;
 }
 
+static const void *getUiTextFont(UiTextRole role)
+{
+  if (role == UI_TEXT_TITLE || role == UI_TEXT_HERO)
+  {
+    return getUiMediaTitleFont();
+  }
+
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+    if (role == UI_TEXT_META)
+    {
+#if UI_IBM_PLEX_SERIF_9_AVAILABLE
+      return IBMPlexSerif_9;
+#elif UI_LORA_10_AVAILABLE
+      return Lora_10;
+#elif UI_IBM_PLEX_SERIF_16_AVAILABLE
+      return IBMPlexSerif_16;
+#endif
+    }
+#if UI_IBM_PLEX_SERIF_16_AVAILABLE
+    return IBMPlexSerif_16;
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+    return IBMPlexSerif_18;
+#endif
+    break;
+  case UI_FONT_PROFILE_MONO:
+    if (role == UI_TEXT_META)
+    {
+#if UI_IBM_PLEX_MONO_9_AVAILABLE
+      return IBMPlexMono_9;
+#elif UI_COURIER_10_AVAILABLE
+      return Courier_Prime_10;
+#elif UI_IBM_PLEX_MONO_16_AVAILABLE
+      return IBMPlexMono_16;
+#endif
+    }
+#if UI_IBM_PLEX_MONO_16_AVAILABLE
+    return IBMPlexMono_16;
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+    return IBMPlexMono_18;
+#endif
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+    if (role == UI_TEXT_META)
+    {
+#if UI_INTER_9_AVAILABLE
+      return Inter_Regular_9;
+#elif UI_ROBOTO_THIN_10_AVAILABLE
+      return Roboto_Thin_10;
+#elif UI_INTER_16_AVAILABLE
+      return Inter_Regular_16;
+#endif
+    }
+#if UI_INTER_16_AVAILABLE
+    return Inter_Regular_16;
+#elif UI_INTER_18_AVAILABLE
+    return Inter_Regular_18;
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+    return Roboto_Regular_20;
+#endif
+    break;
+  }
+
+  return nullptr;
+}
+
+static const void *getUiWidgetMetaFont()
+{
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+#if UI_IBM_PLEX_SERIF_10_AVAILABLE
+    return IBMPlexSerif_10;
+#elif UI_IBM_PLEX_SERIF_9_AVAILABLE
+    return IBMPlexSerif_9;
+#elif UI_LORA_10_AVAILABLE
+    return Lora_10;
+#endif
+    break;
+  case UI_FONT_PROFILE_MONO:
+#if UI_IBM_PLEX_MONO_10_AVAILABLE
+    return IBMPlexMono_10;
+#elif UI_IBM_PLEX_MONO_9_AVAILABLE
+    return IBMPlexMono_9;
+#elif UI_COURIER_10_AVAILABLE
+    return Courier_Prime_10;
+#endif
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+#if UI_INTER_10_AVAILABLE
+    return Inter_Regular_10;
+#elif UI_INTER_9_AVAILABLE
+    return Inter_Regular_9;
+#elif UI_ROBOTO_THIN_10_AVAILABLE
+    return Roboto_Thin_10;
+#endif
+    break;
+  }
+
+  return getUiTextFont(UI_TEXT_META);
+}
+
 static int textWidthForCurrentSelection(const char *text)
 {
   BB_RECT bounds;
   display.setCursor(0, 0);
-  display.getStringBox(text, &bounds);
+  const String normalized = normalizeDisplayText(text);
+  display.getStringBox(normalized.c_str(), &bounds);
   display.setItalic(false);
   return bounds.w;
 }
@@ -552,18 +946,14 @@ static void truncateTextToWidth(
     return;
   }
 
-  size_t candidateLen = strlen(input);
-  if (hardCharacterLimit > 0 && candidateLen > (size_t)hardCharacterLimit)
+  const size_t inputBytes = strlen(input);
+  size_t candidateChars = utf8CharacterCount(input);
+  if (hardCharacterLimit > 0 && candidateChars > (size_t)hardCharacterLimit)
   {
-    candidateLen = (size_t)hardCharacterLimit;
-  }
-  if (candidateLen >= outputLen)
-  {
-    candidateLen = outputLen - 1;
+    candidateChars = (size_t)hardCharacterLimit;
   }
 
-  memcpy(output, input, candidateLen);
-  output[candidateLen] = '\0';
+  candidateChars = copyUtf8Prefix(input, candidateChars, output, outputLen);
 
   if (customFont != nullptr)
   {
@@ -575,14 +965,25 @@ static void truncateTextToWidth(
     selectTextFont(role);
   }
 
-  if (textWidthForCurrentSelection(output) <= maxWidth && candidateLen == strlen(input))
+  if (textWidthForCurrentSelection(output) <= maxWidth &&
+      candidateChars == utf8CharacterCount(input) &&
+      strlen(output) == inputBytes)
   {
     return;
   }
 
-  for (int len = (int)candidateLen; len >= 1; len--)
+  for (int chars = (int)candidateChars; chars >= 1; chars--)
   {
-    snprintf(output, outputLen, "%.*s...", len, input);
+    size_t copiedChars = copyUtf8Prefix(input, (size_t)chars, output, outputLen);
+    if (copiedChars == 0)
+    {
+      continue;
+    }
+    if (strlen(output) + 3 >= outputLen)
+    {
+      continue;
+    }
+    strcat(output, "...");
     if (textWidthForCurrentSelection(output) <= maxWidth)
     {
       return;
@@ -597,7 +998,7 @@ static void drawCenteredTextRoleAtTop(const char *text, int topY, UiTextRole rol
   display.setCursor(0, 0);
   selectTextFont(role);
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
   const int x = ((display.width() - bounds.w) / 2) < 0 ? 0 : ((display.width() - bounds.w) / 2);
   if (gray)
   {
@@ -608,13 +1009,19 @@ static void drawCenteredTextRoleAtTop(const char *text, int topY, UiTextRole rol
     setThemeMonoText();
   }
   display.setCursor(x, topY - bounds.y);
-  display.print(text);
+  printTextAt(text, x, topY - bounds.y);
   display.setItalic(false);
 }
 
 static void selectTextFont(UiTextRole role)
 {
   display.setItalic(false);
+  const void *customFont = getUiTextFont(role);
+  if (customFont != nullptr)
+  {
+    display.setFont(customFont);
+    return;
+  }
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
@@ -631,12 +1038,34 @@ static void selectTextFont(UiTextRole role)
   }
 }
 
+static void selectWidgetMetaFont()
+{
+  display.setItalic(false);
+  const void *customFont = getUiWidgetMetaFont();
+  if (customFont != nullptr)
+  {
+    display.setFont(customFont);
+    return;
+  }
+  selectTextFont(UI_TEXT_META);
+}
+
 static int textWidthForRole(const char *text, UiTextRole role)
 {
   display.setCursor(0, 0);
   selectTextFont(role);
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
+  display.setItalic(false);
+  return bounds.w;
+}
+
+static int widgetMetaTextWidth(const char *text)
+{
+  display.setCursor(0, 0);
+  selectWidgetMetaFont();
+  BB_RECT bounds;
+  getDisplayStringBox(text, &bounds);
   display.setItalic(false);
   return bounds.w;
 }
@@ -646,7 +1075,17 @@ static int baselineForTopAlignedText(const char *text, UiTextRole role, int topY
   display.setCursor(0, 0);
   selectTextFont(role);
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
+  display.setItalic(false);
+  return topY - bounds.y;
+}
+
+static int widgetMetaBaselineForTop(const char *text, int topY)
+{
+  display.setCursor(0, 0);
+  selectWidgetMetaFont();
+  BB_RECT bounds;
+  getDisplayStringBox(text, &bounds);
   display.setItalic(false);
   return topY - bounds.y;
 }
@@ -657,7 +1096,7 @@ static int customFontTextWidth(const void *font, const char *text)
   display.setFont(font);
   display.setCursor(0, 0);
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
   return bounds.w;
 }
 
@@ -667,7 +1106,7 @@ static int customFontBaselineForTop(const void *font, const char *text, int topY
   display.setFont(font);
   display.setCursor(0, 0);
   BB_RECT bounds;
-  display.getStringBox(text, &bounds);
+  getDisplayStringBox(text, &bounds);
   return topY - bounds.y;
 }
 
@@ -677,7 +1116,8 @@ static void drawCustomTextAtTop(const void *font, const char *text, int x, int t
   display.setFont(font);
   setThemeMonoText();
   display.setCursor(x, customFontBaselineForTop(font, text, topY));
-  display.print(text);
+  const String normalized = normalizeDisplayText(text);
+  display.print(normalized.c_str());
 }
 
 static void drawCustomTextAtTopBold(const void *font, const char *text, int x, int topY, int passes = 2)
@@ -690,10 +1130,11 @@ static void drawCustomTextAtTopBold(const void *font, const char *text, int x, i
   display.setItalic(false);
   display.setFont(font);
   setThemeMonoText();
+  const String normalized = normalizeDisplayText(text);
   for (int pass = 0; pass < passes; pass++)
   {
     display.setCursor(x + pass, baseline);
-    display.print(text);
+    display.print(normalized.c_str());
   }
 }
 
@@ -703,7 +1144,8 @@ static void drawCustomTextAtTopAA(const void *font, const char *text, int x, int
   display.setFont(font, true);
   setThemeGrayText();
   display.setCursor(x, customFontBaselineForTop(font, text, topY));
-  display.print(text);
+  const String normalized = normalizeDisplayText(text);
+  display.print(normalized.c_str());
 }
 
 static void drawCenteredCustomTextAtTop(const void *font, const char *text, int topY)
@@ -741,6 +1183,31 @@ static void drawTextRole(const char *text, int x, int y, UiTextRole role)
     drawReadableLine(text, x, y);
   }
   display.setItalic(false);
+}
+
+static void drawWidgetMetaText(const char *text, int x, int y)
+{
+  const void *font = getUiWidgetMetaFont();
+  if (font != nullptr)
+  {
+    display.setItalic(false);
+    display.setFont(font);
+    setThemeMonoText();
+    display.setCursor(x, y);
+    const String normalized = normalizeDisplayText(text);
+    display.print(normalized.c_str());
+    return;
+  }
+
+  selectTextFont(UI_TEXT_META);
+  setThemeMonoText();
+  drawReadableLine(text, x, y);
+  display.setItalic(false);
+}
+
+static void drawWidgetMetaTextAtTop(const char *text, int x, int topY)
+{
+  drawWidgetMetaText(text, x, widgetMetaBaselineForTop(text, topY));
 }
 
 static void drawBoldLine(int x1, int y1, int x2, int y2, int thickness)
@@ -842,6 +1309,23 @@ static void buildDebugIpText(char *out, size_t outLen)
   }
 }
 
+static BB_RECT grayUpdateBandRect(const BB_RECT &rect)
+{
+  BB_RECT band = rect;
+  band.x = 0;
+  band.w = display.width();
+  if (band.y < 0)
+  {
+    band.h += band.y;
+    band.y = 0;
+  }
+  if (band.y + band.h > display.height())
+  {
+    band.h = display.height() - band.y;
+  }
+  return band;
+}
+
 static void drawDebugIpText(const char *debugIp, bool partialRefresh)
 {
   if (!displayReady)
@@ -854,7 +1338,6 @@ static void drawDebugIpText(const char *debugIp, bool partialRefresh)
     display.setMode(BB_MODE_4BPP);
     setThemeGrayText();
     display.fillRect(debugIpRect.x, debugIpRect.y, debugIpRect.w, debugIpRect.h, uiGrayPaper());
-    display.setFont(FONT_8x8);
   }
   else
   {
@@ -875,10 +1358,11 @@ static void drawDebugIpText(const char *debugIp, bool partialRefresh)
   {
     if (activePageUsesGrayMode())
     {
+      BB_RECT updateRect = grayUpdateBandRect(debugIpRect);
 #ifdef CLEAR_FAST
-      display.fullUpdate(CLEAR_FAST, false, &debugIpRect);
+      display.fullUpdate(CLEAR_FAST, false, &updateRect);
 #else
-      display.fullUpdate(1, false, &debugIpRect);
+      display.fullUpdate(1, false, &updateRect);
 #endif
     }
     else
@@ -1022,12 +1506,17 @@ static bool activePageIsMediaPlayer()
 
 static bool activePageUsesGrayMode()
 {
-  return activePageIsMediaPlayer();
+  return activePageIsMediaPlayer() || activePageIsWeatherFocus();
 }
 
 static bool showPageChrome()
 {
   return UI_PAGE_COUNT > 1;
+}
+
+static bool activePageShowsTitle()
+{
+  return !activePageIsMediaPlayer() && !activePageIsWeatherFocus();
 }
 
 static int widgetWeight(uint8_t type)
@@ -1724,18 +2213,39 @@ static void renderActivePage(bool pageTransition = false)
   }
 
   layoutCurrentPage();
-  if (pageTransition)
+  const bool targetUsesGrayMode = activePageUsesGrayMode();
+  const bool needsMonoGhostScrub =
+      !targetUsesGrayMode &&
+      ((pageTransition && lastRenderedPageUsedGrayMode) ||
+       (!pageReady && lastRenderedPageUsedGrayMode));
+  if (needsMonoGhostScrub)
+  {
+    display.setMode(BB_MODE_1BPP);
+    setThemeMonoText();
+    display.clearBlack(true);
+    display.clearWhite(true);
+  }
+  else if (pageTransition)
   {
     display.clearWhite(true);
   }
 
-  if (activePageIsMediaPlayer())
+  if (targetUsesGrayMode)
   {
+    if (activePageIsMediaPlayer())
+    {
+      advanceMediaPagePlaybackClock(currentPageIndex, millis());
+      if (activeMediaPageUsesHomeAssistant())
+      {
+        ensureMediaPageCoverLoaded(currentPageIndex);
+      }
+    }
+
     display.setMode(BB_MODE_4BPP);
     setThemeGrayText();
     display.fillScreen(uiGrayPaper());
 
-    if (showPageChrome())
+    if (showPageChrome() && activePageShowsTitle())
     {
       const void *pageTitleFont = getUiPageTitleFont();
       if (pageTitleFont != nullptr)
@@ -1748,7 +2258,14 @@ static void renderActivePage(bool pageTransition = false)
       }
     }
 
-    drawMediaPlayerBody();
+    if (activePageIsMediaPlayer())
+    {
+      drawMediaPlayerBody();
+    }
+    else if (activePageIsWeatherFocus())
+    {
+      drawWeatherFocusBody();
+    }
     if (showPageChrome())
     {
       drawChevronButton(navLeftRect, true);
@@ -1762,7 +2279,7 @@ static void renderActivePage(bool pageTransition = false)
     setThemeMonoText();
     display.fillScreen(uiMonoPaper());
 
-    if (showPageChrome())
+    if (showPageChrome() && activePageShowsTitle())
     {
       const void *pageTitleFont = getUiPageTitleFont();
       if (pageTitleFont != nullptr)
@@ -1795,22 +2312,2234 @@ static void renderActivePage(bool pageTransition = false)
     }
   }
 
-  char initialIpText[40];
-  buildDebugIpText(initialIpText, sizeof(initialIpText));
-  drawDebugIpText(initialIpText, false);
-  snprintf(lastDebugIp, sizeof(lastDebugIp), "%s", initialIpText);
-
 #ifdef CLEAR_FAST
   display.fullUpdate(CLEAR_FAST, false);
 #else
   display.fullUpdate(1, false);
 #endif
 
-  display.backupPlane();
+  // FastEPD's backup plane is only used for 1-bpp diffing; calling it after a
+  // grayscale render can corrupt adjacent memory because the 4-bpp frame is larger.
+  if (!activePageUsesGrayMode())
+  {
+    display.backupPlane();
+  }
+  lastRenderedPageUsedGrayMode = targetUsesGrayMode;
   partialCounter = 0;
   lastPartialRefresh = millis();
   pageReady = true;
   lastFullRefreshMs = millis();
+}
+
+static bool homeAssistantConfigured()
+{
+  return HOME_ASSISTANT_ENABLED_BUILD != 0 &&
+         HOME_ASSISTANT_URL_BUILD[0] != '\0' &&
+         HOME_ASSISTANT_TOKEN_BUILD[0] != '\0';
+}
+
+static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget)
+{
+  return widget.entityId != nullptr && widget.entityId[0] != '\0';
+}
+
+static bool pageHasHomeAssistantBinding(int pageIndex)
+{
+  return pageIndex >= 0 &&
+         pageIndex < UI_PAGE_COUNT &&
+         UI_PAGES[pageIndex].entityId != nullptr &&
+         UI_PAGES[pageIndex].entityId[0] != '\0';
+}
+
+static bool activeWeatherPageUsesHomeAssistant()
+{
+  return activePageIsWeatherFocus() && pageHasHomeAssistantBinding(currentPageIndex);
+}
+
+static bool activeMediaPageUsesHomeAssistant()
+{
+  return activePageIsMediaPlayer() && pageHasHomeAssistantBinding(currentPageIndex);
+}
+
+static int mediaPlaybackRefreshBucket(int elapsedSeconds)
+{
+  const int clamped = elapsedSeconds < 0 ? 0 : elapsedSeconds;
+  return clamped / UI_MEDIA_PLAYBACK_REFRESH_INTERVAL_SECONDS;
+}
+
+static bool advanceMediaPagePlaybackClock(int pageIndex, uint32_t nowMs)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+  if (!state.available || !state.playing)
+  {
+    state.lastPlaybackTickMs = nowMs;
+    return false;
+  }
+  if (state.lastPlaybackTickMs == 0)
+  {
+    state.lastPlaybackTickMs = nowMs;
+    return false;
+  }
+
+  const uint32_t elapsedMs = nowMs - state.lastPlaybackTickMs;
+  if (elapsedMs < 1000UL)
+  {
+    return false;
+  }
+
+  const int advanceSeconds = static_cast<int>(elapsedMs / 1000UL);
+  if (advanceSeconds <= 0)
+  {
+    return false;
+  }
+
+  const int previousElapsed = state.elapsedSeconds;
+  int nextElapsed = state.elapsedSeconds + advanceSeconds;
+  if (state.durationSeconds > 0)
+  {
+    nextElapsed = clampInt(nextElapsed, 0, state.durationSeconds);
+  }
+  else if (nextElapsed < 0)
+  {
+    nextElapsed = 0;
+  }
+
+  state.lastPlaybackTickMs += static_cast<uint32_t>(advanceSeconds) * 1000UL;
+  state.elapsedSeconds = nextElapsed;
+  state.progress = state.durationSeconds > 0
+                       ? clampInt((state.elapsedSeconds * 100) / state.durationSeconds, 0, 100)
+                       : 0;
+  const bool reachedEnd = state.durationSeconds > 0 &&
+                          state.elapsedSeconds >= state.durationSeconds &&
+                          previousElapsed < state.durationSeconds;
+  return mediaPlaybackRefreshBucket(previousElapsed) != mediaPlaybackRefreshBucket(state.elapsedSeconds) ||
+         reachedEnd;
+}
+
+static String getEntityDomainString(const char *entityId)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return "";
+  }
+  String domain = entityId;
+  const int separator = domain.indexOf('.');
+  return separator > 0 ? domain.substring(0, separator) : "";
+}
+
+static bool parseHomeAssistantUrl(const char *rawUrl, ParsedUrl &parsed)
+{
+  parsed = {false, false, 0, "", ""};
+  if (rawUrl == nullptr || rawUrl[0] == '\0')
+  {
+    return false;
+  }
+
+  String url = rawUrl;
+  url.trim();
+  if (url.length() == 0)
+  {
+    return false;
+  }
+
+  if (url.endsWith("/"))
+  {
+    url.remove(url.length() - 1);
+  }
+
+  if (url.startsWith("https://"))
+  {
+    parsed.secure = true;
+    parsed.port = 443;
+    url.remove(0, 8);
+  }
+  else if (url.startsWith("http://"))
+  {
+    parsed.secure = false;
+    parsed.port = 80;
+    url.remove(0, 7);
+  }
+  else
+  {
+    return false;
+  }
+
+  const int slashIndex = url.indexOf('/');
+  String hostPort = slashIndex >= 0 ? url.substring(0, slashIndex) : url;
+  parsed.basePath = slashIndex >= 0 ? url.substring(slashIndex) : "";
+  if (parsed.basePath.endsWith("/"))
+  {
+    parsed.basePath.remove(parsed.basePath.length() - 1);
+  }
+
+  const int colonIndex = hostPort.indexOf(':');
+  if (colonIndex >= 0)
+  {
+    parsed.host = hostPort.substring(0, colonIndex);
+    const int parsedPort = hostPort.substring(colonIndex + 1).toInt();
+    if (parsedPort > 0 && parsedPort <= 65535)
+    {
+      parsed.port = static_cast<uint16_t>(parsedPort);
+    }
+  }
+  else
+  {
+    parsed.host = hostPort;
+  }
+
+  parsed.valid = parsed.host.length() > 0;
+  return parsed.valid;
+}
+
+static String joinBasePathAndSuffix(const String &basePath, const String &suffix)
+{
+  if (basePath.length() == 0)
+  {
+    return suffix;
+  }
+  if (suffix.startsWith("/"))
+  {
+    return basePath + suffix;
+  }
+  return basePath + "/" + suffix;
+}
+
+static String getHomeAssistantBaseUrl()
+{
+  const char *scheme = homeAssistantUrl.secure ? "https://" : "http://";
+  String url = String(scheme) + homeAssistantUrl.host;
+  const bool usingDefaultPort =
+      (homeAssistantUrl.secure && homeAssistantUrl.port == 443) ||
+      (!homeAssistantUrl.secure && homeAssistantUrl.port == 80);
+  if (!usingDefaultPort)
+  {
+    url += ":";
+    url += homeAssistantUrl.port;
+  }
+  return url;
+}
+
+static String getHomeAssistantApiUrl(const String &suffix)
+{
+  return getHomeAssistantBaseUrl() + joinBasePathAndSuffix(homeAssistantUrl.basePath, suffix);
+}
+
+static String getHomeAssistantWebSocketPath()
+{
+  return joinBasePathAndSuffix(homeAssistantUrl.basePath, "/api/websocket");
+}
+
+static uint8_t *allocateMediaCoverBuffer(size_t size)
+{
+#if __has_include(<esp_heap_caps.h>)
+  void *buffer = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (buffer == nullptr)
+  {
+    buffer = heap_caps_malloc(size, MALLOC_CAP_8BIT);
+  }
+  return static_cast<uint8_t *>(buffer);
+#else
+  return static_cast<uint8_t *>(malloc(size));
+#endif
+}
+
+static void fillPackedGrayBuffer(uint8_t *buffer, size_t byteCount, uint8_t gray)
+{
+  if (buffer == nullptr || byteCount == 0)
+  {
+    return;
+  }
+
+  const uint8_t packed = static_cast<uint8_t>(((gray & 0x0F) << 4) | (gray & 0x0F));
+  memset(buffer, packed, byteCount);
+}
+
+static uint8_t quantizeGrayTo4bppOrdered(uint8_t gray8, int x, int y)
+{
+  static const uint8_t bayer4x4[4][4] = {
+      {0, 8, 2, 10},
+      {12, 4, 14, 6},
+      {3, 11, 1, 9},
+      {15, 7, 13, 5},
+  };
+
+  int adjusted = static_cast<int>(gray8) + static_cast<int>(bayer4x4[y & 0x03][x & 0x03]) - 8;
+  adjusted = clampInt(adjusted, 0, 255);
+  return static_cast<uint8_t>(adjusted >> 4);
+}
+
+static void setPackedGrayPixel(uint8_t *buffer, int width, int x, int y, uint8_t gray)
+{
+  if (buffer == nullptr || width <= 0 || x < 0 || y < 0 || x >= width)
+  {
+    return;
+  }
+
+  const int pitch = (width + 1) / 2;
+  const int offset = (y * pitch) + (x / 2);
+  if ((x & 1) == 0)
+  {
+    buffer[offset] = static_cast<uint8_t>((buffer[offset] & 0x0F) | ((gray & 0x0F) << 4));
+  }
+  else
+  {
+    buffer[offset] = static_cast<uint8_t>((buffer[offset] & 0xF0) | (gray & 0x0F));
+  }
+}
+
+static bool resolveMediaCoverUrl(const char *rawCoverUrl, String &resolvedUrl, bool &useHomeAssistantAuth)
+{
+  resolvedUrl = "";
+  useHomeAssistantAuth = false;
+  if (rawCoverUrl == nullptr || rawCoverUrl[0] == '\0')
+  {
+    return false;
+  }
+
+  String coverUrl = rawCoverUrl;
+  coverUrl.trim();
+  if (coverUrl.length() == 0)
+  {
+    return false;
+  }
+
+  const String homeAssistantBaseUrl = getHomeAssistantBaseUrl();
+  if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://"))
+  {
+    resolvedUrl = coverUrl;
+    useHomeAssistantAuth = coverUrl.startsWith(homeAssistantBaseUrl);
+    return true;
+  }
+
+  resolvedUrl = coverUrl.startsWith("/") ? homeAssistantBaseUrl + coverUrl : homeAssistantBaseUrl + "/" + coverUrl;
+  useHomeAssistantAuth = true;
+  return true;
+}
+
+static bool readHttpBinaryBody(HTTPClient &http, uint8_t *&dataOut, size_t &lengthOut)
+{
+  constexpr size_t maxDownloadBytes = 2 * 1024 * 1024;
+  constexpr uint32_t bodyTimeoutMs = 15000;
+
+  dataOut = nullptr;
+  lengthOut = 0;
+
+  const int contentLength = http.getSize();
+  if (contentLength > static_cast<int>(maxDownloadBytes))
+  {
+    return false;
+  }
+
+  size_t capacity = contentLength > 0 ? static_cast<size_t>(contentLength) : 32768;
+  if (capacity == 0)
+  {
+    capacity = 32768;
+  }
+
+  uint8_t *buffer = static_cast<uint8_t *>(malloc(capacity));
+  if (buffer == nullptr)
+  {
+    return false;
+  }
+
+  Stream *stream = http.getStreamPtr();
+  size_t bytesReadTotal = 0;
+  uint32_t lastDataMs = millis();
+  while (http.connected() && (contentLength <= 0 || bytesReadTotal < static_cast<size_t>(contentLength)))
+  {
+    const size_t available = stream->available();
+    if (available == 0)
+    {
+      if (millis() - lastDataMs >= bodyTimeoutMs)
+      {
+        break;
+      }
+      delay(1);
+      continue;
+    }
+
+    size_t toRead = available;
+    if (contentLength > 0 && bytesReadTotal + toRead > static_cast<size_t>(contentLength))
+    {
+      toRead = static_cast<size_t>(contentLength) - bytesReadTotal;
+    }
+    if (bytesReadTotal + toRead > maxDownloadBytes)
+    {
+      free(buffer);
+      return false;
+    }
+    if (bytesReadTotal + toRead > capacity)
+    {
+      size_t newCapacity = capacity;
+      while (newCapacity < bytesReadTotal + toRead)
+      {
+        newCapacity *= 2;
+      }
+      if (newCapacity > maxDownloadBytes)
+      {
+        newCapacity = maxDownloadBytes;
+      }
+      if (newCapacity < bytesReadTotal + toRead)
+      {
+        free(buffer);
+        return false;
+      }
+
+      uint8_t *grownBuffer = static_cast<uint8_t *>(realloc(buffer, newCapacity));
+      if (grownBuffer == nullptr)
+      {
+        free(buffer);
+        return false;
+      }
+      buffer = grownBuffer;
+      capacity = newCapacity;
+    }
+
+    const size_t bytesRead = stream->readBytes(buffer + bytesReadTotal, toRead);
+    if (bytesRead == 0)
+    {
+      if (millis() - lastDataMs >= bodyTimeoutMs)
+      {
+        break;
+      }
+      delay(1);
+      continue;
+    }
+
+    bytesReadTotal += bytesRead;
+    lastDataMs = millis();
+  }
+
+  if (contentLength > 0 && bytesReadTotal != static_cast<size_t>(contentLength))
+  {
+    free(buffer);
+    return false;
+  }
+  if (bytesReadTotal < 4)
+  {
+    free(buffer);
+    return false;
+  }
+
+  dataOut = buffer;
+  lengthOut = bytesReadTotal;
+  return true;
+}
+
+static bool downloadBinaryUrl(const String &url, bool useHomeAssistantAuth, uint8_t *&dataOut, size_t &lengthOut)
+{
+  dataOut = nullptr;
+  lengthOut = 0;
+
+  if (url.length() == 0 || WiFi.status() != WL_CONNECTED)
+  {
+    return false;
+  }
+
+  HTTPClient http;
+  http.setTimeout(15000);
+
+  const String authHeader = String("Bearer ") + HOME_ASSISTANT_TOKEN_BUILD;
+  const bool secureUrl = url.startsWith("https://");
+  if (secureUrl)
+  {
+    WiFiClientSecure client;
+    client.setInsecure();
+    if (!http.begin(client, url))
+    {
+      return false;
+    }
+    if (useHomeAssistantAuth)
+    {
+      http.addHeader("Authorization", authHeader);
+    }
+    const int statusCode = http.GET();
+    if (statusCode != HTTP_CODE_OK)
+    {
+      http.end();
+      return false;
+    }
+    const bool bodyOk = readHttpBinaryBody(http, dataOut, lengthOut);
+    http.end();
+    return bodyOk;
+  }
+
+  WiFiClient client;
+  if (!http.begin(client, url))
+  {
+    return false;
+  }
+  if (useHomeAssistantAuth)
+  {
+    http.addHeader("Authorization", authHeader);
+  }
+  const int statusCode = http.GET();
+  if (statusCode != HTTP_CODE_OK)
+  {
+    http.end();
+    return false;
+  }
+  const bool bodyOk = readHttpBinaryBody(http, dataOut, lengthOut);
+  http.end();
+  return bodyOk;
+}
+
+static bool isJpegImageData(const uint8_t *data, size_t length)
+{
+  return data != nullptr &&
+         length >= 3 &&
+         data[0] == 0xFF &&
+         data[1] == 0xD8 &&
+         data[2] == 0xFF;
+}
+
+#if UI_ROM_JPEG_DECODER_AVAILABLE
+typedef struct
+{
+  const uint8_t *jpegData;
+  size_t jpegLength;
+  size_t jpegOffset;
+  uint8_t *targetPixels;
+  uint16_t sourceWidth;
+  uint16_t sourceHeight;
+  uint16_t cropLeft;
+  uint16_t cropTop;
+  uint16_t cropSize;
+} MediaCoverDecodeContext;
+
+static uint32_t readMediaCoverJpeg(esp_rom_tjpgd_dec_t *decoder, uint8_t *buffer, uint32_t bytesRequested)
+{
+  MediaCoverDecodeContext *context = static_cast<MediaCoverDecodeContext *>(decoder->device);
+  if (context == nullptr || context->jpegOffset >= context->jpegLength)
+  {
+    return 0;
+  }
+
+  size_t available = context->jpegLength - context->jpegOffset;
+  if (bytesRequested > available)
+  {
+    bytesRequested = static_cast<uint32_t>(available);
+  }
+  if (buffer != nullptr && bytesRequested > 0)
+  {
+    memcpy(buffer, context->jpegData + context->jpegOffset, bytesRequested);
+  }
+  context->jpegOffset += bytesRequested;
+  return bytesRequested;
+}
+
+static void writeMediaCoverPixelRange(MediaCoverDecodeContext &context, int sourceX, int sourceY, uint8_t gray8)
+{
+  if (sourceX < context.cropLeft ||
+      sourceY < context.cropTop ||
+      sourceX >= context.cropLeft + context.cropSize ||
+      sourceY >= context.cropTop + context.cropSize)
+  {
+    return;
+  }
+
+  const int croppedX = sourceX - context.cropLeft;
+  const int croppedY = sourceY - context.cropTop;
+  int targetX0 = (croppedX * UI_MEDIA_COVER_SIZE) / context.cropSize;
+  int targetX1 = ((croppedX + 1) * UI_MEDIA_COVER_SIZE + context.cropSize - 1) / context.cropSize;
+  int targetY0 = (croppedY * UI_MEDIA_COVER_SIZE) / context.cropSize;
+  int targetY1 = ((croppedY + 1) * UI_MEDIA_COVER_SIZE + context.cropSize - 1) / context.cropSize;
+
+  if (targetX0 < 0)
+  {
+    targetX0 = 0;
+  }
+  if (targetY0 < 0)
+  {
+    targetY0 = 0;
+  }
+  if (targetX1 <= targetX0)
+  {
+    targetX1 = targetX0 + 1;
+  }
+  if (targetY1 <= targetY0)
+  {
+    targetY1 = targetY0 + 1;
+  }
+  if (targetX1 > UI_MEDIA_COVER_SIZE)
+  {
+    targetX1 = UI_MEDIA_COVER_SIZE;
+  }
+  if (targetY1 > UI_MEDIA_COVER_SIZE)
+  {
+    targetY1 = UI_MEDIA_COVER_SIZE;
+  }
+
+  for (int yy = targetY0; yy < targetY1; yy++)
+  {
+    for (int xx = targetX0; xx < targetX1; xx++)
+    {
+      setPackedGrayPixel(
+          context.targetPixels,
+          UI_MEDIA_COVER_SIZE,
+          xx,
+          yy,
+          quantizeGrayTo4bppOrdered(gray8, xx, yy));
+    }
+  }
+}
+
+static uint32_t drawMediaCoverJpegBlock(esp_rom_tjpgd_dec_t *decoder, void *bitmap, esp_rom_tjpgd_rect_t *rect)
+{
+  MediaCoverDecodeContext *context = static_cast<MediaCoverDecodeContext *>(decoder->device);
+  if (context == nullptr || bitmap == nullptr || rect == nullptr)
+  {
+    return 0;
+  }
+
+  const int blockWidth = rect->right - rect->left + 1;
+  const int blockHeight = rect->bottom - rect->top + 1;
+  uint8_t *rgbPixels = static_cast<uint8_t *>(bitmap);
+  for (int yy = 0; yy < blockHeight; yy++)
+  {
+    const int sourceY = rect->top + yy;
+    for (int xx = 0; xx < blockWidth; xx++)
+    {
+      const int sourceX = rect->left + xx;
+      const size_t pixelIndex = static_cast<size_t>((yy * blockWidth) + xx) * 3;
+      const uint8_t red = rgbPixels[pixelIndex + 0];
+      const uint8_t green = rgbPixels[pixelIndex + 1];
+      const uint8_t blue = rgbPixels[pixelIndex + 2];
+      const uint8_t gray8 = static_cast<uint8_t>(((red * 54) + (green * 183) + (blue * 19) + 128) >> 8);
+      writeMediaCoverPixelRange(*context, sourceX, sourceY, gray8);
+    }
+  }
+
+  return 1;
+}
+
+static bool decodeJpegToMediaCover(const uint8_t *jpegData, size_t jpegLength, uint8_t *targetPixels)
+{
+  if (jpegData == nullptr || jpegLength == 0 || targetPixels == nullptr)
+  {
+    return false;
+  }
+
+  uint8_t *workBuffer = static_cast<uint8_t *>(malloc(6144));
+  if (workBuffer == nullptr)
+  {
+    return false;
+  }
+
+  fillPackedGrayBuffer(targetPixels, UI_MEDIA_COVER_BUFFER_BYTES, 15);
+
+  MediaCoverDecodeContext context = {};
+  context.jpegData = jpegData;
+  context.jpegLength = jpegLength;
+  context.targetPixels = targetPixels;
+
+  esp_rom_tjpgd_dec_t decoder = {};
+  esp_rom_tjpgd_result_t result = esp_rom_tjpgd_prepare(&decoder, readMediaCoverJpeg, workBuffer, 6144, &context);
+  if (result != JDR_OK)
+  {
+    free(workBuffer);
+    return false;
+  }
+
+  const uint32_t sourceWidth = decoder.width;
+  const uint32_t sourceHeight = decoder.height;
+  const uint32_t cropSize = sourceWidth < sourceHeight ? sourceWidth : sourceHeight;
+  if (sourceWidth == 0 || sourceHeight == 0 || cropSize == 0)
+  {
+    free(workBuffer);
+    return false;
+  }
+
+  uint8_t scale = 0;
+  while (scale < 3 && (cropSize >> (scale + 1)) >= UI_MEDIA_COVER_SIZE)
+  {
+    scale++;
+  }
+
+  context.sourceWidth = static_cast<uint16_t>((sourceWidth + ((1U << scale) - 1U)) >> scale);
+  context.sourceHeight = static_cast<uint16_t>((sourceHeight + ((1U << scale) - 1U)) >> scale);
+  context.cropSize = static_cast<uint16_t>((cropSize + ((1U << scale) - 1U)) >> scale);
+  if (context.cropSize == 0)
+  {
+    context.cropSize = 1;
+  }
+  context.cropLeft = context.sourceWidth > context.cropSize ? static_cast<uint16_t>((context.sourceWidth - context.cropSize) / 2U) : 0;
+  context.cropTop = context.sourceHeight > context.cropSize ? static_cast<uint16_t>((context.sourceHeight - context.cropSize) / 2U) : 0;
+
+  result = esp_rom_tjpgd_decomp(&decoder, drawMediaCoverJpegBlock, scale);
+  free(workBuffer);
+  return result == JDR_OK;
+}
+#endif
+
+static bool ensureMediaPageCoverLoaded(int pageIndex, bool forceReload)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+  if (state.coverUrl[0] == '\0')
+  {
+    state.coverAvailable = false;
+    return false;
+  }
+  if (!forceReload && state.coverAvailable && state.coverPixels != nullptr)
+  {
+    return true;
+  }
+
+  const uint32_t now = millis();
+  if (!forceReload && state.lastCoverFetchMs != 0 && now - state.lastCoverFetchMs < 60000UL)
+  {
+    return state.coverAvailable;
+  }
+  state.lastCoverFetchMs = now;
+
+  if (state.coverPixels == nullptr)
+  {
+    state.coverPixels = allocateMediaCoverBuffer(UI_MEDIA_COVER_BUFFER_BYTES);
+    if (state.coverPixels == nullptr)
+    {
+      state.coverAvailable = false;
+      return false;
+    }
+  }
+
+  fillPackedGrayBuffer(state.coverPixels, UI_MEDIA_COVER_BUFFER_BYTES, 15);
+
+  String coverUrl;
+  bool useHomeAssistantAuth = false;
+  if (!resolveMediaCoverUrl(state.coverUrl, coverUrl, useHomeAssistantAuth))
+  {
+    state.coverAvailable = false;
+    return false;
+  }
+
+  uint8_t *imageData = nullptr;
+  size_t imageLength = 0;
+  if (!downloadBinaryUrl(coverUrl, useHomeAssistantAuth, imageData, imageLength))
+  {
+    state.coverAvailable = false;
+    return false;
+  }
+
+  bool decoded = false;
+#if UI_ROM_JPEG_DECODER_AVAILABLE
+  if (isJpegImageData(imageData, imageLength))
+  {
+    decoded = decodeJpegToMediaCover(imageData, imageLength, state.coverPixels);
+  }
+#endif
+  free(imageData);
+
+  state.coverAvailable = decoded;
+  return decoded;
+}
+
+static bool drawCachedMediaCover(int pageIndex, const BB_RECT &rect, int radius)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  const MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+  if (!state.coverAvailable || state.coverPixels == nullptr)
+  {
+    return false;
+  }
+
+  const int pitch = UI_MEDIA_COVER_SIZE / 2;
+  for (int yy = 0; yy < rect.h; yy++)
+  {
+    const int destY = rect.y + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+
+    const int sourceY = (yy * UI_MEDIA_COVER_SIZE) / rect.h;
+    for (int xx = 0; xx < rect.w; xx++)
+    {
+      if (!pointInsideRoundedRect(xx, yy, rect.w, rect.h, radius))
+      {
+        continue;
+      }
+
+      const int destX = rect.x + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+
+      const int sourceX = (xx * UI_MEDIA_COVER_SIZE) / rect.w;
+      const uint8_t packed = state.coverPixels[(sourceY * pitch) + (sourceX / 2)];
+      const uint8_t gray = (sourceX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
+      display.drawPixelFast(destX, destY, uiGrayValue(gray));
+    }
+  }
+
+  return true;
+}
+
+static bool homeAssistantRequest(const char *method, const String &url, const String &payload, String &responseOut, int &statusOut)
+{
+  responseOut = "";
+  statusOut = 0;
+
+  if (!homeAssistantConfigured() || !homeAssistantUrl.valid || WiFi.status() != WL_CONNECTED)
+  {
+    return false;
+  }
+
+  HTTPClient http;
+  http.setTimeout(15000);
+  const String authHeader = String("Bearer ") + HOME_ASSISTANT_TOKEN_BUILD;
+  if (homeAssistantUrl.secure)
+  {
+    WiFiClientSecure client;
+    client.setInsecure();
+    if (!http.begin(client, url))
+    {
+      return false;
+    }
+    http.addHeader("Authorization", authHeader);
+    http.addHeader("Content-Type", "application/json");
+    statusOut = strcmp(method, "POST") == 0 ? http.POST(payload) : http.GET();
+    responseOut = http.getString();
+    http.end();
+    return true;
+  }
+
+  WiFiClient client;
+  if (!http.begin(client, url))
+  {
+    return false;
+  }
+  http.addHeader("Authorization", authHeader);
+  http.addHeader("Content-Type", "application/json");
+  statusOut = strcmp(method, "POST") == 0 ? http.POST(payload) : http.GET();
+  responseOut = http.getString();
+  http.end();
+  return true;
+}
+
+static bool jsonVariantToFloat(JsonVariantConst variant, float &valueOut)
+{
+  if (variant.is<float>() || variant.is<double>())
+  {
+    valueOut = variant.as<float>();
+    return true;
+  }
+  if (variant.is<int>() || variant.is<long>() || variant.is<unsigned int>())
+  {
+    valueOut = static_cast<float>(variant.as<int>());
+    return true;
+  }
+  if (variant.is<const char *>())
+  {
+    const char *raw = variant.as<const char *>();
+    if (raw == nullptr || raw[0] == '\0')
+    {
+      return false;
+    }
+    char *end = nullptr;
+    const float parsed = strtof(raw, &end);
+    if (end != raw)
+    {
+      valueOut = parsed;
+      return true;
+    }
+  }
+  return false;
+}
+
+static int clampPercentFromFloat(float value)
+{
+  return clampInt(static_cast<int>(roundf(value)), 0, 100);
+}
+
+static int climateTemperatureToTenths(float value, int fallbackTenths)
+{
+  if (!isfinite(value))
+  {
+    return fallbackTenths;
+  }
+  const int tenths = static_cast<int>(roundf(value * 10.0f));
+  return clampInt(tenths, 120, 300);
+}
+
+static void normalizeTemperatureUnitLabel(const char *rawUnit, char *unitOut, size_t unitOutLen)
+{
+  if (unitOutLen == 0)
+  {
+    return;
+  }
+
+  if (rawUnit == nullptr || rawUnit[0] == '\0')
+  {
+    snprintf(unitOut, unitOutLen, "\xC2\xB0"
+                                 "C");
+    return;
+  }
+
+  if (rawUnit[0] == '\xC2' && rawUnit[1] == '\xB0')
+  {
+    snprintf(unitOut, unitOutLen, "%s", rawUnit);
+    return;
+  }
+
+  if (rawUnit[1] == '\0' &&
+      ((rawUnit[0] >= 'a' && rawUnit[0] <= 'z') || (rawUnit[0] >= 'A' && rawUnit[0] <= 'Z')))
+  {
+    const char normalizedUnit = rawUnit[0] >= 'a' && rawUnit[0] <= 'z'
+                                    ? static_cast<char>(rawUnit[0] - ('a' - 'A'))
+                                    : rawUnit[0];
+    snprintf(unitOut, unitOutLen, "\xC2\xB0"
+                                  "%c",
+             normalizedUnit);
+    return;
+  }
+
+  snprintf(unitOut, unitOutLen, "%s", rawUnit);
+}
+
+static void formatRoundedMetricText(float value, const char *suffix, char *textOut, size_t textOutLen)
+{
+  if (textOutLen == 0)
+  {
+    return;
+  }
+
+  const int roundedValue = static_cast<int>(roundf(value));
+  if (suffix != nullptr && suffix[0] != '\0')
+  {
+    if ((suffix[0] == '\xC2' && suffix[1] == '\xB0') ||
+        (suffix[0] == '%' && suffix[1] == '\0'))
+    {
+      snprintf(textOut, textOutLen, "%d%s", roundedValue, suffix);
+      return;
+    }
+    snprintf(textOut, textOutLen, "%d %s", roundedValue, suffix);
+    return;
+  }
+  snprintf(textOut, textOutLen, "%d", roundedValue);
+}
+
+static bool tryFormatRoundedMetricText(JsonVariantConst variant, const char *suffix, char *textOut, size_t textOutLen)
+{
+  float numericValue = 0.0f;
+  if (!jsonVariantToFloat(variant, numericValue))
+  {
+    return false;
+  }
+  formatRoundedMetricText(numericValue, suffix, textOut, textOutLen);
+  return true;
+}
+
+static void drawHomeAssistantBackedWidget(int pageIndex, int widgetIndex)
+{
+  if (!displayReady || !pageReady || pageIndex != currentPageIndex)
+  {
+    return;
+  }
+
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  switch (widget.type)
+  {
+  case UI_WIDGET_WEATHER:
+    drawWeatherWidget(widgetIndex, true);
+    break;
+  case UI_WIDGET_PROGRESS:
+    drawProgressWidget(widgetIndex, true);
+    break;
+  case UI_WIDGET_SWITCH:
+    drawSwitchWidget(widgetIndex, true);
+    break;
+  case UI_WIDGET_SLIDER:
+    drawSliderWidget(widgetIndex, true);
+    break;
+  case UI_WIDGET_THERMOSTAT:
+    drawThermostatWidget(widgetIndex, true);
+    break;
+  default:
+    break;
+  }
+}
+
+static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, JsonObjectConst stateObject, bool redraw)
+{
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!widgetHasHomeAssistantBinding(widget))
+  {
+    return false;
+  }
+
+  WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
+  JsonObjectConst attributes = stateObject["attributes"].as<JsonObjectConst>();
+  const char *rawState = stateObject["state"] | "";
+  const bool entityAvailable =
+      rawState[0] == '\0' ||
+      (strcmp(rawState, "unavailable") != 0 &&
+       strcmp(rawState, "unknown") != 0 &&
+       strcmp(rawState, "none") != 0);
+  const bool previousHomeAssistantAvailable = state.homeAssistantAvailable;
+  bool changed = false;
+
+  if (widget.type == UI_WIDGET_SWITCH)
+  {
+    const bool nextEnabled =
+        strcmp(rawState, "on") == 0 ||
+        strcmp(rawState, "open") == 0 ||
+        strcmp(rawState, "playing") == 0;
+    changed = state.enabled != nextEnabled;
+    state.enabled = nextEnabled;
+  }
+  else if (widget.type == UI_WIDGET_PROGRESS)
+  {
+    float numericValue = 0.0f;
+    int nextValue = entityAvailable ? state.value : 0;
+    if (entityAvailable && jsonVariantToFloat(stateObject["state"], numericValue))
+    {
+      nextValue = clampPercentFromFloat(numericValue);
+    }
+    else if (entityAvailable &&
+             (jsonVariantToFloat(attributes["percentage"], numericValue) ||
+              jsonVariantToFloat(attributes["humidity"], numericValue)))
+    {
+      nextValue = clampPercentFromFloat(numericValue);
+    }
+    changed = state.value != nextValue;
+    state.value = nextValue;
+  }
+  else if (widget.type == UI_WIDGET_SLIDER)
+  {
+    float numericValue = 0.0f;
+    int nextValue = state.value;
+    const String domain = getEntityDomainString(widget.entityId);
+    if (domain == "light")
+    {
+      if (jsonVariantToFloat(attributes["brightness"], numericValue))
+      {
+        nextValue = clampPercentFromFloat((numericValue / 255.0f) * 100.0f);
+      }
+      else
+      {
+        nextValue = strcmp(rawState, "on") == 0 ? 100 : 0;
+      }
+    }
+    else if (domain == "cover" && jsonVariantToFloat(attributes["current_position"], numericValue))
+    {
+      nextValue = clampPercentFromFloat(numericValue);
+    }
+    else if (domain == "media_player" && jsonVariantToFloat(attributes["volume_level"], numericValue))
+    {
+      nextValue = clampPercentFromFloat(numericValue * 100.0f);
+    }
+    else if ((domain == "fan" && jsonVariantToFloat(attributes["percentage"], numericValue)) ||
+             (domain == "humidifier" && jsonVariantToFloat(attributes["humidity"], numericValue)) ||
+             jsonVariantToFloat(attributes["percentage"], numericValue) ||
+             jsonVariantToFloat(stateObject["state"], numericValue))
+    {
+      nextValue = clampPercentFromFloat(numericValue);
+    }
+    changed = state.value != nextValue;
+    state.value = nextValue;
+  }
+  else if (widget.type == UI_WIDGET_THERMOSTAT)
+  {
+    float numericValue = 0.0f;
+    const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
+    int nextCurrent = state.currentValue > 0 ? state.currentValue : widget.currentValue;
+    int nextTarget = state.value > 0 ? state.value : widget.value;
+
+    if (jsonVariantToFloat(attributes["current_temperature"], numericValue))
+    {
+      nextCurrent = climateTemperatureToTenths(numericValue, nextCurrent);
+    }
+    if (jsonVariantToFloat(attributes["temperature"], numericValue))
+    {
+      nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
+    }
+    else if (jsonVariantToFloat(stateObject["state"], numericValue))
+    {
+      nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
+    }
+
+    nextTarget = clampInt(nextTarget, 120, maxTemp);
+    changed = state.currentValue != nextCurrent || state.value != nextTarget;
+    state.currentValue = nextCurrent;
+    state.value = nextTarget;
+  }
+  else if (widget.type == UI_WIDGET_WEATHER)
+  {
+    float numericValue = 0.0f;
+    int nextTemp = state.value;
+    if (jsonVariantToFloat(attributes["temperature"], numericValue) ||
+        jsonVariantToFloat(attributes["native_temperature"], numericValue))
+    {
+      nextTemp = static_cast<int>(roundf(numericValue));
+    }
+
+    char nextCondition[sizeof(state.detailText)];
+    snprintf(nextCondition, sizeof(nextCondition), "%s", rawState);
+    changed = state.value != nextTemp || strcmp(state.detailText, nextCondition) != 0;
+    state.value = nextTemp;
+    snprintf(state.detailText, sizeof(state.detailText), "%s", nextCondition);
+  }
+
+  state.homeAssistantAvailable = entityAvailable;
+  state.lastHomeAssistantUpdateMs = millis();
+  changed = changed || previousHomeAssistantAvailable != entityAvailable;
+
+  if (changed && redraw)
+  {
+    drawHomeAssistantBackedWidget(pageIndex, widgetIndex);
+  }
+  return changed;
+}
+
+static bool fillWeekdayLabelForDate(int year, int month, int day, char *labelOut, size_t labelOutLen)
+{
+  if (labelOutLen == 0)
+  {
+    return false;
+  }
+
+  struct tm timeInfo;
+  memset(&timeInfo, 0, sizeof(timeInfo));
+  timeInfo.tm_year = year - 1900;
+  timeInfo.tm_mon = month - 1;
+  timeInfo.tm_mday = day;
+  timeInfo.tm_hour = 12;
+  timeInfo.tm_isdst = -1;
+  if (mktime(&timeInfo) == (time_t)-1)
+  {
+    return false;
+  }
+
+  return strftime(labelOut, labelOutLen, "%a", &timeInfo) > 0;
+}
+
+static void fillForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex)
+{
+  if (labelOutLen == 0)
+  {
+    return;
+  }
+
+  struct tm timeInfo;
+  if (readClockTime(timeInfo))
+  {
+    timeInfo.tm_hour = 12;
+    timeInfo.tm_min = 0;
+    timeInfo.tm_sec = 0;
+    timeInfo.tm_mday += fallbackIndex + 1;
+    timeInfo.tm_isdst = -1;
+    if (mktime(&timeInfo) != (time_t)-1 &&
+        strftime(labelOut, labelOutLen, "%a", &timeInfo) > 0)
+    {
+      return;
+    }
+  }
+
+  snprintf(labelOut, labelOutLen, "Day %d", fallbackIndex + 1);
+}
+
+static int getLocalUtcOffsetSeconds(time_t epoch)
+{
+  struct tm localTimeInfo;
+  struct tm utcTimeInfo;
+  localtime_r(&epoch, &localTimeInfo);
+  gmtime_r(&epoch, &utcTimeInfo);
+  return static_cast<int>(difftime(mktime(&localTimeInfo), mktime(&utcTimeInfo)));
+}
+
+static bool parseForecastTimeInfo(const char *rawDatetime, struct tm &timeInfo, int defaultHour)
+{
+  if (rawDatetime == nullptr || rawDatetime[0] == '\0')
+  {
+    return false;
+  }
+
+  memset(&timeInfo, 0, sizeof(timeInfo));
+  const size_t length = strlen(rawDatetime);
+  int year = 0;
+  int month = 0;
+  int day = 0;
+  int hour = defaultHour;
+  int minute = 0;
+  int second = 0;
+  bool hasTimeZone = false;
+  int parsedOffsetSeconds = 0;
+
+  if (length >= 16 && rawDatetime[10] == 'T')
+  {
+    const int scanned = sscanf(rawDatetime, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    if (scanned < 5)
+    {
+      return false;
+    }
+
+    const char *timeZoneCursor = strchr(rawDatetime + 16, 'Z');
+    if (timeZoneCursor != nullptr)
+    {
+      hasTimeZone = true;
+      parsedOffsetSeconds = 0;
+    }
+    else
+    {
+      timeZoneCursor = strpbrk(rawDatetime + 16, "+-");
+      if (timeZoneCursor != nullptr)
+      {
+        int offsetHours = 0;
+        int offsetMinutes = 0;
+        if (sscanf(timeZoneCursor + 1, "%d:%d", &offsetHours, &offsetMinutes) >= 1)
+        {
+          hasTimeZone = true;
+          parsedOffsetSeconds = (offsetHours * 3600) + (offsetMinutes * 60);
+          if (*timeZoneCursor == '-')
+          {
+            parsedOffsetSeconds *= -1;
+          }
+        }
+      }
+    }
+  }
+  else if (length >= 10)
+  {
+    if (sscanf(rawDatetime, "%d-%d-%d", &year, &month, &day) != 3)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    return false;
+  }
+
+  timeInfo.tm_year = year - 1900;
+  timeInfo.tm_mon = month - 1;
+  timeInfo.tm_mday = day;
+  timeInfo.tm_hour = hour;
+  timeInfo.tm_min = minute;
+  timeInfo.tm_sec = second;
+  timeInfo.tm_isdst = -1;
+
+  time_t epoch = mktime(&timeInfo);
+  if (epoch == (time_t)-1)
+  {
+    return false;
+  }
+
+  if (hasTimeZone)
+  {
+    epoch += getLocalUtcOffsetSeconds(epoch) - parsedOffsetSeconds;
+    localtime_r(&epoch, &timeInfo);
+  }
+  return true;
+}
+
+static void fillForecastLabelFromDatetime(const char *rawDatetime, char *labelOut, size_t labelOutLen, int fallbackIndex)
+{
+  if (labelOutLen == 0)
+  {
+    return;
+  }
+
+  struct tm timeInfo;
+  if (parseForecastTimeInfo(rawDatetime, timeInfo, 12) &&
+      strftime(labelOut, labelOutLen, "%a", &timeInfo) > 0)
+  {
+    return;
+  }
+
+  fillForecastFallbackLabel(labelOut, labelOutLen, fallbackIndex);
+}
+
+static void fillHourlyForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex)
+{
+  if (labelOutLen == 0)
+  {
+    return;
+  }
+
+  struct tm timeInfo;
+  if (readClockTime(timeInfo))
+  {
+    timeInfo.tm_min = 0;
+    timeInfo.tm_sec = 0;
+    timeInfo.tm_hour += fallbackIndex + 1;
+    timeInfo.tm_isdst = -1;
+    if (mktime(&timeInfo) != (time_t)-1 &&
+        strftime(labelOut, labelOutLen, "%H:%M", &timeInfo) > 0)
+    {
+      return;
+    }
+  }
+
+  snprintf(labelOut, labelOutLen, "%02d:00", (fallbackIndex + 1) % 24);
+}
+
+static void fillHourlyForecastLabelFromDatetime(const char *rawDatetime, char *labelOut, size_t labelOutLen, int fallbackIndex)
+{
+  if (labelOutLen == 0)
+  {
+    return;
+  }
+
+  struct tm timeInfo;
+  if (parseForecastTimeInfo(rawDatetime, timeInfo, 0) &&
+      strftime(labelOut, labelOutLen, "%H:%M", &timeInfo) > 0)
+  {
+    return;
+  }
+
+  fillHourlyForecastFallbackLabel(labelOut, labelOutLen, fallbackIndex);
+}
+
+static int compareForecastDateToToday(const char *rawDatetime)
+{
+  struct tm forecastTimeInfo;
+  struct tm currentTimeInfo;
+  if (!parseForecastTimeInfo(rawDatetime, forecastTimeInfo, 12) ||
+      !readClockTime(currentTimeInfo))
+  {
+    return 0;
+  }
+
+  if (forecastTimeInfo.tm_year != currentTimeInfo.tm_year)
+  {
+    return forecastTimeInfo.tm_year < currentTimeInfo.tm_year ? -1 : 1;
+  }
+  if (forecastTimeInfo.tm_mon != currentTimeInfo.tm_mon)
+  {
+    return forecastTimeInfo.tm_mon < currentTimeInfo.tm_mon ? -1 : 1;
+  }
+  if (forecastTimeInfo.tm_mday != currentTimeInfo.tm_mday)
+  {
+    return forecastTimeInfo.tm_mday < currentTimeInfo.tm_mday ? -1 : 1;
+  }
+  return 0;
+}
+
+static bool readForecastPrecipitationProbability(JsonObjectConst entry, int &probabilityOut)
+{
+  float probabilityValue = 0.0f;
+  if (!jsonVariantToFloat(entry["precipitation_probability"], probabilityValue))
+  {
+    return false;
+  }
+
+  probabilityOut = clampInt(static_cast<int>(roundf(probabilityValue)), 0, 100);
+  return true;
+}
+
+static bool applyHomeAssistantDailyForecastToWeatherPage(int pageIndex, JsonArrayConst forecastArray)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+  bool changed = false;
+  uint8_t forecastCount = 0;
+  int seenDayKeys[WEATHER_FOCUS_FORECAST_DAY_COUNT + 8];
+  int seenDayCount = 0;
+
+  if (!forecastArray.isNull())
+  {
+    for (JsonObjectConst entry : forecastArray)
+    {
+      if (forecastCount >= WEATHER_FOCUS_FORECAST_DAY_COUNT)
+      {
+        break;
+      }
+
+      const char *entryDatetime = entry["datetime"] | "";
+      if (entryDatetime[0] == '\0')
+      {
+        entryDatetime = entry["time"] | "";
+      }
+
+      struct tm forecastTimeInfo;
+      const bool hasForecastDate = parseForecastTimeInfo(entryDatetime, forecastTimeInfo, 12);
+      if (hasForecastDate)
+      {
+        if (compareForecastDateToToday(entryDatetime) <= 0)
+        {
+          continue;
+        }
+
+        const int dayKey = ((forecastTimeInfo.tm_year + 1900) * 10000) +
+                           ((forecastTimeInfo.tm_mon + 1) * 100) +
+                           forecastTimeInfo.tm_mday;
+        bool alreadySeen = false;
+        for (int seenIndex = 0; seenIndex < seenDayCount; seenIndex++)
+        {
+          if (seenDayKeys[seenIndex] == dayKey)
+          {
+            alreadySeen = true;
+            break;
+          }
+        }
+        if (alreadySeen)
+        {
+          continue;
+        }
+        seenDayKeys[seenDayCount++] = dayKey;
+      }
+
+      WeatherForecastRuntime &forecastItem = state.forecast[forecastCount];
+      const char *entryCondition = entry["condition"] | state.condition;
+
+      float forecastTempValue = 0.0f;
+      int forecastTemp = forecastItem.temperature;
+      if (jsonVariantToFloat(entry["temperature"], forecastTempValue) ||
+          jsonVariantToFloat(entry["native_temperature"], forecastTempValue))
+      {
+        forecastTemp = static_cast<int>(roundf(forecastTempValue));
+      }
+
+      int nextLowTemp = forecastItem.lowTemperature;
+      bool nextLowTempAvailable = false;
+      if (jsonVariantToFloat(entry["templow"], forecastTempValue) ||
+          jsonVariantToFloat(entry["native_templow"], forecastTempValue))
+      {
+        nextLowTemp = static_cast<int>(roundf(forecastTempValue));
+        nextLowTempAvailable = true;
+      }
+
+      int nextPrecipitationProbability = forecastItem.precipitationProbability;
+      const bool nextPrecipitationProbabilityAvailable =
+          readForecastPrecipitationProbability(entry, nextPrecipitationProbability);
+
+      char nextLabel[sizeof(forecastItem.label)];
+      fillForecastLabelFromDatetime(entryDatetime, nextLabel, sizeof(nextLabel), forecastCount);
+
+      changed = changed ||
+                forecastItem.temperature != forecastTemp ||
+                forecastItem.lowTemperature != nextLowTemp ||
+                forecastItem.lowTemperatureAvailable != nextLowTempAvailable ||
+                forecastItem.precipitationProbability != nextPrecipitationProbability ||
+                forecastItem.precipitationProbabilityAvailable != nextPrecipitationProbabilityAvailable ||
+                strcmp(forecastItem.condition, entryCondition) != 0 ||
+                strcmp(forecastItem.label, nextLabel) != 0;
+
+      forecastItem.temperature = forecastTemp;
+      forecastItem.lowTemperature = nextLowTemp;
+      forecastItem.lowTemperatureAvailable = nextLowTempAvailable;
+      forecastItem.precipitationProbability = nextPrecipitationProbability;
+      forecastItem.precipitationProbabilityAvailable = nextPrecipitationProbabilityAvailable;
+      snprintf(forecastItem.condition, sizeof(forecastItem.condition), "%s", entryCondition);
+      snprintf(forecastItem.label, sizeof(forecastItem.label), "%s", nextLabel);
+      forecastCount++;
+    }
+  }
+
+  changed = changed || state.forecastCount != forecastCount;
+  state.forecastCount = forecastCount;
+  return changed;
+}
+
+static bool applyHomeAssistantHourlyForecastToWeatherPage(int pageIndex, JsonArrayConst forecastArray)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+  bool changed = false;
+  uint8_t forecastCount = 0;
+
+  if (!forecastArray.isNull())
+  {
+    for (JsonObjectConst entry : forecastArray)
+    {
+      if (forecastCount >= WEATHER_FOCUS_HOURLY_POINT_COUNT)
+      {
+        break;
+      }
+
+      WeatherHourlyForecastRuntime &forecastItem = state.hourlyForecast[forecastCount];
+      const char *entryDatetime = entry["datetime"] | "";
+      if (entryDatetime[0] == '\0')
+      {
+        entryDatetime = entry["time"] | "";
+      }
+
+      float forecastTempValue = 0.0f;
+      int forecastTemp = forecastItem.temperature;
+      bool forecastTempAvailable = false;
+      if (jsonVariantToFloat(entry["temperature"], forecastTempValue) ||
+          jsonVariantToFloat(entry["native_temperature"], forecastTempValue))
+      {
+        forecastTemp = static_cast<int>(roundf(forecastTempValue));
+        forecastTempAvailable = true;
+      }
+
+      int nextPrecipitationProbability = forecastItem.precipitationProbability;
+      const bool nextPrecipitationProbabilityAvailable =
+          readForecastPrecipitationProbability(entry, nextPrecipitationProbability);
+
+      char nextLabel[sizeof(forecastItem.label)];
+      fillHourlyForecastLabelFromDatetime(entryDatetime, nextLabel, sizeof(nextLabel), forecastCount);
+
+      changed = changed ||
+                forecastItem.temperature != forecastTemp ||
+                forecastItem.temperatureAvailable != forecastTempAvailable ||
+                forecastItem.precipitationProbability != nextPrecipitationProbability ||
+                forecastItem.precipitationProbabilityAvailable != nextPrecipitationProbabilityAvailable ||
+                strcmp(forecastItem.label, nextLabel) != 0;
+
+      forecastItem.temperature = forecastTemp;
+      forecastItem.temperatureAvailable = forecastTempAvailable;
+      forecastItem.precipitationProbability = nextPrecipitationProbability;
+      forecastItem.precipitationProbabilityAvailable = nextPrecipitationProbabilityAvailable;
+      snprintf(forecastItem.label, sizeof(forecastItem.label), "%s", nextLabel);
+      forecastCount++;
+    }
+  }
+
+  changed = changed || state.hourlyForecastCount != forecastCount;
+  state.hourlyForecastCount = forecastCount;
+  return changed;
+}
+
+static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateObject, bool redraw)
+{
+  if (!pageHasHomeAssistantBinding(pageIndex))
+  {
+    return false;
+  }
+
+  const UiPageConfig &page = UI_PAGES[pageIndex];
+  JsonObjectConst attributes = stateObject["attributes"].as<JsonObjectConst>();
+  const char *rawState = stateObject["state"] | "";
+
+  if (page.pageType == UI_PAGE_WEATHER_FOCUS)
+  {
+    WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+    bool changed = false;
+    float numericValue = 0.0f;
+    int nextTemp = state.temperature;
+    if (jsonVariantToFloat(attributes["temperature"], numericValue) ||
+        jsonVariantToFloat(attributes["native_temperature"], numericValue))
+    {
+      nextTemp = static_cast<int>(roundf(numericValue));
+    }
+
+    const char *rawTempUnit = attributes["temperature_unit"] | "";
+    if (rawTempUnit[0] == '\0')
+    {
+      rawTempUnit = attributes["native_temperature_unit"] | "";
+    }
+    char nextTempUnit[sizeof(state.temperatureUnit)];
+    normalizeTemperatureUnitLabel(rawTempUnit, nextTempUnit, sizeof(nextTempUnit));
+
+    char nextCondition[sizeof(state.condition)];
+    snprintf(nextCondition, sizeof(nextCondition), "%s", rawState);
+    changed = state.temperature != nextTemp ||
+              strcmp(state.temperatureUnit, nextTempUnit) != 0 ||
+              strcmp(state.condition, nextCondition) != 0;
+
+    char nextFeelsLikeText[sizeof(state.feelsLikeText)];
+    bool nextHasFeelsLike =
+        tryFormatRoundedMetricText(attributes["apparent_temperature"], nextTempUnit, nextFeelsLikeText, sizeof(nextFeelsLikeText)) ||
+        tryFormatRoundedMetricText(attributes["native_apparent_temperature"], nextTempUnit, nextFeelsLikeText, sizeof(nextFeelsLikeText));
+    changed = changed ||
+              state.hasFeelsLike != nextHasFeelsLike ||
+              strcmp(state.feelsLikeText, nextHasFeelsLike ? nextFeelsLikeText : "") != 0;
+
+    char nextHumidityText[sizeof(state.humidityText)];
+    bool nextHasHumidity = tryFormatRoundedMetricText(
+        attributes["humidity"],
+        "%",
+        nextHumidityText,
+        sizeof(nextHumidityText));
+    changed = changed ||
+              state.hasHumidity != nextHasHumidity ||
+              strcmp(state.humidityText, nextHasHumidity ? nextHumidityText : "") != 0;
+
+    const char *windUnit = attributes["wind_speed_unit"] | "";
+    if (windUnit[0] == '\0')
+    {
+      windUnit = attributes["native_wind_speed_unit"] | "";
+    }
+    char nextWindText[sizeof(state.windText)];
+    bool nextHasWind =
+        tryFormatRoundedMetricText(attributes["wind_speed"], windUnit, nextWindText, sizeof(nextWindText)) ||
+        tryFormatRoundedMetricText(attributes["native_wind_speed"], windUnit, nextWindText, sizeof(nextWindText));
+    changed = changed ||
+              state.hasWind != nextHasWind ||
+              strcmp(state.windText, nextHasWind ? nextWindText : "") != 0;
+
+    const char *pressureUnit = attributes["pressure_unit"] | "";
+    if (pressureUnit[0] == '\0')
+    {
+      pressureUnit = attributes["native_pressure_unit"] | "";
+    }
+    char nextPressureText[sizeof(state.pressureText)];
+    bool nextHasPressure =
+        tryFormatRoundedMetricText(attributes["pressure"], pressureUnit, nextPressureText, sizeof(nextPressureText)) ||
+        tryFormatRoundedMetricText(attributes["native_pressure"], pressureUnit, nextPressureText, sizeof(nextPressureText));
+    changed = changed ||
+              state.hasPressure != nextHasPressure ||
+              strcmp(state.pressureText, nextHasPressure ? nextPressureText : "") != 0;
+
+    state.available = true;
+    state.temperature = nextTemp;
+    snprintf(state.temperatureUnit, sizeof(state.temperatureUnit), "%s", nextTempUnit);
+    snprintf(state.condition, sizeof(state.condition), "%s", nextCondition);
+    state.hasFeelsLike = nextHasFeelsLike;
+    snprintf(state.feelsLikeText, sizeof(state.feelsLikeText), "%s", nextHasFeelsLike ? nextFeelsLikeText : "");
+    state.hasHumidity = nextHasHumidity;
+    snprintf(state.humidityText, sizeof(state.humidityText), "%s", nextHasHumidity ? nextHumidityText : "");
+    state.hasWind = nextHasWind;
+    snprintf(state.windText, sizeof(state.windText), "%s", nextHasWind ? nextWindText : "");
+    state.hasPressure = nextHasPressure;
+    snprintf(state.pressureText, sizeof(state.pressureText), "%s", nextHasPressure ? nextPressureText : "");
+
+    changed = applyHomeAssistantDailyForecastToWeatherPage(pageIndex, attributes["forecast"].as<JsonArrayConst>()) || changed;
+    changed = applyHomeAssistantHourlyForecastToWeatherPage(pageIndex, attributes["hourly_forecast"].as<JsonArrayConst>()) || changed;
+
+    if (changed && redraw && pageIndex == currentPageIndex)
+    {
+      renderActivePage();
+    }
+    return changed;
+  }
+
+  if (page.pageType == UI_PAGE_MEDIA_PLAYER)
+  {
+    MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+    const bool previousAvailable = state.available;
+    const bool previousCoverAvailable = state.coverAvailable;
+    const bool previousHasRenderableMedia = mediaPageHasRenderableMedia(pageIndex);
+    float numericValue = 0.0f;
+    int nextElapsed = state.elapsedSeconds;
+    int nextDuration = state.durationSeconds;
+    if (jsonVariantToFloat(attributes["media_position"], numericValue))
+    {
+      nextElapsed = static_cast<int>(roundf(numericValue));
+    }
+    if (jsonVariantToFloat(attributes["media_duration"], numericValue))
+    {
+      nextDuration = static_cast<int>(roundf(numericValue));
+    }
+    const int nextProgress =
+        nextDuration > 0 ? clampInt((nextElapsed * 100) / nextDuration, 0, 100) : 0;
+    const bool nextPlaying = strcmp(rawState, "playing") == 0;
+
+    const char *title = attributes["media_title"] | "";
+    const char *artist = attributes["media_artist"] | "";
+    if (artist[0] == '\0')
+    {
+      artist = attributes["source"] | "";
+    }
+    const char *rawCoverUrl = attributes["entity_picture"] | "";
+    const bool coverChanged = strcmp(state.coverUrl, rawCoverUrl) != 0;
+    const bool availabilityChanged = !previousAvailable;
+    const bool playbackMetricsChanged =
+        state.elapsedSeconds != nextElapsed ||
+        state.durationSeconds != nextDuration ||
+        state.progress != nextProgress;
+    const bool playingChanged = state.playing != nextPlaying;
+    const bool playbackRefreshDue =
+        state.durationSeconds != nextDuration ||
+        !nextPlaying ||
+        abs(nextElapsed - state.elapsedSeconds) >= UI_MEDIA_PLAYBACK_REFRESH_INTERVAL_SECONDS ||
+        mediaPlaybackRefreshBucket(state.elapsedSeconds) != mediaPlaybackRefreshBucket(nextElapsed);
+    const bool titleChanged = strcmp(state.title, title) != 0;
+    const bool artistChanged = strcmp(state.artist, artist) != 0;
+    const bool stateLabelChanged = strcmp(state.stateLabel, rawState) != 0;
+    bool changed = availabilityChanged ||
+                   playbackMetricsChanged ||
+                   playingChanged ||
+                   titleChanged ||
+                   artistChanged ||
+                   stateLabelChanged ||
+                   coverChanged;
+
+    state.available = true;
+    state.elapsedSeconds = nextElapsed;
+    state.durationSeconds = nextDuration;
+    state.progress = nextProgress;
+    state.playing = nextPlaying;
+    state.lastPlaybackTickMs = millis();
+    snprintf(state.title, sizeof(state.title), "%s", title);
+    snprintf(state.artist, sizeof(state.artist), "%s", artist);
+    snprintf(state.stateLabel, sizeof(state.stateLabel), "%s", rawState);
+    if (coverChanged)
+    {
+      snprintf(state.coverUrl, sizeof(state.coverUrl), "%s", rawCoverUrl);
+      state.coverAvailable = false;
+    }
+    if (pageIndex == currentPageIndex && state.coverUrl[0] != '\0')
+    {
+      ensureMediaPageCoverLoaded(pageIndex, coverChanged);
+    }
+    const bool coverAvailabilityChanged = previousCoverAvailable != state.coverAvailable;
+    const bool hasRenderableMediaChanged = previousHasRenderableMedia != mediaPageHasRenderableMedia(pageIndex);
+    changed = changed || coverAvailabilityChanged;
+    changed = changed || hasRenderableMediaChanged;
+
+    if (changed && redraw && pageIndex == currentPageIndex)
+    {
+      const bool needsFullRender =
+          availabilityChanged ||
+          titleChanged ||
+          artistChanged ||
+          coverChanged ||
+          coverAvailabilityChanged ||
+          hasRenderableMediaChanged;
+      if (needsFullRender)
+      {
+        renderActivePage();
+      }
+      else
+      {
+        if (playbackMetricsChanged && playbackRefreshDue)
+        {
+          refreshMediaPlayerPlaybackRegion();
+        }
+        if (playingChanged)
+        {
+          refreshMediaPlayerControlsRegion();
+        }
+      }
+    }
+    return changed;
+  }
+
+  return false;
+}
+
+static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, JsonObjectConst stateObject, bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  bool changed = false;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    if (pageHasHomeAssistantBinding(pageIndex) && strcmp(UI_PAGES[pageIndex].entityId, entityId) == 0)
+    {
+      changed = applyHomeAssistantStateToPage(pageIndex, stateObject, redraw) || changed;
+    }
+
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!widgetHasHomeAssistantBinding(widget) || strcmp(widget.entityId, entityId) != 0)
+      {
+        continue;
+      }
+      changed = applyHomeAssistantStateToWidget(pageIndex, widgetIndex, stateObject, redraw) || changed;
+    }
+  }
+  return changed;
+}
+
+static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl(String("/api/states/") + entityId);
+  if (!homeAssistantRequest("GET", requestUrl, "", responseBody, statusCode))
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_BEGIN_FAILED");
+    return false;
+  }
+  if (statusCode != HTTP_CODE_OK)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_%d", statusCode);
+    return false;
+  }
+
+  DynamicJsonDocument document(4096);
+  const DeserializationError error = deserializeJson(document, responseBody);
+  if (error)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_JSON_%d", static_cast<int>(error.code()));
+    return false;
+  }
+
+  const JsonObjectConst stateObject = document.as<JsonObjectConst>();
+  return applyHomeAssistantStateToMatchingBindings(entityId, stateObject, redraw);
+}
+
+static bool applyHomeAssistantForecastToMatchingWeatherPages(const char *entityId, JsonArrayConst forecastArray, bool redraw, bool hourlyForecast)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  bool changed = false;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    const UiPageConfig &page = UI_PAGES[pageIndex];
+    if (page.pageType != UI_PAGE_WEATHER_FOCUS ||
+        !pageHasHomeAssistantBinding(pageIndex) ||
+        strcmp(page.entityId, entityId) != 0)
+    {
+      continue;
+    }
+
+    const bool pageChanged = hourlyForecast
+                                 ? applyHomeAssistantHourlyForecastToWeatherPage(pageIndex, forecastArray)
+                                 : applyHomeAssistantDailyForecastToWeatherPage(pageIndex, forecastArray);
+    changed = pageChanged || changed;
+    if (pageChanged && redraw && pageIndex == currentPageIndex)
+    {
+      renderActivePage();
+    }
+  }
+
+  return changed;
+}
+
+static bool fetchHomeAssistantWeatherForecast(const char *entityId, const char *forecastType, bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl("/api/services/weather/get_forecasts?return_response");
+  const String payload = String("{\"entity_id\":\"") + entityId + "\",\"type\":\"" + (forecastType != nullptr ? forecastType : "daily") + "\"}";
+  if (!homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode))
+  {
+    return false;
+  }
+  if (statusCode != HTTP_CODE_OK)
+  {
+    return false;
+  }
+
+  DynamicJsonDocument document(16384);
+  const DeserializationError error = deserializeJson(document, responseBody);
+  if (error)
+  {
+    return false;
+  }
+
+  JsonObjectConst serviceResponse = document["service_response"].as<JsonObjectConst>();
+  if (serviceResponse.isNull())
+  {
+    return false;
+  }
+
+  JsonObjectConst entityResponse = serviceResponse[entityId].as<JsonObjectConst>();
+  if (entityResponse.isNull())
+  {
+    return false;
+  }
+
+  return applyHomeAssistantForecastToMatchingWeatherPages(
+      entityId,
+      entityResponse["forecast"].as<JsonArrayConst>(),
+      redraw,
+      forecastType != nullptr && strcmp(forecastType, "hourly") == 0);
+}
+
+static void syncAllHomeAssistantEntityStates(bool redraw)
+{
+  if (!homeAssistantConfigured() || !homeAssistantUrl.valid || WiFi.status() != WL_CONNECTED)
+  {
+    return;
+  }
+
+  String entityIds[UI_PAGE_COUNT * (UI_MAX_WIDGETS_PER_PAGE + 1)];
+  int entityCount = 0;
+  String weatherPageEntityIds[UI_PAGE_COUNT];
+  int weatherPageEntityCount = 0;
+
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    if (pageHasHomeAssistantBinding(pageIndex))
+    {
+      bool alreadyAdded = false;
+      for (int index = 0; index < entityCount; index++)
+      {
+        if (entityIds[index] == UI_PAGES[pageIndex].entityId)
+        {
+          alreadyAdded = true;
+          break;
+        }
+      }
+      if (!alreadyAdded)
+      {
+        entityIds[entityCount++] = UI_PAGES[pageIndex].entityId;
+      }
+
+      if (UI_PAGES[pageIndex].pageType == UI_PAGE_WEATHER_FOCUS)
+      {
+        bool forecastAlreadyAdded = false;
+        for (int index = 0; index < weatherPageEntityCount; index++)
+        {
+          if (weatherPageEntityIds[index] == UI_PAGES[pageIndex].entityId)
+          {
+            forecastAlreadyAdded = true;
+            break;
+          }
+        }
+        if (!forecastAlreadyAdded)
+        {
+          weatherPageEntityIds[weatherPageEntityCount++] = UI_PAGES[pageIndex].entityId;
+        }
+      }
+    }
+
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!widgetHasHomeAssistantBinding(widget))
+      {
+        continue;
+      }
+
+      bool alreadyAdded = false;
+      for (int index = 0; index < entityCount; index++)
+      {
+        if (entityIds[index] == widget.entityId)
+        {
+          alreadyAdded = true;
+          break;
+        }
+      }
+      if (!alreadyAdded)
+      {
+        entityIds[entityCount++] = widget.entityId;
+      }
+    }
+  }
+
+  for (int index = 0; index < entityCount; index++)
+  {
+    fetchHomeAssistantEntityState(entityIds[index].c_str(), redraw);
+  }
+  for (int index = 0; index < weatherPageEntityCount; index++)
+  {
+    fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "daily", redraw);
+    fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "hourly", redraw);
+  }
+  lastHomeAssistantPollMs = millis();
+}
+
+static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
+{
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!widgetHasHomeAssistantBinding(widget))
+  {
+    return false;
+  }
+
+  const WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
+  const String domain = getEntityDomainString(widget.entityId);
+  String service;
+  String payload = String("{\"entity_id\":\"") + widget.entityId + "\"";
+
+  if (widget.type == UI_WIDGET_SWITCH)
+  {
+    service = state.enabled ? "turn_on" : "turn_off";
+  }
+  else if (widget.type == UI_WIDGET_SLIDER)
+  {
+    if (domain == "light")
+    {
+      if (state.value <= 0)
+      {
+        service = "turn_off";
+      }
+      else
+      {
+        service = "turn_on";
+        payload += ",\"brightness_pct\":";
+        payload += state.value;
+      }
+    }
+    else if (domain == "cover")
+    {
+      service = "set_cover_position";
+      payload += ",\"position\":";
+      payload += state.value;
+    }
+    else if (domain == "media_player")
+    {
+      service = "volume_set";
+      payload += ",\"volume_level\":";
+      payload += String(state.value / 100.0f, 2);
+    }
+    else if (domain == "fan")
+    {
+      service = "set_percentage";
+      payload += ",\"percentage\":";
+      payload += state.value;
+    }
+    else if (domain == "input_number" || domain == "number")
+    {
+      service = "set_value";
+      payload += ",\"value\":";
+      payload += state.value;
+    }
+    else if (domain == "humidifier")
+    {
+      service = "set_humidity";
+      payload += ",\"humidity\":";
+      payload += state.value;
+    }
+  }
+  else if (widget.type == UI_WIDGET_THERMOSTAT && domain == "climate")
+  {
+    service = "set_temperature";
+    payload += ",\"temperature\":";
+    payload += String(state.value / 10.0f, 1);
+  }
+
+  if (service.length() == 0)
+  {
+    return false;
+  }
+
+  payload += "}";
+
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
+  const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
+  if (!requestOk || statusCode < 200 || statusCode >= 300)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_SERVICE_%d", statusCode);
+    return false;
+  }
+
+  return true;
+}
+
+static bool callHomeAssistantToggleForSliderWidget(int pageIndex, int widgetIndex)
+{
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (widget.type != UI_WIDGET_SLIDER || !widgetHasHomeAssistantBinding(widget))
+  {
+    return false;
+  }
+
+  const String domain = getEntityDomainString(widget.entityId);
+  String serviceDomain;
+  String service;
+
+  if (domain == "light" || domain == "fan" || domain == "humidifier")
+  {
+    serviceDomain = "homeassistant";
+    service = "toggle";
+  }
+  else if (domain == "cover")
+  {
+    serviceDomain = "cover";
+    service = getWidgetState(pageIndex, widgetIndex).value > 0 ? "close_cover" : "open_cover";
+  }
+  else
+  {
+    return false;
+  }
+
+  const String payload = String("{\"entity_id\":\"") + widget.entityId + "\"}";
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + serviceDomain + "/" + service);
+  const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
+  if (!requestOk || statusCode < 200 || statusCode >= 300)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_SERVICE_%d", statusCode);
+    return false;
+  }
+
+  return true;
+}
+
+static bool callHomeAssistantServiceForPage(int pageIndex, const char *service)
+{
+  if (service == nullptr || service[0] == '\0' || !pageHasHomeAssistantBinding(pageIndex))
+  {
+    return false;
+  }
+
+  const UiPageConfig &page = UI_PAGES[pageIndex];
+  if (page.pageType != UI_PAGE_MEDIA_PLAYER)
+  {
+    return false;
+  }
+
+  const String domain = getEntityDomainString(page.entityId);
+  if (domain != "media_player")
+  {
+    return false;
+  }
+
+  const String payload = String("{\"entity_id\":\"") + page.entityId + "\"}";
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
+  const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
+  if (!requestOk || statusCode < 200 || statusCode >= 300)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_SERVICE_%d", statusCode);
+    return false;
+  }
+
+  return true;
+}
+
+static void sendHomeAssistantSocketAuth()
+{
+  DynamicJsonDocument document(512);
+  document["type"] = "auth";
+  document["access_token"] = HOME_ASSISTANT_TOKEN_BUILD;
+  String payload;
+  serializeJson(document, payload);
+  homeAssistantSocket.sendTXT(payload);
+}
+
+static void sendHomeAssistantSocketSubscribe()
+{
+  DynamicJsonDocument document(256);
+  document["id"] = 1;
+  document["type"] = "subscribe_events";
+  document["event_type"] = "state_changed";
+  String payload;
+  serializeJson(document, payload);
+  homeAssistantSocket.sendTXT(payload);
+}
+
+static void handleHomeAssistantSocketText(const char *payload, size_t length)
+{
+  DynamicJsonDocument document(6144);
+  const DeserializationError error = deserializeJson(document, payload, length);
+  if (error)
+  {
+    return;
+  }
+
+  const char *messageType = document["type"] | "";
+  if (strcmp(messageType, "auth_required") == 0)
+  {
+    sendHomeAssistantSocketAuth();
+    return;
+  }
+  if (strcmp(messageType, "auth_ok") == 0)
+  {
+    homeAssistantAuthenticated = true;
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "%s", "");
+    sendHomeAssistantSocketSubscribe();
+    syncAllHomeAssistantEntityStates(false);
+    if (pageReady)
+    {
+      renderActivePage();
+    }
+    return;
+  }
+  if (strcmp(messageType, "auth_invalid") == 0)
+  {
+    homeAssistantAuthenticated = false;
+    homeAssistantSubscriptionActive = false;
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_AUTH_INVALID");
+    return;
+  }
+  if (strcmp(messageType, "result") == 0)
+  {
+    const int id = document["id"] | 0;
+    const bool success = document["success"] | false;
+    if (id == 1 && success)
+    {
+      homeAssistantSubscriptionActive = true;
+    }
+    return;
+  }
+  if (strcmp(messageType, "event") != 0)
+  {
+    return;
+  }
+
+  const char *entityId = document["event"]["data"]["entity_id"] | "";
+  JsonObjectConst newState = document["event"]["data"]["new_state"].as<JsonObjectConst>();
+  if (entityId[0] == '\0' || newState.isNull())
+  {
+    return;
+  }
+
+  applyHomeAssistantStateToMatchingBindings(entityId, newState, true);
+}
+
+static void handleHomeAssistantSocketEvent(WStype_t type, uint8_t *payload, size_t length)
+{
+  switch (type)
+  {
+  case WStype_CONNECTED:
+    homeAssistantSocketConnected = true;
+    homeAssistantAuthenticated = false;
+    homeAssistantSubscriptionActive = false;
+    Serial.println("HA_SOCKET_CONNECTED");
+    break;
+  case WStype_DISCONNECTED:
+    homeAssistantSocketConnected = false;
+    homeAssistantAuthenticated = false;
+    homeAssistantSubscriptionActive = false;
+    Serial.println("HA_SOCKET_DISCONNECTED");
+    break;
+  case WStype_TEXT:
+    handleHomeAssistantSocketText(reinterpret_cast<const char *>(payload), length);
+    break;
+  default:
+    break;
+  }
+}
+
+static void ensureHomeAssistantSocket()
+{
+  if (!homeAssistantConfigured() || !homeAssistantUrl.valid || WiFi.status() != WL_CONNECTED)
+  {
+    return;
+  }
+  if (homeAssistantSocketStarted && (homeAssistantSocketConnected || millis() - lastHomeAssistantSocketSetupMs < 5000))
+  {
+    return;
+  }
+
+  const String wsPath = getHomeAssistantWebSocketPath();
+  homeAssistantSocket.disconnect();
+  homeAssistantSocket.onEvent(handleHomeAssistantSocketEvent);
+  if (homeAssistantUrl.secure)
+  {
+    homeAssistantSocket.beginSSL(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str());
+  }
+  else
+  {
+    homeAssistantSocket.begin(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str());
+  }
+  homeAssistantSocket.setReconnectInterval(5000);
+  homeAssistantSocket.enableHeartbeat(15000, 3000, 2);
+  homeAssistantSocketStarted = true;
+  lastHomeAssistantSocketSetupMs = millis();
 }
 
 static bool getPrimarySwitchLocation(int &pageIndexOut, int &widgetIndexOut)
@@ -1856,6 +4585,7 @@ static bool setPrimarySwitchState(bool enabled, bool redraw)
   {
     drawSwitchWidget(widgetIndex, true);
   }
+  callHomeAssistantServiceForWidget(pageIndex, widgetIndex);
   return true;
 }
 
@@ -1904,7 +4634,7 @@ static void pollTouchInput()
         return;
       }
 
-      if (isPointInRectExpanded(tx, ty, navLeftRect, 8))
+      if (isPointInRectExpanded(tx, ty, navLeftRect, 18))
       {
         lastTouchActionMs = now;
         currentPageIndex = (currentPageIndex - 1 + UI_PAGE_COUNT) % UI_PAGE_COUNT;
@@ -1913,13 +4643,44 @@ static void pollTouchInput()
         return;
       }
 
-      if (isPointInRectExpanded(tx, ty, navRightRect, 8))
+      if (isPointInRectExpanded(tx, ty, navRightRect, 18))
       {
         lastTouchActionMs = now;
         currentPageIndex = (currentPageIndex + 1) % UI_PAGE_COUNT;
         renderActivePage(true);
         Serial.printf("PAGE_SWITCH DIR=RIGHT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
         return;
+      }
+
+      if (activePageIsMediaPlayer() && activeMediaPageUsesHomeAssistant() && mediaPageHasRenderableMedia(currentPageIndex))
+      {
+        if (isPointInRectExpanded(tx, ty, mediaPlayerPrevButtonRect, 10))
+        {
+          lastTouchActionMs = now;
+          callHomeAssistantServiceForPage(currentPageIndex, "media_previous_track");
+          Serial.printf("MEDIA_TOUCH ACTION=PREVIOUS MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
+          return;
+        }
+
+        if (isPointInRectExpanded(tx, ty, mediaPlayerPlayPauseButtonRect, 10))
+        {
+          lastTouchActionMs = now;
+          MediaPageRuntimeState &mediaState = mediaPageStates[currentPageIndex];
+          mediaState.playing = !mediaState.playing;
+          mediaState.lastPlaybackTickMs = now;
+          refreshMediaPlayerControlsRegion();
+          callHomeAssistantServiceForPage(currentPageIndex, "media_play_pause");
+          Serial.printf("MEDIA_TOUCH ACTION=PLAY_PAUSE MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
+          return;
+        }
+
+        if (isPointInRectExpanded(tx, ty, mediaPlayerNextButtonRect, 10))
+        {
+          lastTouchActionMs = now;
+          callHomeAssistantServiceForPage(currentPageIndex, "media_next_track");
+          Serial.printf("MEDIA_TOUCH ACTION=NEXT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
+          return;
+        }
       }
 
       for (int widgetIndex = 0; widgetIndex < UI_PAGES[currentPageIndex].widgetCount; widgetIndex++)
@@ -1932,9 +4693,41 @@ static void pollTouchInput()
           lastTouchActionMs = now;
           state.enabled = !state.enabled;
           drawSwitchWidget(widgetIndex, true);
+          callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
           Serial.printf(
               "SWITCH_TOUCH VALUE=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
               state.enabled ? 1 : 0,
+              mappedNames[i],
+              rawX,
+              rawY,
+              tx,
+              ty);
+          return;
+        }
+
+        if (widget.type == UI_WIDGET_SLIDER && isPointInRectExpanded(tx, ty, state.secondaryRect, 10))
+        {
+          lastTouchActionMs = now;
+          const int safeMax = state.maxValue > 0 ? state.maxValue : 100;
+          const int nextValue = state.value > 0 ? 0 : safeMax;
+          bool handled = false;
+          if (!widgetHasHomeAssistantBinding(widget))
+          {
+            state.value = nextValue;
+            drawSliderWidget(widgetIndex, true);
+            handled = true;
+          }
+          else if (callHomeAssistantToggleForSliderWidget(currentPageIndex, widgetIndex))
+          {
+            state.value = nextValue;
+            drawSliderWidget(widgetIndex, true);
+            handled = true;
+          }
+
+          Serial.printf(
+              "SLIDER_ICON_TOUCH VALUE=%d HANDLED=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
+              nextValue,
+              handled ? 1 : 0,
               mappedNames[i],
               rawX,
               rawY,
@@ -1948,6 +4741,7 @@ static void pollTouchInput()
           lastTouchActionMs = now;
           state.value = sliderValueFromTouch(state, tx);
           drawSliderWidget(widgetIndex, true);
+          callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
           Serial.printf(
               "SLIDER_TOUCH VALUE=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
               state.value,
@@ -1967,6 +4761,7 @@ static void pollTouchInput()
             lastTouchActionMs = now;
             state.value = clampInt(state.value + 5, 120, maxTemp);
             drawThermostatWidget(widgetIndex, true);
+            callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=INCREASE VALUE=%.1f MAP=%s RAW=%d,%d XY=%d,%d\n",
                 state.value / 10.0f,
@@ -1983,6 +4778,7 @@ static void pollTouchInput()
             lastTouchActionMs = now;
             state.value = clampInt(state.value - 5, 120, maxTemp);
             drawThermostatWidget(widgetIndex, true);
+            callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=DECREASE VALUE=%.1f MAP=%s RAW=%d,%d XY=%d,%d\n",
                 state.value / 10.0f,
@@ -2029,18 +4825,11 @@ static void runDisplayLoop()
     return;
   }
 
-  char currentDebugIp[40];
-  buildDebugIpText(currentDebugIp, sizeof(currentDebugIp));
   const uint32_t nowMs = millis();
   if (activePageIsWeatherFocus())
   {
     bool rerenderWeatherPage = false;
-    if (strcmp(currentDebugIp, lastDebugIp) != 0)
-    {
-      snprintf(lastDebugIp, sizeof(lastDebugIp), "%s", currentDebugIp);
-      rerenderWeatherPage = true;
-    }
-    if (nowMs - lastWeatherUpdateMs >= 15000)
+    if (!activeWeatherPageUsesHomeAssistant() && nowMs - lastWeatherUpdateMs >= 15000)
     {
       lastWeatherUpdateMs = nowMs;
       const int frameCount = (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
@@ -2056,18 +4845,11 @@ static void runDisplayLoop()
 
   if (activePageIsMediaPlayer())
   {
-    if (strcmp(currentDebugIp, lastDebugIp) != 0)
+    if (activeMediaPageUsesHomeAssistant() && advanceMediaPagePlaybackClock(currentPageIndex, nowMs))
     {
-      drawDebugIpText(currentDebugIp, true);
-      snprintf(lastDebugIp, sizeof(lastDebugIp), "%s", currentDebugIp);
+      refreshMediaPlayerPlaybackRegion();
     }
     return;
-  }
-
-  if (strcmp(currentDebugIp, lastDebugIp) != 0)
-  {
-    drawDebugIpText(currentDebugIp, true);
-    snprintf(lastDebugIp, sizeof(lastDebugIp), "%s", currentDebugIp);
   }
 
   if (nowMs - lastClockUpdateMs >= 250)
@@ -2108,6 +4890,10 @@ static void runDisplayLoop()
     {
       const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
       WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+      if (state.homeAssistantBound)
+      {
+        continue;
+      }
 
       if (widget.type == UI_WIDGET_PROGRESS)
       {
@@ -2147,6 +4933,10 @@ static void runDisplayLoop()
         continue;
       }
       WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+      if (state.homeAssistantBound)
+      {
+        continue;
+      }
       state.phase = (state.phase + 1) % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
       drawWeatherWidget(widgetIndex, true);
     }
@@ -2247,7 +5037,6 @@ static void renderStatusScreen(const char *title, const char *line1, const char 
     }
   }
 
-  display.setFont(FONT_12x16);
   const int lineHeight = 24;
   const int startY = (display.height() - (visibleLines * lineHeight)) / 2;
   int lineIndex = 0;
@@ -2257,6 +5046,7 @@ static void renderStatusScreen(const char *title, const char *line1, const char 
     {
       continue;
     }
+    selectTextFont(UI_TEXT_BODY);
     const int x = centeredX(lines[i]);
     const int y = startY + (lineIndex * lineHeight);
     drawReadableLine(lines[i], x, y);
@@ -2437,6 +5227,10 @@ void handleHealth()
 {
   String payload = "{\"ok\":true,\"wifiConnected\":";
   payload += WiFi.status() == WL_CONNECTED ? "true" : "false";
+  payload += ",\"homeAssistantConfigured\":";
+  payload += homeAssistantConfigured() ? "true" : "false";
+  payload += ",\"homeAssistantConnected\":";
+  payload += homeAssistantAuthenticated ? "true" : "false";
   payload += ",\"ip\":\"";
   payload += WiFi.localIP().toString();
   payload += "\"}";
@@ -3207,6 +6001,10 @@ void setup()
   setupDisplay();
 
   currentCredentials = loadCredentials();
+  if (homeAssistantConfigured())
+  {
+    parseHomeAssistantUrl(HOME_ASSISTANT_URL_BUILD, homeAssistantUrl);
+  }
   connectWifi(currentCredentials);
   waitForWifiOrTimeout(15000);
 
@@ -3217,6 +6015,15 @@ void setup()
   server.on("/api/automation-switch", HTTP_GET, handleAutomationSwitchState);
   server.on("/api/automation-switch", HTTP_POST, handleAutomationSwitchSet);
   startServerIfNeeded();
+  if (homeAssistantConfigured() && homeAssistantUrl.valid)
+  {
+    syncAllHomeAssistantEntityStates(false);
+    if (pageReady)
+    {
+      renderActivePage();
+    }
+    ensureHomeAssistantSocket();
+  }
 }
 
 void loop()
@@ -3226,6 +6033,20 @@ void loop()
   if (WiFi.status() == WL_CONNECTED)
   {
     startServerIfNeeded();
+    if (homeAssistantConfigured() && homeAssistantUrl.valid)
+    {
+      ensureHomeAssistantSocket();
+      if (homeAssistantSocketStarted)
+      {
+        homeAssistantSocket.loop();
+      }
+
+      const uint32_t pollIntervalMs = homeAssistantAuthenticated ? 60000UL : 15000UL;
+      if (millis() - lastHomeAssistantPollMs >= pollIntervalMs)
+      {
+        syncAllHomeAssistantEntityStates(false);
+      }
+    }
   }
 
   if (WiFi.status() != WL_CONNECTED && millis() - lastWifiRetry > 30000)
@@ -3233,6 +6054,15 @@ void loop()
     lastWifiRetry = millis();
     connectWifi(currentCredentials);
     waitForWifiOrTimeout(8000);
+    if (WiFi.status() == WL_CONNECTED && homeAssistantConfigured() && homeAssistantUrl.valid)
+    {
+      syncAllHomeAssistantEntityStates(false);
+      if (pageReady)
+      {
+        renderActivePage();
+      }
+      ensureHomeAssistantSocket();
+    }
   }
 
   if (serverStarted && WiFi.status() == WL_CONNECTED)

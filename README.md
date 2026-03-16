@@ -14,6 +14,10 @@ Next.js app + firmware workspace for managing M5PaperS3 e-ink devices with a min
 ## Features
 
 - Device dashboard for e-ink page configuration
+- Home Assistant connection from the web configurator
+- Entity search + binding for weather, progress, switch, slider, and thermostat widgets
+- Live browser preview updates from bound Home Assistant entities
+- Direct ESP-to-Home Assistant sync for bound widgets, including touch-driven service calls
 - Page controls for widgets (clock, weather, progress)
 - Theme controls (font profile + dark/light UI)
 - Partial refresh policy controls
@@ -111,3 +115,11 @@ The web app sends:
 to `http://<device-ip>/api/ota`.
 
 Implement secure OTA validation before production usage.
+
+## Home Assistant
+
+1. Enter your Home Assistant base URL and a long-lived access token in the dashboard.
+2. Search for entities directly inside widget cards and bind them to supported widget types.
+3. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
+
+The browser stores the Home Assistant settings locally. Firmware builds embed the same URL and token so the device can fetch state updates and send service calls directly.

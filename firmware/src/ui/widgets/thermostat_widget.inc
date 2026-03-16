@@ -2,7 +2,7 @@ static void drawThermostatWidget(int widgetIndex, bool pushPartial)
 {
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  const int currentTemp = widget.currentValue != 0 ? widget.currentValue : 205;
+  const int currentTemp = state.currentValue != 0 ? state.currentValue : (widget.currentValue != 0 ? widget.currentValue : 205);
   const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
   const int targetTemp = clampInt(state.value > 0 ? state.value : widget.value, 120, maxTemp);
   state.value = targetTemp;
@@ -15,11 +15,11 @@ static void drawThermostatWidget(int widgetIndex, bool pushPartial)
   const int rightBlockX = state.cardRect.x + state.cardRect.w - 305;
   const int currentTop = topY + 50;
   const int targetTop = topY + 66;
-  const int metaWidth = textWidthForRole("Current / Target", UI_TEXT_META);
+  const int metaWidth = widgetMetaTextWidth("Current / Target");
   const int metaX = state.cardRect.x + state.cardRect.w - 18 - metaWidth;
 
-  drawTextRole(widget.label, leftX, topY + 14, UI_TEXT_META);
-  drawTextRole("Current / Target", metaX, topY + 14, UI_TEXT_META);
+  drawWidgetMetaTextAtTop(widget.label, leftX, topY + 14);
+  drawWidgetMetaTextAtTop("Current / Target", metaX, topY + 14);
 
   char currentDigits[12];
   formatTemperatureTenths(currentTemp, currentDigits, sizeof(currentDigits));
@@ -27,19 +27,16 @@ static void drawThermostatWidget(int widgetIndex, bool pushPartial)
   drawCustomTextAtTop(UI_THERMOSTAT_CURRENT_FONT, currentDigits, rightBlockX, currentTop);
   const int currentWidth = customFontTextWidth(UI_THERMOSTAT_CURRENT_FONT, currentDigits);
 
-  display.setFont(FONT_8x8);
-  drawReadableLine("°C", rightBlockX + currentWidth, topY + 88);
+  drawWidgetMetaText("°C", rightBlockX + currentWidth, topY + 88);
 
   const int slashX = rightBlockX + currentWidth + 18;
-  display.setFont(FONT_8x8);
-  drawReadableLine("/", slashX, topY + 88);
+  drawWidgetMetaText("/", slashX, topY + 88);
 
   char targetDigits[12];
   formatTemperatureTenths(targetTemp, targetDigits, sizeof(targetDigits));
   drawCustomTextAtTop(Roboto_Regular_20, targetDigits, state.tertiaryRect.x, targetTop);
   const int targetWidth = customFontTextWidth(Roboto_Regular_20, targetDigits);
-  display.setFont(FONT_8x8);
-  drawReadableLine("°C", state.tertiaryRect.x + targetWidth + 2, topY + 88);
+  drawWidgetMetaText("°C", state.tertiaryRect.x + targetWidth + 2, topY + 88);
 
   drawMiniChevron(state.controlRect, true);
   drawMiniChevron(state.secondaryRect, false);

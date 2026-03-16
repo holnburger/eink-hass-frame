@@ -32,29 +32,25 @@ static void drawSliderWidget(int widgetIndex, bool pushPartial)
   display.setMode(BB_MODE_1BPP);
   setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
+  drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
 
   char valueText[16];
   snprintf(valueText, sizeof(valueText), "%d%%", safeValue);
-  const int valueWidth = textWidthForRole(valueText, UI_TEXT_META);
-  drawTextRole(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 18, UI_TEXT_META);
+  const int valueWidth = widgetMetaTextWidth(valueText);
+  drawWidgetMetaTextAtTop(valueText, state.cardRect.x + state.cardRect.w - valueWidth - 18, state.cardRect.y + 18);
 
   display.fillRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoPaper());
   display.drawRoundRect(controlX, controlY, controlW, buttonSize, radius, uiMonoInk());
 
   if (sliderEnabled)
   {
-    const int fillStart = controlX + radius;
-    const int fillWidth = knobCenterX - fillStart;
-    if (fillWidth > 0)
+    const int activeWidth = knobCenterX - controlX + 18;
+    if (activeWidth > 0)
     {
-      display.fillRect(fillStart, controlY, fillWidth, buttonSize, uiMonoInk());
+      display.fillRoundRect(controlX, controlY, activeWidth, buttonSize, radius, uiMonoInk());
     }
-    display.fillCircle(controlX + radius, centerY, radius, uiMonoInk());
-    display.fillCircle(knobCenterX, centerY, radius - 1, uiMonoInk());
+    display.fillCircle(knobCenterX, centerY, radius, uiMonoInk());
   }
-
-  display.drawCircle(controlX + radius, centerY, radius, uiMonoInk());
   BB_RECT iconRect = {controlX + 6, controlY + 6, buttonSize - 12, buttonSize - 12};
   if (icon != nullptr)
   {

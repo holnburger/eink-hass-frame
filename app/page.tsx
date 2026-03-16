@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CheckCircle2,
   GripVertical,
   Moon,
   Palette,
@@ -16,10 +15,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "motion/react";
 
 import { DevicePreview } from "@/components/dashboard/device-preview";
+import { HomeAssistantCard } from "@/components/dashboard/home-assistant-card";
+import { HomeAssistantEntityPicker } from "@/components/dashboard/home-assistant-entity-picker";
 import { MdiIcon } from "@/components/dashboard/mdi-icon";
 import { OtaFlashCard } from "@/components/dashboard/ota-flash";
 import { UsbFlashCard } from "@/components/dashboard/usb-flash";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,6 +32,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import {
+  collectBoundEntityIds,
+  DEFAULT_HOME_ASSISTANT_CONFIG,
+  getCompatibleDomainsForPage,
+  getCompatibleDomainsForWidget,
+  isHomeAssistantConfigured,
+  pageSupportsHomeAssistant,
+  type HomeAssistantEntityState,
+  type HomeAssistantConfig,
+  widgetSupportsHomeAssistant,
+} from "@/lib/home-assistant";
 import {
   CLOCK_STYLE_OPTIONS,
   countWidgets,
@@ -75,31 +86,17 @@ function isSavedDevice(value: unknown): value is SavedDevice {
   );
 }
 
-type StepStateBadgeProps = {
-  done: boolean;
-  pendingLabel: string;
-};
-
 type EditableWidgetCardProps = {
   widget: WidgetConfig;
   widgetIndex: number;
   widgetsCount: number;
+  homeAssistant: HomeAssistantConfig;
   onRemove: (widgetId: string) => void;
   onUpdate: (
     widgetId: string,
     updater: (widget: WidgetConfig) => WidgetConfig,
   ) => void;
 };
-
-function StepStateBadge({ done, pendingLabel }: StepStateBadgeProps) {
-  return done ? (
-    <Badge className="border-emerald-500/50 bg-emerald-500/10 text-emerald-300">
-      <CheckCircle2 className="mr-1 h-3 w-3" /> Done
-    </Badge>
-  ) : (
-    <Badge className="border-zinc-600 text-zinc-300">{pendingLabel}</Badge>
-  );
-}
 
 type SliderIconPickerDialogProps = {
   open: boolean;
@@ -193,6 +190,7 @@ function EditableWidgetCard({
   widget,
   widgetIndex,
   widgetsCount,
+  homeAssistant,
   onRemove,
   onUpdate,
 }: EditableWidgetCardProps) {
@@ -265,29 +263,6 @@ function EditableWidgetCard({
             }
           />
         </div>
-
-        {(widget.type === "progress" || widget.type === "slider") && (
-          <div className="space-y-2">
-            <Label htmlFor={`${widget.id}-value`}>Initial Value (%)</Label>
-            <Input
-              id={`${widget.id}-value`}
-              type="number"
-              min={0}
-              max={100}
-              value={widget.value ?? 0}
-              onChange={(event) =>
-                onUpdate(widget.id, (current) => ({
-                  ...current,
-                  value: Math.max(
-                    0,
-                    Math.min(100, Number(event.target.value) || 0),
-                  ),
-                  max: 100,
-                }))
-              }
-            />
-          </div>
-        )}
 
         {widget.type === "slider" && (
           <div className="space-y-2">
@@ -414,27 +389,23 @@ function EditableWidgetCard({
           </>
         )}
 
-        {widget.type === "switch" && (
-          <div className="space-y-2">
-            <Label htmlFor={`${widget.id}-enabled`} className="sr-only">
-              Default State
-            </Label>
-            <div className="rounded-md border border-zinc-800 px-3 py-2">
-              <Switch
-                id={`${widget.id}-enabled`}
-                label="Default enabled"
-                checked={Boolean(widget.enabled)}
-                onCheckedChange={(checked) =>
-                  onUpdate(widget.id, (current) => ({
-                    ...current,
-                    enabled: checked,
-                  }))
-                }
-              />
-            </div>
-          </div>
-        )}
       </div>
+
+      {widgetSupportsHomeAssistant(widget.type) ? (
+        <div className="mt-4">
+          <HomeAssistantEntityPicker
+            homeAssistant={homeAssistant}
+            supportedDomains={getCompatibleDomainsForWidget(widget.type)}
+            value={widget.homeAssistant}
+            onChange={(homeAssistantBinding) =>
+              onUpdate(widget.id, (current) => ({
+                ...current,
+                homeAssistant: homeAssistantBinding,
+              }))
+            }
+          />
+        </div>
+      ) : null}
 
       {widget.type === "slider" ? (
         <SliderIconPickerDialog
@@ -470,6 +441,11 @@ export default function Home() {
     "hass.layout.fullRefreshEvery",
     DEFAULT_BUILD_CONFIG.fullRefreshEvery,
   );
+  const [homeAssistant, setHomeAssistant] =
+    useLocalStorage<HomeAssistantConfig>(
+      "hass.homeAssistant",
+      DEFAULT_HOME_ASSISTANT_CONFIG,
+    );
 
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
   const [activeDeviceId, setActiveDeviceId] = useState("");
@@ -477,6 +453,9 @@ export default function Home() {
   const [editorPageId, setEditorPageId] = useState(
     DEFAULT_BUILD_CONFIG.pages[0]?.id ?? "",
   );
+  const [homeAssistantStates, setHomeAssistantStates] = useState<
+    Record<string, HomeAssistantEntityState>
+  >({});
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -485,9 +464,10 @@ export default function Home() {
         fontName: selectedFont,
         partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
         fullRefreshEvery,
+        homeAssistant,
         pages,
       }),
-    [darkMode, fullRefreshEvery, pages, selectedFont],
+    [darkMode, fullRefreshEvery, homeAssistant, pages, selectedFont],
   );
   const fontClass = useMemo(
     () => getFontClass(buildConfig.fontName),
@@ -498,13 +478,16 @@ export default function Home() {
       Array.isArray(savedDevices) ? savedDevices.filter(isSavedDevice) : [],
     [savedDevices],
   );
-  const activeDevice = useMemo(
-    () =>
-      validSavedDevices.find((device) => device.id === activeDeviceId) ?? null,
-    [activeDeviceId, validSavedDevices],
-  );
   const pageCount = buildConfig.pages.length;
   const widgetCount = countWidgets(buildConfig.pages);
+  const boundEntityIds = useMemo(
+    () => collectBoundEntityIds(buildConfig.pages),
+    [buildConfig.pages],
+  );
+  const boundEntityCount = useMemo(
+    () => boundEntityIds.length,
+    [boundEntityIds],
+  );
   const editorPageIndex = useMemo(() => {
     const index = buildConfig.pages.findIndex(
       (page) => page.id === editorPageId,
@@ -558,6 +541,53 @@ export default function Home() {
       // ignore persistence issues
     }
   }, [activeDeviceId, deviceStoreReady, validSavedDevices]);
+
+  useEffect(() => {
+    if (
+      !isHomeAssistantConfigured(buildConfig.homeAssistant) ||
+      boundEntityIds.length === 0
+    ) {
+      setHomeAssistantStates({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function syncStates() {
+      try {
+        const response = await fetch("/api/home-assistant/states", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: buildConfig.homeAssistant.url,
+            token: buildConfig.homeAssistant.token,
+            entityIds: boundEntityIds,
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          entities?: Record<string, HomeAssistantEntityState>;
+        };
+        if (!cancelled && response.ok && payload.ok !== false) {
+          setHomeAssistantStates(payload.entities ?? {});
+        }
+      } catch {
+        if (!cancelled) {
+          setHomeAssistantStates({});
+        }
+      }
+    }
+
+    void syncStates();
+    const timer = window.setInterval(() => {
+      void syncStates();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [boundEntityIds, buildConfig.homeAssistant]);
 
   function handleSaveActiveDevice(device: SavedDevice) {
     setSavedDevices((prev) => {
@@ -651,8 +681,6 @@ export default function Home() {
     });
   }
 
-  const hasActiveDevice = Boolean(activeDevice);
-
   return (
     <div className={darkMode ? "dark" : ""}>
       <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -729,6 +757,20 @@ export default function Home() {
             <UsbFlashCard
               buildConfig={buildConfig}
               onSaveActiveDevice={handleSaveActiveDevice}
+            />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" />
+              <h2 className="text-xl font-semibold">
+                Home Assistant Connection
+              </h2>
+            </div>
+            <HomeAssistantCard
+              value={homeAssistant}
+              onChange={setHomeAssistant}
+              boundEntityCount={boundEntityCount}
             />
           </section>
 
@@ -899,12 +941,18 @@ export default function Home() {
                                   return {
                                     ...page,
                                     type: nextType,
+                                    homeAssistant: pageSupportsHomeAssistant(
+                                      nextType,
+                                    )
+                                      ? page.homeAssistant
+                                      : undefined,
                                     widgets: [],
                                   };
                                 }
                                 return {
                                   ...page,
                                   type: nextType,
+                                  homeAssistant: undefined,
                                   widgets:
                                     page.widgets.length > 0
                                       ? page.widgets
@@ -941,7 +989,7 @@ export default function Home() {
                       </div>
 
                       {editorPage.type === "weather-focus" ? (
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+                        <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
                           <p className="font-medium text-zinc-100">
                             Dedicated weather page
                           </p>
@@ -950,9 +998,22 @@ export default function Home() {
                             the device instead of normal widgets. It is now
                             optimized for a crisp 1-bit render path.
                           </p>
+                          <HomeAssistantEntityPicker
+                            homeAssistant={homeAssistant}
+                            supportedDomains={getCompatibleDomainsForPage(
+                              "weather-focus",
+                            )}
+                            value={editorPage.homeAssistant}
+                            onChange={(homeAssistantBinding) =>
+                              updateCurrentPage((page) => ({
+                                ...page,
+                                homeAssistant: homeAssistantBinding,
+                              }))
+                            }
+                          />
                         </div>
                       ) : editorPage.type === "media-player" ? (
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+                        <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
                           <p className="font-medium text-zinc-100">
                             Dedicated media player page
                           </p>
@@ -961,6 +1022,19 @@ export default function Home() {
                             with cover art, runtime progress and playtime. It
                             does not use the normal widget stack.
                           </p>
+                          <HomeAssistantEntityPicker
+                            homeAssistant={homeAssistant}
+                            supportedDomains={getCompatibleDomainsForPage(
+                              "media-player",
+                            )}
+                            value={editorPage.homeAssistant}
+                            onChange={(homeAssistantBinding) =>
+                              updateCurrentPage((page) => ({
+                                ...page,
+                                homeAssistant: homeAssistantBinding,
+                              }))
+                            }
+                          />
                         </div>
                       ) : (
                         <>
@@ -1007,6 +1081,7 @@ export default function Home() {
                                   widget={widget}
                                   widgetIndex={widgetIndex}
                                   widgetsCount={editorPage.widgets.length}
+                                  homeAssistant={homeAssistant}
                                   onRemove={removeWidget}
                                   onUpdate={updateWidget}
                                 />
@@ -1033,6 +1108,8 @@ export default function Home() {
                       darkMode={buildConfig.darkMode}
                       fontClass={fontClass}
                       pages={buildConfig.pages}
+                      homeAssistantConfig={buildConfig.homeAssistant}
+                      homeAssistantStates={homeAssistantStates}
                       activePageIndex={editorPageIndex}
                       onPageChange={(pageIndex) =>
                         setEditorPageId(

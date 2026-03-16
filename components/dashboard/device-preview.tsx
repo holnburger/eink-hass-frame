@@ -1,15 +1,29 @@
 "use client";
 
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, Cloud, CloudRain, Lightbulb, SunMedium, Wind } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { MdiIcon } from "@/components/dashboard/mdi-icon";
+import {
+  isHomeAssistantEntityUnavailable,
+  resolveHomeAssistantMediaPlayer,
+  resolveHomeAssistantEnabled,
+  resolveHomeAssistantNumericValue,
+  resolveHomeAssistantThermostat,
+  resolveHomeAssistantWeather,
+  resolveHomeAssistantWeatherPage,
+  type HomeAssistantConfig,
+  type HomeAssistantEntityState,
+} from "@/lib/home-assistant";
 import type { PageConfig, WidgetConfig } from "@/lib/layout-config";
 
 type DevicePreviewProps = {
   darkMode: boolean;
   fontClass: string;
   pages: PageConfig[];
+  homeAssistantConfig: HomeAssistantConfig;
+  homeAssistantStates: Record<string, HomeAssistantEntityState>;
   activePageIndex: number;
   onPageChange: (pageIndex: number) => void;
 };
@@ -30,10 +44,10 @@ const WEATHER_STATES = [
 const MEDIA_MOCK = {
   title: "Welcome To The Black",
   artist: "My Chemical Romance",
-  elapsed: "01:42",
-  duration: "03:57",
   progress: 43,
   coverUrl: "/mock/black-cover.jpg",
+  hasContent: true,
+  state: "playing",
 } as const;
 
 function truncateMediaTitle(title: string, fontClass: string) {
@@ -68,19 +82,40 @@ function formatClock(date: Date | null, showSeconds: boolean) {
   });
 }
 
-function PreviewSwitch({ widget, darkMode }: { widget: WidgetConfig; darkMode: boolean }) {
-  const [enabled, setEnabled] = useState(Boolean(widget.enabled));
+function formatPreviewWeatherDate(date: Date | null) {
+  if (!date) {
+    return "Today";
+  }
 
-  useEffect(() => {
-    setEnabled(Boolean(widget.enabled));
-  }, [widget.enabled, widget.id]);
+  return date.toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getBoundEntityState(
+  bindingTarget: { homeAssistant?: { entityId: string } | undefined },
+  homeAssistantStates: Record<string, HomeAssistantEntityState>,
+) {
+  const entityId = bindingTarget.homeAssistant?.entityId?.trim();
+  return entityId ? homeAssistantStates[entityId] : undefined;
+}
+
+function PreviewSwitch({
+  widget,
+  entity,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  darkMode: boolean;
+}) {
+  const enabled =
+    resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
 
   return (
-    <button
-      type="button"
-      onClick={() => setEnabled((current) => !current)}
-      className={`rounded-[1.25rem] px-4 py-3 text-left ${previewCardClasses(darkMode)}`}
-    >
+    <div className={`rounded-[1.25rem] px-4 py-3 text-left ${previewCardClasses(darkMode)}`}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] opacity-55">Switch</p>
@@ -98,12 +133,26 @@ function PreviewSwitch({ widget, darkMode }: { widget: WidgetConfig; darkMode: b
           />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
-function PreviewProgress({ widget, darkMode }: { widget: WidgetConfig; darkMode: boolean }) {
-  const value = Math.max(0, Math.min(100, widget.value ?? 0));
+function PreviewProgress({
+  widget,
+  entity,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  darkMode: boolean;
+}) {
+  const entityUnavailable = isHomeAssistantEntityUnavailable(entity);
+  const liveValue = entityUnavailable
+    ? undefined
+    : resolveHomeAssistantNumericValue(entity, "progress");
+  const value = entityUnavailable
+    ? null
+    : Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
 
   return (
     <div className={`rounded-[1.25rem] px-4 py-3 ${previewCardClasses(darkMode)}`}>
@@ -112,42 +161,35 @@ function PreviewProgress({ widget, darkMode }: { widget: WidgetConfig; darkMode:
           <p className="text-xs uppercase tracking-[0.18em] opacity-55">Progress</p>
           <p className="mt-0.5 text-base font-semibold">{widget.label}</p>
         </div>
-        <p className="text-lg font-semibold tabular-nums">{value}%</p>
+        {value !== null ? (
+          <p className="text-sm font-medium tabular-nums opacity-70">{value}%</p>
+        ) : null}
       </div>
       <div className={`mt-3 h-3 rounded-full p-0.5 ${darkMode ? "bg-white/10" : "bg-zinc-400/25"}`}>
         <div
           className="h-full rounded-full bg-[linear-gradient(90deg,#111827_0%,#6b7280_100%)]"
-          style={{ width: `${value}%` }}
+          style={{ width: `${value ?? 0}%` }}
         />
       </div>
     </div>
   );
 }
 
-function PreviewSlider({ widget, darkMode }: { widget: WidgetConfig; darkMode: boolean }) {
-  const [value, setValue] = useState(Math.max(0, Math.min(100, widget.value ?? 0)));
-  const trackRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setValue(Math.max(0, Math.min(100, widget.value ?? 0)));
-  }, [widget.id, widget.value]);
+function PreviewSlider({
+  widget,
+  entity,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  darkMode: boolean;
+}) {
+  const liveValue = resolveHomeAssistantNumericValue(entity, "slider");
+  const value = Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
 
   const ratio = (value / 100).toFixed(3);
   const knobPosition = `calc(44px + ${ratio} * (100% - 66px))`;
-  const fillWidth = value > 0 ? `calc(22px + ${ratio} * (100% - 66px))` : "0px";
-
-  const updateFromPointer = (clientX: number) => {
-    const track = trackRef.current;
-    if (!track) {
-      return;
-    }
-    const rect = track.getBoundingClientRect();
-    const sliderStart = 44;
-    const sliderEnd = rect.width - 22;
-    const localX = Math.max(sliderStart, Math.min(sliderEnd, clientX - rect.left));
-    const nextValue = Math.round(((localX - sliderStart) / Math.max(1, sliderEnd - sliderStart)) * 100);
-    setValue(nextValue);
-  };
+  const fillWidth = value > 0 ? `calc(25px + ${ratio} * (100% - 66px))` : "0px";
 
   return (
     <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
@@ -160,17 +202,7 @@ function PreviewSlider({ widget, darkMode }: { widget: WidgetConfig; darkMode: b
       </div>
       <div className="mt-4">
         <div
-          ref={trackRef}
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            updateFromPointer(event.clientX);
-          }}
-          onPointerMove={(event) => {
-            if (event.buttons === 1) {
-              updateFromPointer(event.clientX);
-            }
-          }}
-          className="relative h-11 cursor-ew-resize touch-none select-none"
+          className="relative h-11 touch-none select-none"
         >
           <div
             className={`absolute inset-0 rounded-full border ${darkMode ? "border-white/70 bg-black" : "border-zinc-900 bg-white"}`}
@@ -214,13 +246,19 @@ function PreviewSlider({ widget, darkMode }: { widget: WidgetConfig; darkMode: b
   );
 }
 
-function PreviewThermostat({ widget, darkMode }: { widget: WidgetConfig; darkMode: boolean }) {
-  const [targetTemp, setTargetTemp] = useState(widget.value ?? 22.5);
-  const currentTemp = widget.currentValue ?? 20.5;
-
-  useEffect(() => {
-    setTargetTemp(widget.value ?? 22.5);
-  }, [widget.id, widget.value]);
+function PreviewThermostat({
+  widget,
+  entity,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  darkMode: boolean;
+}) {
+  const liveThermostat = resolveHomeAssistantThermostat(entity);
+  const currentTemp =
+    liveThermostat?.currentValue ?? widget.currentValue ?? 20.5;
+  const targetTemp = liveThermostat?.value ?? widget.value ?? 22.5;
 
   return (
     <div
@@ -246,22 +284,12 @@ function PreviewThermostat({ widget, darkMode }: { widget: WidgetConfig; darkMod
           <div className="flex items-center pl-1 pr-0.5 py-2">
             <p className="text-[1.45rem] font-medium tabular-nums leading-none">{targetTemp.toFixed(1)}°C</p>
             <div className="ml-2 flex flex-col items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setTargetTemp((current) => Math.min(30, Number((current + 0.5).toFixed(1))))}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-current/80 transition hover:bg-current/8"
-                aria-label="Increase target temperature"
-              >
+              <div className="flex h-6 w-6 items-center justify-center rounded-full text-current/80">
                 <ChevronRight className="h-4.5 w-4.5 -rotate-90 stroke-[3.2]" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setTargetTemp((current) => Math.max(12, Number((current - 0.5).toFixed(1))))}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-current/80 transition hover:bg-current/8"
-                aria-label="Decrease target temperature"
-              >
+              </div>
+              <div className="flex h-6 w-6 items-center justify-center rounded-full text-current/80">
                 <ChevronRight className="h-4.5 w-4.5 rotate-90 stroke-[3.2]" />
-              </button>
+              </div>
             </div>
           </div>
         </div>
@@ -270,8 +298,23 @@ function PreviewThermostat({ widget, darkMode }: { widget: WidgetConfig; darkMod
   );
 }
 
-function PreviewWeather({ widget, index, darkMode }: { widget: WidgetConfig; index: number; darkMode: boolean }) {
-  const weather = WEATHER_STATES[index % WEATHER_STATES.length];
+function PreviewWeather({
+  widget,
+  entity,
+  index,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  index: number;
+  darkMode: boolean;
+}) {
+  const weather =
+    resolveHomeAssistantWeather(entity) ?? WEATHER_STATES[index % WEATHER_STATES.length];
+  const temperature =
+    typeof weather.temperature === "number" ? weather.temperature : "--";
+  const temperatureUnit =
+    "temperatureUnit" in weather ? weather.temperatureUnit : "°C";
 
   return (
     <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
@@ -279,7 +322,7 @@ function PreviewWeather({ widget, index, darkMode }: { widget: WidgetConfig; ind
         <div>
           <p className="text-xs uppercase tracking-[0.18em] opacity-55">Weather</p>
           <p className="mt-1 text-lg font-semibold">{widget.label}</p>
-          <p className="mt-3 text-3xl font-semibold tabular-nums">{weather.temperature}°C</p>
+          <p className="mt-3 text-3xl font-semibold tabular-nums">{temperature}{temperatureUnit}</p>
           <p className="text-sm opacity-70">{weather.condition}</p>
         </div>
         <div className={`mt-0.5 flex h-32 w-32 items-center justify-center rounded-[1.35rem] ${darkMode ? "bg-white/6" : "bg-zinc-400/6"}`}>
@@ -290,52 +333,382 @@ function PreviewWeather({ widget, index, darkMode }: { widget: WidgetConfig; ind
   );
 }
 
-function PreviewWeatherFocusPage({ pageIndex, darkMode }: { pageIndex: number; darkMode: boolean }) {
-  const current = WEATHER_STATES[pageIndex % WEATHER_STATES.length];
-  const upcoming = Array.from({ length: 4 }, (_, index) => WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length]);
-  const hours = ["+2h", "+4h", "+6h", "+8h"];
+function previewWeatherRainChanceForCondition(condition: string) {
+  if (condition.includes("Rain") || condition.includes("rain")) {
+    return 68;
+  }
+  if (condition.includes("Cloud")) {
+    return 38;
+  }
+  if (condition.includes("Wind")) {
+    return 20;
+  }
+  return 10;
+}
+
+type PreviewWeatherForecastEntry = {
+  label: string;
+  temperature: number | null;
+  lowTemperature: number | null;
+  condition: string;
+  precipitationProbability: number | null;
+};
+
+type PreviewWeatherHourlyEntry = {
+  label: string;
+  temperature: number | null;
+  precipitationProbability: number | null;
+};
+
+function buildPreviewWeatherDailyFallback(
+  pageIndex: number,
+  now: Date | null,
+): PreviewWeatherForecastEntry[] {
+  return Array.from({ length: 3 }, (_, index) => {
+    const source = WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
+    const date = new Date((now ?? new Date()).getTime());
+    date.setDate(date.getDate() + index + 1);
+    return {
+      label: date.toLocaleDateString([], { weekday: "short" }),
+      temperature: source.temperature,
+      lowTemperature: source.temperature - 2,
+      condition: source.condition,
+      precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+    };
+  });
+}
+
+function buildPreviewWeatherHourlyFallback(
+  pageIndex: number,
+  currentTemperature: number,
+  now: Date | null,
+): PreviewWeatherHourlyEntry[] {
+  const offsets = [0, 1, 2, 1, 0, -1];
+  return Array.from({ length: 6 }, (_, index) => {
+    const source = WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
+    const date = new Date((now ?? new Date()).getTime());
+    date.setHours(date.getHours() + index + 1);
+    return {
+      label: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+      temperature: Math.round((currentTemperature * 2 + source.temperature + offsets[index]) / 3),
+      precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+    };
+  });
+}
+
+function PreviewWeatherMetric({
+  icon,
+  value,
+  darkMode,
+}: {
+  icon: string;
+  value: string;
+  darkMode: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center px-2 py-2 text-center">
+      <MdiIcon
+        icon={icon}
+        size={31}
+        className={darkMode ? "text-zinc-100" : "text-zinc-900"}
+      />
+      <p className="mt-2 text-[0.68rem] font-medium tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function PreviewWeatherHourlyChart({
+  entries,
+  darkMode,
+}: {
+  entries: PreviewWeatherHourlyEntry[];
+  darkMode: boolean;
+}) {
+  const numericEntries = entries.filter(
+    (entry): entry is PreviewWeatherHourlyEntry & { temperature: number } =>
+      typeof entry.temperature === "number",
+  );
+  const chartColor = darkMode ? "#f5f5f5" : "#111827";
+  const secondaryColor = darkMode ? "#a1a1aa" : "#71717a";
+  const width = 240;
+  const height = 126;
+  const left = 14;
+  const right = width - 14;
+  const top = 18;
+  const bottom = height - 42;
+
+  if (numericEntries.length === 0) {
+    return null;
+  }
+
+  let minValue = Math.min(...numericEntries.map((entry) => entry.temperature));
+  let maxValue = Math.max(...numericEntries.map((entry) => entry.temperature));
+  if (maxValue - minValue < 4) {
+    const center = (maxValue + minValue) / 2;
+    minValue = Math.floor(center - 2);
+    maxValue = Math.ceil(center + 2);
+  }
+
+  const points = entries.map((entry, index) => {
+    const temperature =
+      typeof entry.temperature === "number" ? entry.temperature : minValue;
+    const x =
+      entries.length > 1
+        ? left + ((right - left) * index) / (entries.length - 1)
+        : (left + right) / 2;
+    const y =
+      bottom -
+      ((temperature - minValue) / Math.max(1, maxValue - minValue)) *
+        (bottom - top);
+
+    return {
+      ...entry,
+      x,
+      y,
+      temperature,
+    };
+  });
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-[7.2rem] w-full overflow-visible">
+      <line x1={left} y1={(top + bottom) / 2} x2={right} y2={(top + bottom) / 2} stroke={secondaryColor} strokeOpacity="0.35" strokeWidth="1" />
+      <line x1={left} y1={bottom} x2={right} y2={bottom} stroke={secondaryColor} strokeOpacity="0.3" strokeWidth="1" />
+      <polyline
+        fill="none"
+        stroke={chartColor}
+        strokeWidth="2.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+      />
+      {points.map((point) => (
+        <g key={`${point.label}-${point.x}`}>
+          <text
+            x={point.x}
+            y={Math.max(10, point.y - 10)}
+            textAnchor="middle"
+            fontSize="9"
+            fill={secondaryColor}
+          >
+            {point.temperature}°
+          </text>
+          <circle cx={point.x} cy={point.y} r="2.8" fill={chartColor} />
+          <text
+            x={point.x - 2}
+            y={height - 18}
+            textAnchor="middle"
+            fontSize="8"
+            fill={secondaryColor}
+          >
+            {
+              typeof point.precipitationProbability === "number"
+                ? `${point.precipitationProbability}%`
+                : "--"
+            }
+          </text>
+          <text
+            x={point.x + 2}
+            y={height - 6}
+            textAnchor="middle"
+            fontSize="8"
+            fill={secondaryColor}
+          >
+            {point.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function PreviewWeatherFocusPage({
+  pageIndex,
+  entity,
+  now,
+  darkMode,
+}: {
+  pageIndex: number;
+  entity?: HomeAssistantEntityState;
+  now: Date | null;
+  darkMode: boolean;
+}) {
+  const weatherPage = resolveHomeAssistantWeatherPage(entity, {
+    now: now ?? undefined,
+  });
+  const current = weatherPage ?? WEATHER_STATES[pageIndex % WEATHER_STATES.length];
+  const temperatureUnit = weatherPage?.temperatureUnit ?? "°C";
+  const currentTemperature =
+    typeof current.temperature === "number" ? current.temperature : "--";
+  const numericCurrentTemperature =
+    typeof current.temperature === "number" ? current.temperature : 8;
+  const feelsLike =
+    typeof weatherPage?.apparentTemperature === "number"
+      ? `${Math.round(weatherPage.apparentTemperature)}${temperatureUnit}`
+      : `${numericCurrentTemperature - 1}${temperatureUnit}`;
+  const upcoming =
+    weatherPage?.forecast.length
+      ? weatherPage.forecast
+      : buildPreviewWeatherDailyFallback(pageIndex, now);
+  const hourly =
+    weatherPage?.hourlyForecast.length
+      ? weatherPage.hourlyForecast
+      : buildPreviewWeatherHourlyFallback(pageIndex, numericCurrentTemperature, now);
+  const stats = [
+    {
+      icon: "water-percent",
+      value:
+        typeof weatherPage?.humidity === "number"
+          ? `${Math.round(weatherPage.humidity)}%`
+          : "--",
+    },
+    {
+      icon: "weather-windy",
+      value:
+        typeof weatherPage?.windSpeed === "number"
+          ? `${Math.round(weatherPage.windSpeed)}${weatherPage.windSpeedUnit ? ` ${weatherPage.windSpeedUnit}` : ""}`
+          : "--",
+    },
+    {
+      icon: "gauge",
+      value:
+        typeof weatherPage?.pressure === "number"
+          ? `${Math.round(weatherPage.pressure)}${weatherPage.pressureUnit ? ` ${weatherPage.pressureUnit}` : ""}`
+          : "--",
+    },
+  ];
 
   return (
     <div
       className={`relative h-full overflow-hidden rounded-[1.8rem] ${
         darkMode
-          ? "border border-white/12 bg-black text-zinc-100"
-          : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.9)_0%,rgba(244,243,238,0.96)_100%)] text-zinc-900"
+          ? "border border-white/12 bg-[linear-gradient(180deg,#121212_0%,#040404_100%)] text-zinc-100"
+          : "border border-current/15 bg-[linear-gradient(180deg,rgba(247,247,244,0.96)_0%,rgba(232,230,224,0.98)_100%)] text-zinc-900"
       }`}
     >
-      <div className="pointer-events-none absolute -left-24 top-1/2 -translate-y-[52%] opacity-95">
-        <WeatherIcon condition={current.condition} className="h-[24rem] w-[24rem]" />
-      </div>
-
-      <div className="relative z-10 flex h-full flex-col px-5 pb-4 pt-5">
-        <div className="ml-auto mt-14 max-w-[11rem] text-right">
-          <p className="text-[10px] uppercase tracking-[0.28em] opacity-45">Current Weather</p>
-          <p className="mt-5 text-[5.1rem] font-semibold leading-[0.88] tabular-nums">
-            {current.temperature}°C
+      <div className="relative z-10 flex h-full flex-col px-4 pb-4 pt-4">
+        <div
+          className={`rounded-[1.9rem] px-4 pb-5 pt-4 ${
+            darkMode ? "bg-white/[0.04]" : "bg-white/70"
+          }`}
+        >
+          <p className="text-center text-[9px] uppercase tracking-[0.18em] opacity-45">
+            {formatPreviewWeatherDate(now)}
           </p>
-          <p className="mt-2 text-base tracking-[0.08em] opacity-70">{current.condition}</p>
+          <div className="mt-5 flex items-center justify-between gap-4">
+            <div
+              className={`flex h-[12.5rem] w-[12.5rem] items-center justify-center rounded-[2.4rem] ${
+                darkMode ? "bg-white/[0.055]" : "bg-zinc-400/10"
+              }`}
+            >
+              <WeatherIcon condition={current.condition} className="h-[11.9rem] w-[11.9rem]" />
+            </div>
+            <div className="flex-1 text-right">
+              <div className="mt-4 flex items-start justify-end gap-1">
+                <p className="text-[4.9rem] font-semibold leading-[0.84] tabular-nums">
+                  {currentTemperature}
+                </p>
+                <p className="pt-3 text-[1.35rem] font-medium opacity-75">{temperatureUnit}</p>
+              </div>
+              <p className="mt-1 text-[0.72rem] opacity-52">Feels like {feelsLike}</p>
+              <p className="mt-1 text-[0.86rem] uppercase tracking-[0.14em] opacity-55">
+                {current.condition}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className={`mt-auto border-t ${darkMode ? "border-white/10" : "border-black/10"} pt-3`}>
-          <div className="grid grid-cols-4 gap-2">
-            {upcoming.map((entry, index) => (
-              <div key={`${hours[index]}-${entry.condition}`} className="text-center">
-                <p className="text-[9px] uppercase tracking-[0.18em] opacity-45">{hours[index]}</p>
-                <div className="mt-1 flex items-center justify-center gap-2">
-                  <WeatherIcon condition={entry.condition} className="h-9 w-9" />
-                  <p className="text-[1rem] font-medium tabular-nums">{entry.temperature}°</p>
+        <div
+          className={`mt-3 grid grid-cols-3 divide-x rounded-[1.35rem] px-1 py-1 ${
+            darkMode
+              ? "divide-white/10 bg-white/[0.04]"
+              : "divide-black/10 bg-white/72"
+          }`}
+        >
+          {stats.map((stat) => (
+            <PreviewWeatherMetric key={stat.icon} icon={stat.icon} value={stat.value} darkMode={darkMode} />
+          ))}
+        </div>
+
+        <div
+          className={`mt-3 rounded-[1.45rem] px-3 py-3 ${
+            darkMode
+              ? "bg-white/[0.04]"
+              : "bg-white/72"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <MdiIcon icon="thermometer" size={24} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
+            <MdiIcon icon="weather-pouring" size={24} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
+          </div>
+          <div className="mt-1">
+            <PreviewWeatherHourlyChart entries={hourly} darkMode={darkMode} />
+          </div>
+        </div>
+
+        <div
+          className={`mt-3 grid grid-cols-3 divide-x rounded-[1.45rem] px-1 py-2 ${
+            darkMode
+              ? "divide-white/10 bg-white/[0.04]"
+              : "divide-black/10 bg-white/72"
+          }`}
+        >
+          {upcoming.map((entry, index) => {
+            const high = typeof entry.temperature === "number" ? `${entry.temperature}°` : "--";
+            const low =
+              typeof entry.lowTemperature === "number"
+                ? `${entry.lowTemperature}°`
+                : typeof entry.temperature === "number"
+                  ? `${entry.temperature - 2}°`
+                  : "--";
+
+            return (
+              <div
+                key={`${entry.label}-${entry.condition}-${index}`}
+                className="px-1 py-1 text-center"
+              >
+                <p className="text-[8px] uppercase tracking-[0.14em] opacity-45">{entry.label}</p>
+                <div className="mt-1 flex justify-center">
+                  <WeatherIcon condition={entry.condition} className="h-12 w-12" />
+                </div>
+                <p className="mt-1 text-[0.6rem] font-medium tabular-nums">
+                  {high} / {low}
+                </p>
+                <div className="mt-1 flex items-center justify-center gap-1 text-[0.58rem] tabular-nums opacity-65">
+                  <MdiIcon icon="weather-pouring" size={18} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
+                  <span>
+                    {typeof entry.precipitationProbability === "number"
+                      ? `${entry.precipitationProbability}%`
+                      : "--"}
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function PreviewMediaPlayerPage({ darkMode, fontClass }: { darkMode: boolean; fontClass: string }) {
-  const mediaTitle = truncateMediaTitle(MEDIA_MOCK.title, fontClass);
+function PreviewMediaPlayerPage({
+  media,
+  darkMode,
+  fontClass,
+}: {
+  media: {
+    title: string;
+    artist: string;
+    progress: number;
+    coverUrl?: string;
+    hasContent: boolean;
+    state?: string;
+  };
+  darkMode: boolean;
+  fontClass: string;
+}) {
+  const mediaTitle = truncateMediaTitle(media.title, fontClass);
+  const hasContent = media.hasContent;
+  const playPauseIcon = media.state === "playing" ? "pause" : "play";
 
   return (
     <div
@@ -347,27 +720,96 @@ function PreviewMediaPlayerPage({ darkMode, fontClass }: { darkMode: boolean; fo
     >
       <div className="flex w-full max-w-[22rem] flex-col items-center justify-center px-4 py-6 text-center">
         <div className="h-[20rem] w-[20rem] overflow-hidden rounded-[2.35rem] border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
-          <img
-            src={MEDIA_MOCK.coverUrl}
-            alt={`${MEDIA_MOCK.title} album cover`}
-            className="h-full w-full object-cover grayscale"
-          />
+          {hasContent ? (
+            media.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={media.coverUrl}
+                alt={`${media.title} album cover`}
+                className="h-full w-full object-cover grayscale"
+              />
+            ) : (
+              <Image
+                src={MEDIA_MOCK.coverUrl}
+                alt={`${media.title} album cover`}
+                width={320}
+                height={320}
+                className="h-full w-full object-cover grayscale"
+              />
+            )
+          ) : (
+            <div
+              className={`flex h-full w-full items-center justify-center ${
+                darkMode
+                  ? "bg-[linear-gradient(180deg,rgba(88,88,88,0.44)_0%,rgba(44,44,44,0.72)_100%)]"
+                  : "bg-[linear-gradient(180deg,rgba(212,212,212,0.9)_0%,rgba(178,178,178,0.98)_100%)]"
+              }`}
+            >
+              <MdiIcon
+                icon="music-note"
+                size={132}
+                className={darkMode ? "text-zinc-500" : "text-zinc-600"}
+              />
+            </div>
+          )}
         </div>
-        <p className="mt-4 text-[0.92rem] uppercase tracking-[0.18em] opacity-35">{MEDIA_MOCK.artist}</p>
-        <p className="mt-4 max-w-[19.75rem] text-[1.1rem] font-medium leading-tight" title={MEDIA_MOCK.title}>
-          {mediaTitle}
-        </p>
-        <div className={`mt-5 h-2.5 w-[21rem] max-w-full overflow-hidden rounded-full ${darkMode ? "bg-white/12" : "bg-zinc-400/20"}`}>
-          <div
-            className={`h-full rounded-full ${darkMode ? "bg-zinc-100" : "bg-zinc-900"}`}
-            style={{ width: `${MEDIA_MOCK.progress}%` }}
-          />
-        </div>
-        <div className="mt-2 flex w-[21rem] max-w-full items-center justify-between text-sm tabular-nums opacity-70">
-          <span>{MEDIA_MOCK.elapsed}</span>
-          <span>{MEDIA_MOCK.duration}</span>
-        </div>
+        {hasContent ? (
+          <>
+            {media.artist ? (
+              <p className="mt-4 text-[0.92rem] uppercase tracking-[0.18em] opacity-35">{media.artist}</p>
+            ) : null}
+            <p
+              className={`${media.artist ? "mt-4" : "mt-6"} max-w-[19.75rem] text-[1.1rem] font-medium leading-tight`}
+              title={media.title}
+            >
+              {mediaTitle}
+            </p>
+            <div
+              className={`mt-5 h-2.5 w-[21rem] max-w-full overflow-hidden rounded-full ${
+                darkMode ? "bg-white/12" : "bg-zinc-400/20"
+              }`}
+            >
+              <div
+                className={`h-full rounded-full ${darkMode ? "bg-zinc-100" : "bg-zinc-900"}`}
+                style={{ width: `${media.progress}%` }}
+              />
+            </div>
+            <div className="mt-4 flex w-[21rem] max-w-full items-center justify-center gap-3">
+              <PreviewMediaControlButton icon="skip-previous" darkMode={darkMode} />
+              <PreviewMediaControlButton icon={playPauseIcon} darkMode={darkMode} emphasized />
+              <PreviewMediaControlButton icon="skip-next" darkMode={darkMode} />
+            </div>
+          </>
+        ) : (
+          <p className="mt-6 text-[0.95rem] uppercase tracking-[0.2em] opacity-40">Nothing Playing</p>
+        )}
       </div>
+    </div>
+  );
+}
+
+function PreviewMediaControlButton({
+  icon,
+  darkMode,
+  emphasized = false,
+}: {
+  icon: string;
+  darkMode: boolean;
+  emphasized?: boolean;
+}) {
+  return (
+    <div
+      className={`flex h-12 w-12 items-center justify-center rounded-full border ${
+        emphasized
+          ? darkMode
+            ? "border-white/16 bg-zinc-100 text-zinc-950"
+            : "border-zinc-900 bg-zinc-900 text-white"
+          : darkMode
+            ? "border-white/16 bg-white/4 text-zinc-200"
+            : "border-current/15 bg-white/75 text-zinc-700"
+      }`}
+    >
+      <MdiIcon icon={icon} size={22} className="h-5 w-5" />
     </div>
   );
 }
@@ -473,13 +915,14 @@ export function DevicePreview({
   darkMode,
   fontClass,
   pages,
+  homeAssistantConfig,
+  homeAssistantStates,
   activePageIndex,
   onPageChange,
 }: DevicePreviewProps) {
-  const [now, setNow] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date | null>(() => new Date());
 
   useEffect(() => {
-    setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -492,6 +935,17 @@ export function DevicePreview({
   }, [activePageIndex, pages.length]);
   const activePage = pages[safePageIndex];
   const showNavigation = pages.length > 1;
+  const showPageHeader =
+    showNavigation &&
+    activePage?.type !== "weather-focus" &&
+    activePage?.type !== "media-player";
+  const pageEntity = activePage
+    ? getBoundEntityState(activePage, homeAssistantStates)
+    : undefined;
+  const mediaPreview = resolveHomeAssistantMediaPlayer(
+    pageEntity,
+    homeAssistantConfig.url,
+  );
   const shellClasses = useMemo(
     () =>
       darkMode
@@ -509,7 +963,7 @@ export function DevicePreview({
       className={`mx-auto aspect-[9/16] w-full max-w-xs rounded-[2rem] border p-4 shadow-2xl ${shellClasses} ${fontClass}`}
     >
       <div className="flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-current/10 bg-white/5 p-3">
-        {showNavigation ? (
+        {showPageHeader ? (
           <div className="flex items-start justify-between gap-3 border-b border-current/10 pb-3">
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] opacity-55">M5PaperS3</p>
@@ -521,27 +975,48 @@ export function DevicePreview({
           </div>
         ) : null}
 
-        <div className={`${showNavigation ? "mt-3" : ""} flex-1 overflow-hidden`}>
+        <div className={`${showPageHeader ? "mt-3" : ""} flex-1 overflow-hidden`}>
           {activePage.type === "weather-focus" ? (
-            <PreviewWeatherFocusPage pageIndex={safePageIndex} darkMode={darkMode} />
+            <PreviewWeatherFocusPage
+              pageIndex={safePageIndex}
+              entity={pageEntity}
+              now={now}
+              darkMode={darkMode}
+            />
           ) : activePage.type === "media-player" ? (
-            <PreviewMediaPlayerPage darkMode={darkMode} fontClass={fontClass} />
+            <PreviewMediaPlayerPage
+              media={
+                mediaPreview
+                  ? {
+                      title: mediaPreview.title,
+                      artist: mediaPreview.artist,
+                      progress: mediaPreview.progress,
+                      coverUrl: mediaPreview.coverUrl,
+                      hasContent: mediaPreview.hasMedia,
+                      state: mediaPreview.state,
+                    }
+                  : MEDIA_MOCK
+              }
+              darkMode={darkMode}
+              fontClass={fontClass}
+            />
           ) : (
             <div className="space-y-3 overflow-hidden">
               {activePage.widgets.map((widget, index) => {
+                const entity = getBoundEntityState(widget, homeAssistantStates);
                 switch (widget.type) {
                   case "clock":
                     return <PreviewClock key={widget.id} widget={widget} now={now} darkMode={darkMode} />;
                   case "weather":
-                    return <PreviewWeather key={widget.id} widget={widget} index={index} darkMode={darkMode} />;
+                    return <PreviewWeather key={widget.id} widget={widget} entity={entity} index={index} darkMode={darkMode} />;
                   case "progress":
-                    return <PreviewProgress key={widget.id} widget={widget} darkMode={darkMode} />;
+                    return <PreviewProgress key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "switch":
-                    return <PreviewSwitch key={widget.id} widget={widget} darkMode={darkMode} />;
+                    return <PreviewSwitch key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "slider":
-                    return <PreviewSlider key={widget.id} widget={widget} darkMode={darkMode} />;
+                    return <PreviewSlider key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "thermostat":
-                    return <PreviewThermostat key={widget.id} widget={widget} darkMode={darkMode} />;
+                    return <PreviewThermostat key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   default:
                     return null;
                 }

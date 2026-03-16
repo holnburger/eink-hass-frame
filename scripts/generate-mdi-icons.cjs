@@ -17,6 +17,10 @@ const ICONS = [
   { key: "weather_rainy", icon: "weather-rainy", width: 128, height: 128, threshold: 208 },
   { key: "weather_pouring", icon: "weather-pouring", width: 128, height: 128, threshold: 208 },
   { key: "weather_windy", icon: "weather-windy", width: 128, height: 128, threshold: 208 },
+  { key: "weather_humidity", icon: "water-percent", width: 24, height: 24, threshold: 208 },
+  { key: "weather_wind_small", icon: "weather-windy", width: 24, height: 24, threshold: 208 },
+  { key: "weather_pressure", icon: "gauge", width: 24, height: 24, threshold: 208 },
+  { key: "weather_rain_chance", icon: "weather-pouring", width: 24, height: 24, threshold: 208 },
   { key: "slider_lightbulb", icon: "lightbulb", width: 28, height: 28, threshold: 208 },
   { key: "slider_lamp", icon: "lamp", width: 28, height: 28, threshold: 208 },
   { key: "slider_fan", icon: "fan", width: 28, height: 28, threshold: 208 },
@@ -27,6 +31,11 @@ const ICONS = [
   { key: "slider_thermometer", icon: "thermometer", width: 28, height: 28, threshold: 208 },
   { key: "slider_air_humidifier", icon: "air-humidifier", width: 28, height: 28, threshold: 208 },
   { key: "slider_brightness_6", icon: "brightness-6", width: 28, height: 28, threshold: 208 },
+  { key: "media_skip_previous", icon: "skip-previous", width: 40, height: 40, threshold: 208 },
+  { key: "media_play", icon: "play", width: 40, height: 40, threshold: 208 },
+  { key: "media_pause", icon: "pause", width: 40, height: 40, threshold: 208 },
+  { key: "media_skip_next", icon: "skip-next", width: 40, height: 40, threshold: 208 },
+  { key: "media_music_note", icon: "music-note", width: 112, height: 112, threshold: 208 },
 ];
 
 function renderIconSvg(iconName, width, height) {

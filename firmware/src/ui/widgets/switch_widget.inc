@@ -6,7 +6,7 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
   display.setMode(BB_MODE_1BPP);
   setThemeMonoText();
   drawWidgetCardBase(state.cardRect);
-  drawTextRole(widget.label, state.cardRect.x + 18, state.cardRect.y + 18, UI_TEXT_META);
+  drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
 
   const uint8_t trackShade = state.enabled ? 3 : 1;
   fillDitherRoundRect(

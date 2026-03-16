@@ -118,10 +118,12 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const envPassword = (process.env.FIRMWARE_WIFI_PASSWORD ?? "").trim();
   const wifiSsid = sanitizeCString(payloadSsid || envSsid);
   const wifiPassword = sanitizeCString(payloadPassword || envPassword);
+  const homeAssistantUrl = sanitizeCString(config.homeAssistant.url);
+  const homeAssistantToken = sanitizeCString(config.homeAssistant.token);
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, \"\"}";
 
   const pageSource = config.pages
     .map((page) => {
@@ -136,12 +138,14 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
           const enabled = widget.enabled ? 1 : 0;
           const clockStyle = clockStyleToCpp(widget.clockStyle);
           const showSeconds = widget.showSeconds !== false ? 1 : 0;
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}}`;
+          const entityId = sanitizeCString(widget.homeAssistant?.entityId ?? "");
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, "${entityId}"}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
+      const pageEntityId = sanitizeCString(page.homeAssistant?.entityId ?? "");
 
-      return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, {${widgets}}}`;
+      return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, "${pageEntityId}", {${widgets}}}`;
     })
     .join(",\n");
 
@@ -157,6 +161,9 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
 #define FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE ${fullRefreshEvery}
 #define WIFI_SSID_BUILD "${wifiSsid}"
 #define WIFI_PASSWORD_BUILD "${wifiPassword}"
+#define HOME_ASSISTANT_URL_BUILD "${homeAssistantUrl}"
+#define HOME_ASSISTANT_TOKEN_BUILD "${homeAssistantToken}"
+#define HOME_ASSISTANT_ENABLED_BUILD ${config.homeAssistant.url && config.homeAssistant.token ? 1 : 0}
 
 enum UiWidgetType : uint8_t {
   UI_WIDGET_CLOCK = 0,
@@ -189,12 +196,14 @@ typedef struct {
   uint8_t enabled;
   uint8_t clockStyle;
   uint8_t showSeconds;
+  const char *entityId;
 } UiWidgetConfig;
 
 typedef struct {
   uint8_t pageType;
   const char *name;
   uint8_t widgetCount;
+  const char *entityId;
   UiWidgetConfig widgets[${maxWidgetsPerPage}];
 } UiPageConfig;
 
