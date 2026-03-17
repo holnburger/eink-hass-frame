@@ -5,9 +5,9 @@ const sharp = require("sharp");
 const { icons } = require("@iconify-json/mdi");
 const { getIconData, iconToSVG, iconToHTML, replaceIDs } = require("@iconify/utils");
 
-const OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_mdi_icons.h");
+const DEFAULT_OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_mdi_icons.h");
 
-const ICONS = [
+const CORE_ICONS = [
   { key: "chevron_left", icon: "chevron-left", width: 18, height: 18, threshold: 208 },
   { key: "chevron_right", icon: "chevron-right", width: 18, height: 18, threshold: 208 },
   { key: "chevron_up", icon: "chevron-up", width: 24, height: 24, threshold: 208 },
@@ -40,6 +40,68 @@ const ICONS = [
   { key: "thermostat_power_off", icon: "power-off", width: 18, height: 18, threshold: 208 },
   { key: "thermostat_snowflake", icon: "snowflake", width: 18, height: 18, threshold: 208 },
 ];
+
+const DEFAULT_WIDGET_ICON_NAMES = [
+  "lightbulb",
+  "lamp",
+  "fan",
+  "speaker",
+  "volume-high",
+  "blinds-horizontal",
+  "water-percent",
+  "thermometer",
+  "air-humidifier",
+  "brightness-6",
+];
+
+function parseCliOptions(argv) {
+  const options = {
+    outputPath: DEFAULT_OUTPUT_PATH,
+    widgetIcons: [],
+  };
+
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+    if (arg === "--output" && typeof argv[index + 1] === "string") {
+      options.outputPath = path.resolve(process.cwd(), argv[index + 1]);
+      index++;
+      continue;
+    }
+    if (arg === "--widget-icons" && typeof argv[index + 1] === "string") {
+      options.widgetIcons = argv[index + 1]
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      index++;
+    }
+  }
+
+  return options;
+}
+
+function sanitizeKeySegment(value) {
+  const sanitized = value
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+  return sanitized.length > 0 ? sanitized : "icon";
+}
+
+function buildWidgetIconSpecs(widgetIcons) {
+  const iconNames = Array.from(
+    new Set([...DEFAULT_WIDGET_ICON_NAMES, ...widgetIcons]),
+  ).filter((iconName) => Boolean(getIconData(icons, iconName)));
+
+  return iconNames.map((iconName) => ({
+    key: `widget_${sanitizeKeySegment(iconName)}`,
+    icon: iconName,
+    width: 28,
+    height: 28,
+    threshold: 208,
+    kind: "widget",
+  }));
+}
 
 function renderIconSvg(iconName, width, height) {
   const iconData = getIconData(icons, iconName);
@@ -105,8 +167,11 @@ function toHexList(bytes) {
 }
 
 async function main() {
+  const { outputPath, widgetIcons } = parseCliOptions(process.argv.slice(2));
+  const widgetIconSpecs = buildWidgetIconSpecs(widgetIcons);
+  const renderedSpecs = [...CORE_ICONS, ...widgetIconSpecs];
   const renderedIcons = await Promise.all(
-    ICONS.map(async ({ key, icon, width, height, threshold }) => ({
+    renderedSpecs.map(async ({ key, icon, width, height, threshold }) => ({
       key,
       ...(await svgToPacked1bpp(renderIconSvg(icon, width, height), width, height, threshold)),
     })),
@@ -125,6 +190,13 @@ async function main() {
     )
     .join("\n");
 
+  const widgetAssetTableEntries = widgetIconSpecs
+    .map(
+      ({ key, icon }) =>
+        `  {"${icon}", &MDI_ICON_ASSET_${key.toUpperCase()}}`,
+    )
+    .join(",\n");
+
   const header = `#pragma once
 
 #include <stdint.h>
@@ -139,13 +211,24 @@ typedef struct {
   const uint8_t *pixels;
 } MdiMonoIconAsset;
 
+typedef struct {
+  const char *name;
+  const MdiMonoIconAsset *asset;
+} MdiNamedIconAsset;
+
 ${arrays}
 
 ${assets}
+
+static const MdiNamedIconAsset MDI_WIDGET_ICON_ASSETS[] = {
+${widgetAssetTableEntries}
+};
+
+#define MDI_WIDGET_ICON_ASSET_COUNT ${widgetIconSpecs.length}
 `;
 
-  await fs.writeFile(OUTPUT_PATH, header, "utf8");
-  console.log(`Generated MDI icon header at ${OUTPUT_PATH}`);
+  await fs.writeFile(outputPath, header, "utf8");
+  console.log(`Generated MDI icon header at ${outputPath}`);
 }
 
 main().catch((error) => {

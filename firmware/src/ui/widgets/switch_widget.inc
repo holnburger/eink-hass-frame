@@ -2,9 +2,40 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
 {
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+  if (state.cardRect.w <= 0 || state.cardRect.h <= 0)
+  {
+    return;
+  }
 
   display.setMode(BB_MODE_1BPP);
   setThemeMonoText();
+  if (activePageIsOverview())
+  {
+    const int radius = state.cardRect.w / 2;
+    const int centerX = state.cardRect.x + radius;
+    const int centerY = state.cardRect.y + (state.cardRect.h / 2);
+    const uint16_t fillColor = state.enabled ? uiMonoInk() : uiMonoPaper();
+    const uint16_t iconColor = state.enabled ? uiMonoPaper() : uiMonoInk();
+    const MdiMonoIconAsset *icon = getSliderIconAssetByName(widget.icon);
+    display.fillCircle(centerX, centerY, radius, fillColor);
+    if (!state.enabled)
+    {
+      display.drawCircle(centerX, centerY, radius - 1, iconColor);
+    }
+    if (icon != nullptr)
+    {
+      drawMdiMonoIconScaledColor(state.cardRect, icon, iconColor, 18);
+    }
+
+    if (pushPartial)
+    {
+      display.partialUpdate(false);
+      partialCounter++;
+      lastPartialRefresh = millis();
+    }
+    return;
+  }
+
   drawWidgetCardBase(state.cardRect);
   drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
 

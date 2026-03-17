@@ -225,6 +225,20 @@ function PreviewSwitch({
   );
 }
 
+function PreviewText({
+  widget,
+}: {
+  widget: WidgetConfig;
+}) {
+  return (
+    <div className="px-4 py-4 text-center">
+      <p className="whitespace-pre-line text-[1.28rem] leading-[2.28]">
+        {widget.label}
+      </p>
+    </div>
+  );
+}
+
 function PreviewProgress({
   widget,
   entity,
@@ -1321,6 +1335,187 @@ function PreviewClock({ widget, now, darkMode }: { widget: WidgetConfig; now: Da
   return <PreviewDigitalClock widget={widget} now={now} darkMode={darkMode} />;
 }
 
+function PreviewOverviewPage({
+  page,
+  homeAssistantStates,
+  now,
+  darkMode,
+}: {
+  page: PageConfig;
+  homeAssistantStates: Record<string, HomeAssistantEntityState>;
+  now: Date | null;
+  darkMode: boolean;
+}) {
+  const clockWidget =
+    page.widgets.find((widget) => widget.type === "clock") ?? {
+      id: "preview-overview-clock",
+      type: "clock",
+      label: "Clock",
+      clockStyle: "digital",
+      showSeconds: true,
+    };
+  const clockWidgetIndex = page.widgets.findIndex((widget) => widget.type === "clock");
+  const orderedTextWidgets = page.widgets
+    .map((widget, index) => ({ widget, index }))
+    .filter(
+      (entry) =>
+        entry.widget.type === "text" && entry.widget.label.trim().length > 0,
+    );
+  const textWidgetsAbove = orderedTextWidgets
+    .filter(
+      (entry) =>
+        clockWidgetIndex < 0 || entry.index < clockWidgetIndex,
+    )
+    .map((entry) => entry.widget);
+  const textWidgetsBelow = orderedTextWidgets
+    .filter(
+      (entry) =>
+        clockWidgetIndex >= 0 && entry.index > clockWidgetIndex,
+    )
+    .map((entry) => entry.widget);
+  const switchWidgets = page.widgets
+    .filter((widget) => widget.type === "switch")
+    .slice(0, 6);
+  const hours = now ? now.getHours() % 12 : 10;
+  const minutes = now ? now.getMinutes() : 10;
+  const seconds = now ? now.getSeconds() : 30;
+  const hourAngle = (hours + minutes / 60) * 30;
+  const minuteAngle = (minutes + seconds / 60) * 6;
+  const secondAngle = seconds * 6;
+  const showSeconds = clockWidget.showSeconds !== false;
+  const renderTextBlock = (widgets: WidgetConfig[]) => (
+    <div className="w-full space-y-3 text-center">
+      {widgets.map((widget) => (
+        <p
+          key={widget.id}
+          className="whitespace-pre-line px-3 text-[1.28rem] leading-[2.28]"
+        >
+          {widget.label}
+        </p>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="flex h-full flex-col px-2 pt-2 pb-3">
+      <div className="flex flex-1 flex-col items-center justify-start">
+        {textWidgetsAbove.length > 0 ? (
+          <div className="w-full pt-2">{renderTextBlock(textWidgetsAbove)}</div>
+        ) : null}
+
+        <div className={`flex min-h-[14rem] w-full items-center justify-center ${
+          textWidgetsAbove.length > 0 ? "mt-3" : ""
+        }`}>
+          {clockWidget.clockStyle === "analog" ? (
+            <svg viewBox="0 0 220 220" className="h-[12.5rem] w-[12.5rem]">
+              <circle cx="110" cy="110" r="95" fill="none" stroke="currentColor" strokeWidth="5" />
+              <circle cx="110" cy="110" r="77" fill="none" stroke="currentColor" strokeOpacity={darkMode ? "0.3" : "0.18"} strokeWidth="1.5" />
+              {Array.from({ length: 12 }).map((_, index) => {
+                const angle = (index * 30 * Math.PI) / 180;
+                const x1 = 110 + Math.sin(angle) * 72;
+                const y1 = 110 - Math.cos(angle) * 72;
+                const x2 = 110 + Math.sin(angle) * 87;
+                const y2 = 110 - Math.cos(angle) * 87;
+                return (
+                  <line
+                    key={index}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke="currentColor"
+                    strokeWidth={index % 3 === 0 ? 3.6 : 2.2}
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+              <line
+                x1="110"
+                y1="110"
+                x2="110"
+                y2="62"
+                stroke="currentColor"
+                strokeWidth="8"
+                strokeLinecap="round"
+                transform={`rotate(${hourAngle} 110 110)`}
+              />
+              <line
+                x1="110"
+                y1="110"
+                x2="110"
+                y2="40"
+                stroke="currentColor"
+                strokeWidth="5.5"
+                strokeLinecap="round"
+                transform={`rotate(${minuteAngle} 110 110)`}
+              />
+              {showSeconds ? (
+                <line
+                  x1="110"
+                  y1="116"
+                  x2="110"
+                  y2="30"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  transform={`rotate(${secondAngle} 110 110)`}
+                />
+              ) : null}
+              <circle cx="110" cy="110" r="6" fill="currentColor" />
+            </svg>
+          ) : (
+            <p
+              className={`font-semibold tracking-[0.09em] tabular-nums leading-none ${
+                showSeconds ? "text-[3.75rem]" : "text-[4.7rem]"
+              }`}
+            >
+              {formatClock(now, showSeconds)}
+            </p>
+          )}
+        </div>
+
+        {textWidgetsBelow.length > 0 ? (
+          <div className="mt-3 w-full">{renderTextBlock(textWidgetsBelow)}</div>
+        ) : null}
+      </div>
+
+      {switchWidgets.length > 0 ? (
+        <div className="mt-3 flex justify-center pb-3">
+          <div className="grid max-w-[15.5rem] grid-cols-3 gap-x-5 gap-y-4">
+            {switchWidgets.map((widget) => {
+              const entity = getBoundEntityState(widget, homeAssistantStates);
+              const enabled =
+                resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
+              const filled = darkMode ? !enabled : enabled;
+              const offStateClasses = darkMode
+                ? "border border-zinc-100 bg-black text-zinc-100"
+                : "border border-zinc-900 bg-white text-zinc-900";
+              return (
+                <div
+                  key={widget.id}
+                  className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                    filled
+                      ? darkMode
+                        ? "bg-white text-zinc-950"
+                        : "bg-zinc-950 text-white"
+                      : offStateClasses
+                  }`}
+                >
+                  <MdiIcon
+                    icon={widget.icon ?? "lightbulb"}
+                    size={28}
+                    className="h-7 w-7"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DevicePreview({
   darkMode,
   fontClass,
@@ -1351,6 +1546,7 @@ export function DevicePreview({
   const showNavigation = pages.length > 1;
   const showPageHeader =
     showNavigation &&
+    activePage?.type !== "overview" &&
     activePage?.type !== "weather-focus" &&
     activePage?.type !== "media-player";
   const pageEntity = activePage
@@ -1390,7 +1586,14 @@ export function DevicePreview({
         ) : null}
 
         <div className={`${showPageHeader ? "mt-3" : ""} flex-1 overflow-hidden`}>
-          {activePage.type === "weather-focus" ? (
+          {activePage.type === "overview" ? (
+            <PreviewOverviewPage
+              page={activePage}
+              homeAssistantStates={homeAssistantStates}
+              now={now}
+              darkMode={darkMode}
+            />
+          ) : activePage.type === "weather-focus" ? (
             <PreviewWeatherFocusPage
               pageIndex={safePageIndex}
               entity={pageEntity}
@@ -1432,6 +1635,8 @@ export function DevicePreview({
                     return <PreviewSlider key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "thermostat":
                     return <PreviewThermostat key={widget.id} widget={widget} entity={entity} now={now} darkMode={darkMode} />;
+                  case "text":
+                    return <PreviewText key={widget.id} widget={widget} />;
                   default:
                     return null;
                 }

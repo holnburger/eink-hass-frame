@@ -336,6 +336,8 @@ static constexpr uint16_t MQTT_DEFAULT_PORT = 1883;
 static const char *MQTT_DEFAULT_DISCOVERY_PREFIX = "homeassistant";
 static const char *MQTT_AVAILABILITY_ONLINE = "online";
 static const char *MQTT_AVAILABILITY_OFFLINE = "offline";
+static const char *MQTT_PREFERENCES_NAMESPACE = "mqtt";
+static const char *MQTT_PREFERENCE_DISCOVERY_TEXT_REGISTRY_KEY = "txt_disc";
 
 static ParsedUrl homeAssistantUrl = {false, false, 0, "", ""};
 static WebSocketsClient homeAssistantSocket;
@@ -366,6 +368,7 @@ static constexpr float PAPERS3_BATTERY_DIVIDER_RATIO = 2.0f;
 static const int WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
 static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 12;
 static const int THERMOSTAT_HISTORY_POINT_COUNT = 24;
+static const size_t TEXT_WIDGET_VALUE_MAX_BYTES = 192;
 static constexpr uint8_t THERMOSTAT_MODE_BIT_OFF = 1 << 0;
 static constexpr uint8_t THERMOSTAT_MODE_BIT_HEAT = 1 << 1;
 static constexpr uint8_t THERMOSTAT_MODE_BIT_COOL = 1 << 2;
@@ -376,9 +379,11 @@ static constexpr uint8_t THERMOSTAT_BUTTON_DEACTIVATE = 1;
 static constexpr uint8_t THERMOSTAT_BUTTON_COOL = 2;
 
 static void renderStatusScreen(const char *title, const char *line1 = "", const char *line2 = "");
+static void renderActivePage(bool pageTransition = false);
 static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget);
 static bool pageHasHomeAssistantBinding(int pageIndex);
 static bool thermostatWidgetShowsHistoryGraph(const UiWidgetConfig &widget);
+static bool textWidgetUsesMqttInput(const UiWidgetConfig &widget);
 static void normalizeTemperatureUnitLabel(const char *rawUnit, char *unitOut, size_t unitOutLen);
 static uint8_t thermostatModeBitForName(const char *rawMode);
 static uint8_t thermostatSupportedModeMask(JsonVariantConst hvacModesVariant);
@@ -406,6 +411,7 @@ static bool pageReady = false;
 // The panel can retain a previously rendered grayscale page across resets, so
 // start in a "gray was shown" state and scrub the first mono page render.
 static bool lastRenderedPageUsedGrayMode = true;
+static bool pendingFullPageRender = false;
 static bool ntpConfigured = false;
 static uint32_t lastClockUpdateMs = 0;
 static uint32_t lastValueUpdateMs = 0;
@@ -503,6 +509,7 @@ typedef struct
   BB_RECT secondaryRect;
   BB_RECT tertiaryRect;
   BB_RECT faceRect;
+  BB_RECT clockTimeRect;
   BB_RECT digitRects[8];
   BB_RECT secondsRect;
   BB_RECT actionRects[3];
@@ -518,6 +525,8 @@ typedef struct
   char lastClockText[16];
   char detailText[48];
   char temperatureUnit[8];
+  bool textValueInitialized;
+  char textValue[TEXT_WIDGET_VALUE_MAX_BYTES];
   uint8_t thermostatSupportedModes;
   uint8_t thermostatActiveMode;
   uint32_t thermostatHistoryMask;
@@ -717,6 +726,36 @@ static size_t copyUtf8Prefix(const char *input, size_t maxChars, char *output, s
   }
   output[bytesWritten] = '\0';
   return charsWritten;
+}
+
+static void copyUtf8StringToBuffer(const String &input, char *output, size_t outputLen)
+{
+  if (outputLen == 0)
+  {
+    return;
+  }
+
+  output[0] = '\0';
+  const char *raw = input.c_str();
+  if (raw == nullptr || raw[0] == '\0')
+  {
+    return;
+  }
+
+  const size_t maxBytes = outputLen - 1;
+  size_t bytesWritten = 0;
+  while (raw[bytesWritten] != '\0')
+  {
+    const size_t charLen = utf8CodepointLength(raw + bytesWritten);
+    if (charLen == 0 || bytesWritten + charLen > maxBytes)
+    {
+      break;
+    }
+
+    memcpy(output + bytesWritten, raw + bytesWritten, charLen);
+    bytesWritten += charLen;
+  }
+  output[bytesWritten] = '\0';
 }
 
 static int centeredX(const char *text)
@@ -1570,9 +1609,19 @@ static bool pageIsWeatherFocus(int pageIndex)
   return UI_PAGES[pageIndex].pageType == UI_PAGE_WEATHER_FOCUS;
 }
 
+static bool pageIsOverview(int pageIndex)
+{
+  return UI_PAGES[pageIndex].pageType == UI_PAGE_OVERVIEW;
+}
+
 static bool pageIsMediaPlayer(int pageIndex)
 {
   return UI_PAGES[pageIndex].pageType == UI_PAGE_MEDIA_PLAYER;
+}
+
+static bool activePageIsOverview()
+{
+  return pageIsOverview(currentPageIndex);
 }
 
 static bool activePageIsWeatherFocus()
@@ -1597,7 +1646,7 @@ static bool showPageChrome()
 
 static bool activePageShowsTitle()
 {
-  return !activePageIsMediaPlayer() && !activePageIsWeatherFocus();
+  return !activePageIsOverview() && !activePageIsMediaPlayer() && !activePageIsWeatherFocus();
 }
 
 static bool progressWidgetHidesWhenUnavailable(const UiWidgetConfig &widget)
@@ -1638,6 +1687,8 @@ static int widgetWeight(const UiWidgetConfig &widget)
     return 10;
   case UI_WIDGET_THERMOSTAT:
     return 9;
+  case UI_WIDGET_TEXT:
+    return 8;
   default:
     return 8;
   }
@@ -1956,50 +2007,21 @@ static const MdiMonoIconAsset *getMdiWeatherIconAsset(const char *condition)
 static const MdiMonoIconAsset *getSliderIconAssetByName(const char *iconName)
 {
 #if UI_MDI_ICONS_AVAILABLE
-  if (iconName == nullptr || iconName[0] == '\0' || strcmp(iconName, "lightbulb") == 0)
+  if (iconName == nullptr || iconName[0] == '\0')
   {
-    return &MDI_ICON_ASSET_SLIDER_LIGHTBULB;
+    return &MDI_ICON_ASSET_WIDGET_LIGHTBULB;
   }
-  if (strcmp(iconName, "lamp") == 0)
+  for (size_t index = 0; index < MDI_WIDGET_ICON_ASSET_COUNT; index++)
   {
-    return &MDI_ICON_ASSET_SLIDER_LAMP;
-  }
-  if (strcmp(iconName, "fan") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_FAN;
-  }
-  if (strcmp(iconName, "speaker") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_SPEAKER;
-  }
-  if (strcmp(iconName, "volume-high") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_VOLUME_HIGH;
-  }
-  if (strcmp(iconName, "blinds-horizontal") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_BLINDS_HORIZONTAL;
-  }
-  if (strcmp(iconName, "water-percent") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_WATER_PERCENT;
-  }
-  if (strcmp(iconName, "thermometer") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_THERMOMETER;
-  }
-  if (strcmp(iconName, "air-humidifier") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_AIR_HUMIDIFIER;
-  }
-  if (strcmp(iconName, "brightness-6") == 0)
-  {
-    return &MDI_ICON_ASSET_SLIDER_BRIGHTNESS_6;
+    if (strcmp(iconName, MDI_WIDGET_ICON_ASSETS[index].name) == 0)
+    {
+      return MDI_WIDGET_ICON_ASSETS[index].asset;
+    }
   }
 #else
   (void)iconName;
 #endif
-  return nullptr;
+  return &MDI_ICON_ASSET_WIDGET_LIGHTBULB;
 }
 
 static void drawChevronButton(const BB_RECT &rect, bool left)
@@ -2402,14 +2424,17 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
 #include "ui/widgets/weather_widget.inc"
 #include "ui/widgets/switch_widget.inc"
 #include "ui/widgets/thermostat_widget.inc"
+#include "ui/widgets/text_widget.inc"
 #include "ui/widgets/widget_dispatch.inc"
 
-static void renderActivePage(bool pageTransition = false)
+static void renderActivePage(bool pageTransition)
 {
   if (!displayReady)
   {
     return;
   }
+
+  pendingFullPageRender = false;
 
   layoutCurrentPage();
   const bool targetUsesGrayMode = activePageUsesGrayMode();
@@ -2605,6 +2630,14 @@ static bool homeAssistantConfigured()
 static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget)
 {
   return widget.entityId != nullptr && widget.entityId[0] != '\0';
+}
+
+static bool textWidgetUsesMqttInput(const UiWidgetConfig &widget)
+{
+  return widget.type == UI_WIDGET_TEXT &&
+         widget.mqttExpose != 0 &&
+         widget.mqttName != nullptr &&
+         widget.mqttName[0] != '\0';
 }
 
 static bool pageHasHomeAssistantBinding(int pageIndex)
@@ -5836,6 +5869,13 @@ static void runDisplayLoop()
     return;
   }
 
+  if (pendingFullPageRender)
+  {
+    pendingFullPageRender = false;
+    renderActivePage();
+    return;
+  }
+
   configureNtpIfNeeded();
   pollTouchInput();
 
@@ -5891,9 +5931,14 @@ static void runDisplayLoop()
       {
         const bool secondsEnabled = clockWidgetShowsSeconds(widget);
         const bool minuteChanged = strncmp(currentClock, state.lastClockText, 5) != 0;
-        if (clockWidgetIsAnalog(widget) || !secondsEnabled || minuteChanged)
+        if (clockWidgetIsAnalog(widget))
         {
           drawClockWidget(widgetIndex, true);
+        }
+        else if (!secondsEnabled || minuteChanged)
+        {
+          drawClockTimePartial(widgetIndex, currentClock);
+          snprintf(state.lastClockText, sizeof(state.lastClockText), "%s", currentClock);
         }
         else
         {
@@ -6496,7 +6541,7 @@ static String getMqttDiscoveryTopic(const char *component, const char *objectId)
 static void loadMqttConfig()
 {
   mqttConfig = {false, "", MQTT_DEFAULT_PORT, "", "", "", true, MQTT_DEFAULT_DISCOVERY_PREFIX};
-  if (!preferences.begin("mqtt", false))
+  if (!preferences.begin(MQTT_PREFERENCES_NAMESPACE, false))
   {
     Serial.println("MQTT_PREFS_UNAVAILABLE");
     return;
@@ -6524,7 +6569,7 @@ static void loadMqttConfig()
 
 static void saveMqttConfig(const MqttConfig &config)
 {
-  if (!preferences.begin("mqtt", false))
+  if (!preferences.begin(MQTT_PREFERENCES_NAMESPACE, false))
   {
     Serial.println("MQTT_SAVE_FAILED");
     return;
@@ -6614,6 +6659,292 @@ static bool publishMqttDiscoveryDocument(const String &topic, JsonDocument &docu
 static bool clearMqttDiscoveryTopic(const String &topic)
 {
   return mqttClient.connected() ? mqttClient.publish(topic.c_str(), "", true) : false;
+}
+
+static bool clearRetainedMqttTopic(const String &topic)
+{
+  return mqttClient.connected() ? mqttClient.publish(topic.c_str(), "", true) : false;
+}
+
+static bool mqttTextDiscoveryRegistryContains(const String &registry, const String &name)
+{
+  if (name.length() == 0)
+  {
+    return false;
+  }
+
+  int start = 0;
+  while (start <= registry.length())
+  {
+    int end = registry.indexOf('\n', start);
+    if (end < 0)
+    {
+      end = registry.length();
+    }
+
+    String entry = registry.substring(start, end);
+    entry.trim();
+    if (entry == name)
+    {
+      return true;
+    }
+
+    if (end >= registry.length())
+    {
+      break;
+    }
+    start = end + 1;
+  }
+
+  return false;
+}
+
+static void appendMqttTextDiscoveryRegistryName(String &registry, const String &name)
+{
+  if (name.length() == 0 || mqttTextDiscoveryRegistryContains(registry, name))
+  {
+    return;
+  }
+
+  if (registry.length() > 0 && registry[registry.length() - 1] != '\n')
+  {
+    registry += '\n';
+  }
+  registry += name;
+}
+
+static String buildMqttTextWidgetDiscoveryRegistry()
+{
+  String registry;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      appendMqttTextDiscoveryRegistryName(registry, String(widget.mqttName));
+    }
+  }
+  return registry;
+}
+
+static String loadMqttTextWidgetDiscoveryRegistry()
+{
+  if (!preferences.begin(MQTT_PREFERENCES_NAMESPACE, false))
+  {
+    Serial.println("MQTT_TEXT_REGISTRY_READ_FAILED");
+    return "";
+  }
+
+  const String registry = preferences.getString(MQTT_PREFERENCE_DISCOVERY_TEXT_REGISTRY_KEY, "");
+  preferences.end();
+  return registry;
+}
+
+static void saveMqttTextWidgetDiscoveryRegistry(const String &registry)
+{
+  if (!preferences.begin(MQTT_PREFERENCES_NAMESPACE, false))
+  {
+    Serial.println("MQTT_TEXT_REGISTRY_SAVE_FAILED");
+    return;
+  }
+
+  preferences.putString(MQTT_PREFERENCE_DISCOVERY_TEXT_REGISTRY_KEY, registry);
+  preferences.end();
+}
+
+static bool clearStaleMqttTextWidgetDiscovery(const String &currentRegistry)
+{
+  const String previousRegistry = loadMqttTextWidgetDiscoveryRegistry();
+  if (previousRegistry.length() == 0)
+  {
+    return true;
+  }
+
+  bool success = true;
+  int start = 0;
+  while (start <= previousRegistry.length())
+  {
+    int end = previousRegistry.indexOf('\n', start);
+    if (end < 0)
+    {
+      end = previousRegistry.length();
+    }
+
+    String name = previousRegistry.substring(start, end);
+    name.trim();
+    if (name.length() > 0 && !mqttTextDiscoveryRegistryContains(currentRegistry, name))
+    {
+      const String objectSuffix = String("text_") + name;
+      if (!clearMqttDiscoveryTopic(getMqttDiscoveryTopic("text", objectSuffix.c_str())))
+      {
+        setLastMqttError(String("clear_text_discovery_failed_") + name);
+        success = false;
+      }
+
+      const String stateSuffix = String("widgets/text/") + name + "/state";
+      if (!clearRetainedMqttTopic(getMqttTopic(stateSuffix.c_str())))
+      {
+        setLastMqttError(String("clear_text_state_failed_") + name);
+        success = false;
+      }
+    }
+
+    if (end >= previousRegistry.length())
+    {
+      break;
+    }
+    start = end + 1;
+  }
+
+  return success;
+}
+
+static String getMqttTextWidgetStateTopic(int pageIndex, int widgetIndex)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return String();
+  }
+
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!textWidgetUsesMqttInput(widget))
+  {
+    return String();
+  }
+
+  const String suffix = String("widgets/text/") + widget.mqttName + "/state";
+  return getMqttTopic(suffix.c_str());
+}
+
+static String getMqttTextWidgetCommandTopic(int pageIndex, int widgetIndex)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return String();
+  }
+
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!textWidgetUsesMqttInput(widget))
+  {
+    return String();
+  }
+
+  const String suffix = String("widgets/text/") + widget.mqttName + "/set";
+  return getMqttTopic(suffix.c_str());
+}
+
+static String getMqttTextWidgetDiscoveryName(const UiWidgetConfig &widget)
+{
+  if (!textWidgetUsesMqttInput(widget))
+  {
+    return String("Text");
+  }
+
+  String name = widget.mqttName;
+  name.replace("_", " ");
+  return name;
+}
+
+static bool applyMqttTextWidgetValue(
+    int pageIndex,
+    int widgetIndex,
+    const String &value,
+    bool publishState,
+    bool redraw)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!textWidgetUsesMqttInput(widget))
+  {
+    return false;
+  }
+
+  WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
+  char nextValue[TEXT_WIDGET_VALUE_MAX_BYTES];
+  copyUtf8StringToBuffer(value, nextValue, sizeof(nextValue));
+
+  const bool changed =
+      !state.textValueInitialized || strcmp(state.textValue, nextValue) != 0;
+  state.textValueInitialized = true;
+  snprintf(state.textValue, sizeof(state.textValue), "%s", nextValue);
+
+  if (publishState && mqttClient.connected())
+  {
+    publishMqttMessage(
+        getMqttTextWidgetStateTopic(pageIndex, widgetIndex),
+        String(state.textValue),
+        true);
+  }
+
+  if (changed &&
+      redraw &&
+      displayReady &&
+      pageIndex == currentPageIndex)
+  {
+    pendingFullPageRender = true;
+  }
+
+  return changed;
+}
+
+static void publishMqttTextWidgetStates()
+{
+  if (!mqttClient.connected())
+  {
+    return;
+  }
+
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      const WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
+      const char *textValue =
+          state.textValueInitialized ? state.textValue : widget.label;
+      publishMqttMessage(
+          getMqttTextWidgetStateTopic(pageIndex, widgetIndex),
+          String(textValue == nullptr ? "" : textValue),
+          true);
+    }
+  }
+}
+
+static bool handleMqttTextWidgetCommand(const String &topic, const String &payload)
+{
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      if (topic == getMqttTextWidgetCommandTopic(pageIndex, widgetIndex))
+      {
+        applyMqttTextWidgetValue(pageIndex, widgetIndex, payload, true, true);
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 static void populateMqttDiscoveryDocument(
@@ -6706,6 +7037,7 @@ static bool publishMqttDiscoveryConfig()
   }
 
   bool success = true;
+  const String currentTextWidgetRegistry = buildMqttTextWidgetDiscoveryRegistry();
 
   StaticJsonDocument<1024> pageDoc;
   populateMqttDiscoveryDocument(pageDoc, "page", "Page", getMqttTopic("page/state"));
@@ -6739,6 +7071,7 @@ static bool publishMqttDiscoveryConfig()
   success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "partial_refresh_count")) && success;
   success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "full_refresh_count")) && success;
   success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "last_refresh_age_seconds")) && success;
+  success = clearStaleMqttTextWidgetDiscovery(currentTextWidgetRegistry) && success;
 
   success = publishMqttBinarySensorDiscovery(
                 "usb_power_connected",
@@ -6881,6 +7214,42 @@ static bool publishMqttDiscoveryConfig()
                 true) &&
             success;
 
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      StaticJsonDocument<768> textDoc;
+      const String objectSuffix = String("text_") + widget.mqttName;
+      const String displayName = getMqttTextWidgetDiscoveryName(widget);
+      populateMqttDiscoveryDocument(
+          textDoc,
+          objectSuffix.c_str(),
+          displayName.c_str(),
+          getMqttTextWidgetStateTopic(pageIndex, widgetIndex));
+      textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
+      textDoc["icon"] = "mdi:form-textbox";
+      textDoc["mode"] = "text";
+      textDoc["default_entity_id"] = String("text.") + widget.mqttName;
+
+      if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic("text", objectSuffix.c_str()), textDoc))
+      {
+        setLastMqttError(String("discovery_text_failed_") + widget.mqttName);
+        success = false;
+      }
+    }
+  }
+
+  if (success)
+  {
+    saveMqttTextWidgetDiscoveryRegistry(currentTextWidgetRegistry);
+  }
+
   mqttDiscoveryPublished = success;
   return success;
 }
@@ -6944,6 +7313,7 @@ static void publishMqttStateSnapshot(bool includeDiscovery = true)
   publishMqttPageState();
   publishMqttDarkModeState();
   publishMqttTelemetryState();
+  publishMqttTextWidgetStates();
 }
 
 static int findPageIndexByName(const String &pageName)
@@ -7101,16 +7471,21 @@ static void handleMqttMessage(char *topic, uint8_t *payload, unsigned int length
   {
     payloadValue += static_cast<char>(payload[index]);
   }
-  payloadValue.trim();
+  String trimmedPayload = payloadValue;
+  trimmedPayload.trim();
 
   bool handled = false;
   if (topicValue == getMqttTopic("page/set"))
   {
-    handled = handleMqttPageCommand(payloadValue);
+    handled = handleMqttPageCommand(trimmedPayload);
   }
   else if (topicValue == getMqttTopic("dark_mode/set"))
   {
-    handled = handleMqttDarkModeCommand(payloadValue);
+    handled = handleMqttDarkModeCommand(trimmedPayload);
+  }
+  else
+  {
+    handled = handleMqttTextWidgetCommand(topicValue, payloadValue);
   }
 
   Serial.printf("MQTT_MESSAGE TOPIC=%s PAYLOAD=%s HANDLED=%d\n", topicValue.c_str(), payloadValue.c_str(), handled ? 1 : 0);
@@ -7197,7 +7572,24 @@ static bool ensureMqttConnected()
 
   const bool pageSubscribed = mqttClient.subscribe(getMqttTopic("page/set").c_str());
   const bool darkModeSubscribed = mqttClient.subscribe(getMqttTopic("dark_mode/set").c_str());
-  if (!pageSubscribed || !darkModeSubscribed)
+  bool subscribed = pageSubscribed && darkModeSubscribed;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      subscribed =
+          mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex).c_str()) &&
+          subscribed;
+    }
+  }
+
+  if (!subscribed)
   {
     setLastMqttError("subscribe_failed");
   }

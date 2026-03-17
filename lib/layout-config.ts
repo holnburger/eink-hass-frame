@@ -7,7 +7,7 @@ import {
 } from "@/lib/home-assistant";
 
 export const MAX_PAGES = 5;
-export const MAX_WIDGETS_PER_PAGE = 6;
+export const MAX_WIDGETS_PER_PAGE = 8;
 
 export const FONT_OPTIONS = [
   { name: "System Sans", className: "font-sans" },
@@ -35,20 +35,23 @@ export const SLIDER_ICON_OPTIONS = [
 
 export const PAGE_TYPE_OPTIONS = [
   { value: "standard", label: "Standard Page" },
+  { value: "overview", label: "Overview Page" },
   { value: "weather-focus", label: "Weather Focus Page" },
   { value: "media-player", label: "Media Player Page" },
 ] as const;
 
 export type FontName = (typeof FONT_OPTIONS)[number]["name"];
 export type ClockStyle = (typeof CLOCK_STYLE_OPTIONS)[number]["value"];
-export type SliderIconName = (typeof SLIDER_ICON_OPTIONS)[number]["value"];
+export type SliderIconName = string;
 export type PageType = (typeof PAGE_TYPE_OPTIONS)[number]["value"];
-export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider" | "thermostat";
+export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider" | "thermostat" | "text";
 
 export type WidgetConfig = {
   id: string;
   type: WidgetType;
   label: string;
+  mqttExpose?: boolean;
+  mqttName?: string;
   clockStyle?: ClockStyle;
   showSeconds?: boolean;
   showHistoryGraph?: boolean;
@@ -85,7 +88,10 @@ export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
   { type: "switch", label: "Switch" },
   { type: "slider", label: "Slider" },
   { type: "thermostat", label: "Thermostat" },
+  { type: "text", label: "Text" },
 ];
+
+export const TEXT_WIDGET_MQTT_NAME_PATTERN = /^[a-z0-9_]+$/;
 
 function clampPercent(value: unknown, fallback = 50) {
   const parsed = Number(value);
@@ -125,11 +131,34 @@ export function isFontName(value: unknown): value is FontName {
 }
 
 export function isSliderIconName(value: unknown): value is SliderIconName {
-  return SLIDER_ICON_OPTIONS.some((icon) => icon.value === value);
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 export function normalizeSliderIcon(value: unknown): SliderIconName {
-  return isSliderIconName(value) ? value : SLIDER_ICON_OPTIONS[0].value;
+  return isSliderIconName(value) ? value.trim() : SLIDER_ICON_OPTIONS[0].value;
+}
+
+export function normalizeTextWidgetMqttName(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export function isValidTextWidgetMqttName(value: unknown): value is string {
+  return typeof value === "string" && TEXT_WIDGET_MQTT_NAME_PATTERN.test(value);
+}
+
+export function getTextWidgetMqttEntityId(name: unknown) {
+  const normalizedName = normalizeTextWidgetMqttName(name);
+  return normalizedName.length > 0 ? `text.${normalizedName}` : "";
 }
 
 export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
@@ -147,6 +176,8 @@ export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
       return count > 1 ? `Slider ${count}` : "Slider";
     case "thermostat":
       return count > 1 ? `Thermostat ${count}` : "Thermostat";
+    case "text":
+      return count > 1 ? `Text ${count}` : "Text";
     default:
       return "Widget";
   }
@@ -185,6 +216,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
     return {
       ...base,
       enabled: false,
+      icon: SLIDER_ICON_OPTIONS[0].value,
     };
   }
 
@@ -198,6 +230,15 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
     };
   }
 
+  if (type === "text") {
+    return {
+      ...base,
+      label: "Welcome home",
+      mqttExpose: false,
+      mqttName: "",
+    };
+  }
+
   return base;
 }
 
@@ -206,26 +247,33 @@ export function createPage(index = 0): PageConfig {
 }
 
 export function createPageOfType(index = 0, type: PageType = "standard"): PageConfig {
+  const isOverview = type === "overview";
   const isWeatherFocus = type === "weather-focus";
   const isMediaPlayer = type === "media-player";
   return {
     id: makeLocalId("page"),
-    name: isWeatherFocus
+    name: isOverview
       ? index === 0
-        ? "Weather"
-        : `Weather ${index + 1}`
-      : isMediaPlayer
+        ? "Overview"
+        : `Overview ${index + 1}`
+      : isWeatherFocus
         ? index === 0
-          ? "Player"
-          : `Player ${index + 1}`
-        : index === 0
-          ? "Home"
-          : `Page ${index + 1}`,
+          ? "Weather"
+          : `Weather ${index + 1}`
+        : isMediaPlayer
+          ? index === 0
+            ? "Player"
+            : `Player ${index + 1}`
+          : index === 0
+            ? "Home"
+            : `Page ${index + 1}`,
     type,
     homeAssistant: undefined,
     widgets:
       isWeatherFocus || isMediaPlayer
         ? []
+        : isOverview
+          ? [createWidget("clock"), createWidget("text")]
         : [
             createWidget("clock"),
             createWidget("weather"),
@@ -286,7 +334,8 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     type !== "progress" &&
     type !== "switch" &&
     type !== "slider" &&
-    type !== "thermostat"
+    type !== "thermostat" &&
+    type !== "text"
   ) {
     return null;
   }
@@ -297,7 +346,7 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
       : `widget-${widgetIndex + 1}`;
   const label =
     typeof candidate.label === "string" && candidate.label.trim().length > 0
-      ? candidate.label.trim()
+      ? candidate.label
       : getDefaultWidgetLabel(type, widgetIndex);
 
   const normalized: WidgetConfig = { id, type, label };
@@ -325,8 +374,14 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     normalized.showHistoryGraph = Boolean(candidate.showHistoryGraph);
   }
 
+  if (type === "text") {
+    normalized.mqttExpose = Boolean(candidate.mqttExpose);
+    normalized.mqttName = normalizeTextWidgetMqttName(candidate.mqttName);
+  }
+
   if (type === "switch") {
     normalized.enabled = Boolean(candidate.enabled);
+    normalized.icon = normalizeSliderIcon(candidate.icon);
   }
 
   normalized.homeAssistant = normalizeHomeAssistantBinding(
@@ -416,7 +471,9 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
                 ? rawPage.id
                 : `page-${pageIndex + 1}`;
             const type: PageType =
-              rawPage.type === "weather-focus"
+              rawPage.type === "overview"
+                ? "overview"
+                : rawPage.type === "weather-focus"
                 ? "weather-focus"
                 : rawPage.type === "media-player"
                   ? "media-player"
@@ -432,7 +489,6 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
             const homeAssistant = normalizeHomeAssistantBinding(
               rawPage.homeAssistant,
             );
-
             return {
               id,
               name,

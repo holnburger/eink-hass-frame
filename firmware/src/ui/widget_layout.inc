@@ -38,6 +38,13 @@ static void initializeWidgetStates()
       state.lastHomeAssistantUpdateMs = 0;
       snprintf(state.lastClockText, sizeof(state.lastClockText), "--:--:--");
       snprintf(state.detailText, sizeof(state.detailText), "%s", "");
+      state.textValueInitialized = false;
+      state.textValue[0] = '\0';
+      if (textWidgetUsesMqttInput(widget))
+      {
+        copyUtf8StringToBuffer(String(widget.label), state.textValue, sizeof(state.textValue));
+        state.textValueInitialized = true;
+      }
     }
   }
 }
@@ -45,6 +52,7 @@ static void initializeWidgetStates()
 static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState &state)
 {
   memset(state.digitRects, 0, sizeof(state.digitRects));
+  state.clockTimeRect = {0, 0, 0, 0};
   state.secondsRect = {0, 0, 0, 0};
   state.faceRect = {0, 0, 0, 0};
 
@@ -84,6 +92,32 @@ static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState 
     x += symbolW + gap;
   }
 
+  state.clockTimeRect = state.digitRects[0];
+  const int timeRight = state.digitRects[totalChars - 1].x + state.digitRects[totalChars - 1].w;
+  state.clockTimeRect.w = timeRight - state.clockTimeRect.x;
+  state.clockTimeRect.x -= 2;
+  state.clockTimeRect.y -= 2;
+  state.clockTimeRect.w += 4;
+  state.clockTimeRect.h += 4;
+  if (state.clockTimeRect.x < state.contentRect.x)
+  {
+    state.clockTimeRect.x = state.contentRect.x;
+  }
+  if (state.clockTimeRect.y < state.contentRect.y)
+  {
+    state.clockTimeRect.y = state.contentRect.y;
+  }
+  const int maxRight = state.contentRect.x + state.contentRect.w;
+  const int maxBottom = state.contentRect.y + state.contentRect.h;
+  if (state.clockTimeRect.x + state.clockTimeRect.w > maxRight)
+  {
+    state.clockTimeRect.w = maxRight - state.clockTimeRect.x;
+  }
+  if (state.clockTimeRect.y + state.clockTimeRect.h > maxBottom)
+  {
+    state.clockTimeRect.h = maxBottom - state.clockTimeRect.y;
+  }
+
   if (showSeconds)
   {
     state.secondsRect = state.digitRects[6];
@@ -101,8 +135,6 @@ static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState 
     {
       state.secondsRect.y = state.contentRect.y;
     }
-    const int maxRight = state.contentRect.x + state.contentRect.w;
-    const int maxBottom = state.contentRect.y + state.contentRect.h;
     if (state.secondsRect.x + state.secondsRect.w > maxRight)
     {
       state.secondsRect.w = maxRight - state.secondsRect.x;
@@ -179,6 +211,134 @@ static void layoutWeatherFocusPage()
   debugIpRect = {0, 0, 0, 0};
 }
 
+static void layoutOverviewPage()
+{
+  const int width = display.width();
+  const int height = display.height();
+  const int margin = 24;
+  const int contentTop = showPageChrome() ? 24 : 18;
+  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
+  const UiPageConfig &page = UI_PAGES[currentPageIndex];
+
+  int clockWidgetIndex = -1;
+  int textWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
+  int textWidgetCount = 0;
+  int textAboveWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
+  int textAboveWidgetCount = 0;
+  int textBelowWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
+  int textBelowWidgetCount = 0;
+  int switchWidgetIndices[6];
+  int switchWidgetCount = 0;
+
+  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
+  {
+    WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+    state.cardRect = {0, 0, 0, 0};
+    state.contentRect = {0, 0, 0, 0};
+    state.controlRect = {0, 0, 0, 0};
+    state.secondaryRect = {0, 0, 0, 0};
+    state.tertiaryRect = {0, 0, 0, 0};
+    state.faceRect = {0, 0, 0, 0};
+    state.clockTimeRect = {0, 0, 0, 0};
+    state.secondsRect = {0, 0, 0, 0};
+    memset(state.digitRects, 0, sizeof(state.digitRects));
+    memset(state.actionRects, 0, sizeof(state.actionRects));
+
+    const UiWidgetConfig widget = page.widgets[widgetIndex];
+    if (widget.type == UI_WIDGET_CLOCK && clockWidgetIndex < 0)
+    {
+      clockWidgetIndex = widgetIndex;
+    }
+    else if (widget.type == UI_WIDGET_TEXT && textWidgetCount < UI_MAX_WIDGETS_PER_PAGE)
+    {
+      textWidgetIndices[textWidgetCount++] = widgetIndex;
+    }
+    else if (widget.type == UI_WIDGET_SWITCH && switchWidgetCount < 6)
+    {
+      switchWidgetIndices[switchWidgetCount++] = widgetIndex;
+    }
+  }
+
+  for (int index = 0; index < textWidgetCount; index++)
+  {
+    if (clockWidgetIndex < 0 || textWidgetIndices[index] < clockWidgetIndex)
+    {
+      textAboveWidgetIndices[textAboveWidgetCount++] = textWidgetIndices[index];
+    }
+    else
+    {
+      textBelowWidgetIndices[textBelowWidgetCount++] = textWidgetIndices[index];
+    }
+  }
+
+  const int switchRows = switchWidgetCount > 3 ? 2 : (switchWidgetCount > 0 ? 1 : 0);
+  const int switchCols = switchWidgetCount >= 3 ? 3 : switchWidgetCount;
+  const int switchSize = 84;
+  const int switchGapX = 22;
+  const int switchGapY = 18;
+  const int switchGridHeight = switchRows > 0 ? (switchRows * switchSize) + ((switchRows - 1) * switchGapY) : 0;
+  const int textHeight = 152;
+  const int textGap = 18;
+  const int textAboveBlockHeight = textAboveWidgetCount > 0 ? (textAboveWidgetCount * textHeight) + ((textAboveWidgetCount - 1) * textGap) : 0;
+  const int textBelowBlockHeight = textBelowWidgetCount > 0 ? (textBelowWidgetCount * textHeight) + ((textBelowWidgetCount - 1) * textGap) : 0;
+  const int switchBlockTop = footerTop - switchGridHeight - 22;
+  const int textAboveBlockTop = contentTop + 10;
+  const int textBelowBlockTop = switchBlockTop - (textBelowBlockHeight > 0 ? textBelowBlockHeight + 20 : 0);
+  const int clockTop = textAboveBlockHeight > 0
+                         ? textAboveBlockTop + textAboveBlockHeight + 12
+                         : contentTop + 8;
+  const int clockBottom = (textBelowBlockHeight > 0 ? textBelowBlockTop : switchBlockTop) - 12;
+
+  if (clockWidgetIndex >= 0)
+  {
+    const UiWidgetConfig widget = page.widgets[clockWidgetIndex];
+    WidgetRuntimeState &state = getWidgetState(currentPageIndex, clockWidgetIndex);
+    const int clockHeight = clampInt(clockBottom - clockTop, 180, footerTop - clockTop - 12);
+    state.cardRect = {margin, clockTop, width - (margin * 2), clockHeight};
+    state.contentRect = state.cardRect;
+    computeClockLayout(widget, state);
+  }
+
+  int textY = textAboveBlockTop;
+  for (int index = 0; index < textAboveWidgetCount; index++)
+  {
+    WidgetRuntimeState &state = getWidgetState(currentPageIndex, textAboveWidgetIndices[index]);
+    state.cardRect = {margin, textY, width - (margin * 2), textHeight};
+    state.contentRect = state.cardRect;
+    textY += textHeight + textGap;
+  }
+
+  textY = textBelowBlockTop;
+  for (int index = 0; index < textBelowWidgetCount; index++)
+  {
+    WidgetRuntimeState &state = getWidgetState(currentPageIndex, textBelowWidgetIndices[index]);
+    state.cardRect = {margin, textY, width - (margin * 2), textHeight};
+    state.contentRect = state.cardRect;
+    textY += textHeight + textGap;
+  }
+
+  if (switchCols > 0)
+  {
+    const int gridWidth = (switchCols * switchSize) + ((switchCols - 1) * switchGapX);
+    const int startX = (width - gridWidth) / 2;
+    for (int index = 0; index < switchWidgetCount; index++)
+    {
+      const int row = index / 3;
+      const int col = index % 3;
+      WidgetRuntimeState &state = getWidgetState(currentPageIndex, switchWidgetIndices[index]);
+      const int x = startX + (col * (switchSize + switchGapX));
+      const int y = switchBlockTop + (row * (switchSize + switchGapY));
+      state.cardRect = {x, y, switchSize, switchSize};
+      state.contentRect = state.cardRect;
+      state.controlRect = state.cardRect;
+    }
+  }
+
+  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
+  debugIpRect = {0, 0, 0, 0};
+}
+
 static void layoutMediaPlayerPage()
 {
   const int width = display.width();
@@ -216,6 +376,11 @@ static void layoutMediaPlayerPage()
 
 static void layoutCurrentPage()
 {
+  if (activePageIsOverview())
+  {
+    layoutOverviewPage();
+    return;
+  }
   if (activePageIsWeatherFocus())
   {
     layoutWeatherFocusPage();
@@ -274,6 +439,7 @@ static void layoutCurrentPage()
       state.secondaryRect = {0, 0, 0, 0};
       state.tertiaryRect = {0, 0, 0, 0};
       state.faceRect = {0, 0, 0, 0};
+      state.clockTimeRect = {0, 0, 0, 0};
       state.secondsRect = {0, 0, 0, 0};
       memset(state.actionRects, 0, sizeof(state.actionRects));
 
@@ -286,9 +452,11 @@ static void layoutCurrentPage()
     const bool thermostatHistoryGraph = thermostatWidgetShowsHistoryGraph(widget);
     int cardHeight = (visibleWidgetIndex == visibleWidgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
     const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
+                                                               : widget.type == UI_WIDGET_TEXT       ? 148
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 182 : 100)
                                                                                                      : 88;
     const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
+                                                               : widget.type == UI_WIDGET_TEXT       ? 244
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 224 : 132)
                                                                                                      : 340;
     cardHeight = clampInt(cardHeight, minHeight, maxHeight);

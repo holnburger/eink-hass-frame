@@ -5,6 +5,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   countWidgets,
+  getTextWidgetMqttEntityId,
   normalizeBuildConfig,
 } from "@/lib/layout-config";
 import {
@@ -35,6 +36,15 @@ type BuildPayload = {
 
 function sanitizeCString(input: string): string {
   return input.replace(/\\/g, "\\\\").replace(/\"/g, '\\"').replace(/[\r\n]/g, " ");
+}
+
+function sanitizeMultilineCString(input: string): string {
+  return input
+    .replace(/\\/g, "\\\\")
+    .replace(/\"/g, '\\"')
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n/g, "\\n");
 }
 
 function normalizeNumber(value: unknown, fallback: number): number {
@@ -70,6 +80,8 @@ function widgetTypeToCpp(type: string) {
       return "UI_WIDGET_SLIDER";
     case "thermostat":
       return "UI_WIDGET_THERMOSTAT";
+    case "text":
+      return "UI_WIDGET_TEXT";
     default:
       return "UI_WIDGET_NONE";
   }
@@ -80,6 +92,9 @@ function clockStyleToCpp(style: unknown) {
 }
 
 function pageTypeToCpp(type: unknown) {
+  if (type === "overview") {
+    return "UI_PAGE_OVERVIEW";
+  }
   if (type === "weather-focus") {
     return "UI_PAGE_WEATHER_FOCUS";
   }
@@ -87,6 +102,38 @@ function pageTypeToCpp(type: unknown) {
     return "UI_PAGE_MEDIA_PLAYER";
   }
   return "UI_PAGE_STANDARD";
+}
+
+function collectWidgetIconNames(payload: BuildPayload) {
+  const config = normalizeBuildConfig(payload);
+  return Array.from(
+    new Set(
+      config.pages.flatMap((page) =>
+        page.widgets.flatMap((widget) =>
+          (widget.type === "slider" || widget.type === "switch") &&
+          typeof widget.icon === "string" &&
+          widget.icon.trim().length > 0
+            ? [widget.icon.trim()]
+            : [],
+        ),
+      ),
+    ),
+  );
+}
+
+function collectExposedTextWidgets(payload: BuildPayload) {
+  const config = normalizeBuildConfig(payload);
+  return config.pages.flatMap((page) =>
+    page.widgets
+      .filter((widget) => widget.type === "text" && widget.mqttExpose === true)
+      .map((widget) => ({
+        pageName: page.name,
+        widgetId: widget.id,
+        widgetLabel: widget.label,
+        mqttName: widget.mqttName ?? "",
+        entityId: getTextWidgetMqttEntityId(widget.mqttName),
+      })),
+  );
 }
 
 async function runCommand(command: string, args: string[], cwd: string) {
@@ -123,14 +170,21 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, \"\"}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, \"\", \"\"}";
 
   const pageSource = config.pages
     .map((page) => {
       const widgets = page.widgets
         .map((widget) => {
-          const label = sanitizeCString(widget.label);
-          const icon = sanitizeCString(widget.type === "slider" ? (widget.icon ?? "lightbulb") : "");
+          const label =
+            widget.type === "text"
+              ? sanitizeMultilineCString(widget.label)
+              : sanitizeCString(widget.label);
+          const icon = sanitizeCString(
+            widget.type === "slider" || widget.type === "switch"
+              ? (widget.icon ?? "lightbulb")
+              : "",
+          );
           const isThermostat = widget.type === "thermostat";
           const value = isThermostat ? normalizeThermostatTenths(widget.value, 225, 5) : normalizeNumber(widget.value, 0);
           const currentValue = isThermostat ? normalizeThermostatTenths(widget.currentValue, 205, 1) : normalizeNumber(widget.currentValue, 0);
@@ -146,13 +200,17 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
             widget.type === "progress" && widget.hideWhenUnavailable === true
               ? 1
               : 0;
+          const mqttExpose =
+            widget.type === "text" && widget.mqttExpose === true ? 1 : 0;
+          const mqttName = sanitizeCString(
+            widget.type === "text" ? (widget.mqttName ?? "") : "",
+          );
           const entityId = sanitizeCString(widget.homeAssistant?.entityId ?? "");
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, ${showHistoryGraph}, ${hideWhenUnavailable}, "${entityId}"}`;
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, ${showHistoryGraph}, ${hideWhenUnavailable}, ${mqttExpose}, "${mqttName}", "${entityId}"}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
       const pageEntityId = sanitizeCString(page.homeAssistant?.entityId ?? "");
-
       return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, "${pageEntityId}", {${widgets}}}`;
     })
     .join(",\n");
@@ -180,6 +238,7 @@ enum UiWidgetType : uint8_t {
   UI_WIDGET_SWITCH = 3,
   UI_WIDGET_SLIDER = 4,
   UI_WIDGET_THERMOSTAT = 5,
+  UI_WIDGET_TEXT = 6,
   UI_WIDGET_NONE = 255,
 };
 
@@ -190,8 +249,9 @@ enum UiClockStyle : uint8_t {
 
 enum UiPageType : uint8_t {
   UI_PAGE_STANDARD = 0,
-  UI_PAGE_WEATHER_FOCUS = 1,
-  UI_PAGE_MEDIA_PLAYER = 2,
+  UI_PAGE_OVERVIEW = 1,
+  UI_PAGE_WEATHER_FOCUS = 2,
+  UI_PAGE_MEDIA_PLAYER = 3,
 };
 
 typedef struct {
@@ -206,6 +266,8 @@ typedef struct {
   uint8_t showSeconds;
   uint8_t showHistoryGraph;
   uint8_t hideWhenUnavailable;
+  uint8_t mqttExpose;
+  const char *mqttName;
   const char *entityId;
 } UiWidgetConfig;
 
@@ -235,12 +297,77 @@ export async function POST(request: Request) {
   const payload = ((await request.json().catch(() => ({}))) ?? {}) as BuildPayload;
   const normalizedConfig = normalizeBuildConfig(payload);
   const buildId = new Date().toISOString();
+  const exposedTextWidgets = collectExposedTextWidgets(payload);
+
+  const invalidTextWidgets = exposedTextWidgets.filter(
+    (widget) => widget.entityId.length === 0,
+  );
+  if (invalidTextWidgets.length > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "validation",
+        error:
+          invalidTextWidgets.length === 1
+            ? `Text widget "${invalidTextWidgets[0].widgetLabel || invalidTextWidgets[0].widgetId}" needs an input name with letters, numbers, or underscores.`
+            : "One or more text widgets need an input name with letters, numbers, or underscores.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const textWidgetNameCounts = new Map<string, number>();
+  for (const widget of exposedTextWidgets) {
+    textWidgetNameCounts.set(
+      widget.entityId,
+      (textWidgetNameCounts.get(widget.entityId) ?? 0) + 1,
+    );
+  }
+  const duplicateTextWidgets = exposedTextWidgets.filter(
+    (widget) => (textWidgetNameCounts.get(widget.entityId) ?? 0) > 1,
+  );
+  if (duplicateTextWidgets.length > 0) {
+    const duplicateEntityId = duplicateTextWidgets[0].entityId;
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "validation",
+        error: `The text input name for ${duplicateEntityId} is used more than once in this layout. Choose a unique name for each exposed text widget.`,
+      },
+      { status: 400 },
+    );
+  }
 
   const generatedHeaderPath = path.join(includeDir, "generated_ui_config.h");
+  const generatedMdiHeaderPath = path.join(includeDir, "generated_mdi_icons.h");
   const generatedHeader = createGeneratedConfig(payload, buildId);
+  const widgetIconNames = collectWidgetIconNames(payload);
 
   await ensureArtifactsDir();
   await writeFile(generatedHeaderPath, generatedHeader, "utf8");
+
+  const generateIcons = await runCommand(
+    process.execPath,
+    [
+      path.join("scripts", "generate-mdi-icons.cjs"),
+      "--output",
+      generatedMdiHeaderPath,
+      "--widget-icons",
+      widgetIconNames.join(","),
+    ],
+    rootDir,
+  );
+  if (generateIcons.code !== 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "assets",
+        error: "Generating firmware MDI icons failed.",
+        log: generateIcons.log,
+      },
+      { status: 500 },
+    );
+  }
 
   const pioCheck = await runCommand("pio", ["--version"], firmwareDir);
   if (pioCheck.code !== 0) {

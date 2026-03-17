@@ -26,6 +26,9 @@ static void drawWidgetByType(int widgetIndex, bool pushPartial)
   case UI_WIDGET_THERMOSTAT:
     drawThermostatWidget(widgetIndex, pushPartial);
     break;
+  case UI_WIDGET_TEXT:
+    drawTextWidget(widgetIndex, pushPartial);
+    break;
   default:
     break;
   }

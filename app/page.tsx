@@ -5,6 +5,7 @@ import {
   Moon,
   Palette,
   Plus,
+  Search,
   Sun,
   Trash2,
   Usb,
@@ -17,7 +18,11 @@ import { AnimatePresence, Reorder, useDragControls } from "motion/react";
 import { DevicePreview } from "@/components/dashboard/device-preview";
 import { HomeAssistantCard } from "@/components/dashboard/home-assistant-card";
 import { HomeAssistantEntityPicker } from "@/components/dashboard/home-assistant-entity-picker";
-import { MdiIcon } from "@/components/dashboard/mdi-icon";
+import {
+  formatMdiIconLabel,
+  getAllMdiIconNames,
+  MdiIcon,
+} from "@/components/dashboard/mdi-icon";
 import { OtaFlashCard } from "@/components/dashboard/ota-flash";
 import { UsbFlashCard } from "@/components/dashboard/usb-flash";
 import { Button } from "@/components/ui/button";
@@ -52,8 +57,10 @@ import {
   DEFAULT_BUILD_CONFIG,
   FONT_OPTIONS,
   getFontClass,
+  getTextWidgetMqttEntityId,
   MAX_PAGES,
   MAX_WIDGETS_PER_PAGE,
+  normalizeTextWidgetMqttName,
   normalizeBuildConfig,
   PAGE_TYPE_OPTIONS,
   SLIDER_ICON_OPTIONS,
@@ -92,6 +99,14 @@ type EditableWidgetCardProps = {
   widgetIndex: number;
   widgetsCount: number;
   homeAssistant: HomeAssistantConfig;
+  textWidgetMqttValidation?: {
+    entityId: string;
+    invalidReason?: string;
+    duplicateInLayout?: boolean;
+    existsInHomeAssistant?: boolean;
+    checking?: boolean;
+    lookupError?: string;
+  };
   onRemove: (widgetId: string) => void;
   onUpdate: (
     widgetId: string,
@@ -99,9 +114,17 @@ type EditableWidgetCardProps = {
   ) => void;
 };
 
+type EditablePageTabProps = {
+  page: PageConfig;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+};
+
 type SliderIconPickerDialogProps = {
   open: boolean;
   selectedIcon: SliderIconName;
+  title: string;
   onClose: () => void;
   onSelect: (icon: SliderIconName) => void;
 };
@@ -109,9 +132,71 @@ type SliderIconPickerDialogProps = {
 function SliderIconPickerDialog({
   open,
   selectedIcon,
+  title,
   onClose,
   onSelect,
 }: SliderIconPickerDialogProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const allMdiIconNames = useMemo(() => getAllMdiIconNames(), []);
+  const presetIconValues = useMemo<Set<string>>(
+    () => new Set<string>(SLIDER_ICON_OPTIONS.map((option) => option.value)),
+    [],
+  );
+  const normalizedQuery = searchQuery.trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const selectedPreset = SLIDER_ICON_OPTIONS.find(
+    (option) => option.value === selectedIcon,
+  );
+  const selectedLabel = selectedPreset?.label ?? formatMdiIconLabel(selectedIcon);
+  const searchResults = useMemo(() => {
+    if (normalizedQuery.length === 0) {
+      return [];
+    }
+
+    const rankedResults = allMdiIconNames
+      .map((iconName) => {
+        const normalizedName = iconName.toLowerCase();
+        const formattedLabel = formatMdiIconLabel(iconName).toLowerCase();
+        const startsWith = normalizedName.startsWith(normalizedQuery);
+        const labelStartsWith = formattedLabel.startsWith(
+          normalizedQuery.replace(/-/g, " "),
+        );
+        const matches =
+          startsWith ||
+          labelStartsWith ||
+          normalizedName.includes(normalizedQuery) ||
+          formattedLabel.includes(normalizedQuery.replace(/-/g, " "));
+        if (!matches) {
+          return null;
+        }
+        return {
+          iconName,
+          rank: startsWith || labelStartsWith ? 0 : 1,
+          label: formatMdiIconLabel(iconName),
+        };
+      })
+      .filter(
+        (
+          result,
+        ): result is { iconName: string; rank: number; label: string } =>
+          result !== null,
+      )
+      .sort((left, right) =>
+        left.rank !== right.rank
+          ? left.rank - right.rank
+          : left.iconName.localeCompare(right.iconName),
+      );
+
+    return rankedResults.slice(0, 60);
+  }, [allMdiIconNames, normalizedQuery]);
+  const showCustomSelection =
+    selectedIcon.trim().length > 0 && !presetIconValues.has(selectedIcon);
+
+  useEffect(() => {
+    if (open) {
+      setSearchQuery("");
+    }
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open ? (
@@ -126,24 +211,78 @@ function SliderIconPickerDialog({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-zinc-100">
-                  Choose Slider Icon
+                  {title}
                 </h3>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Pick the MDI icon that should be rendered on the device and in
-                  the preview.
+                  Pick from the presets or search the full MDI set. The selected
+                  icon is used in both the preview and firmware build.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
-                aria-label="Close slider icon picker"
+                aria-label="Close icon picker"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="mt-5">
+              <Label htmlFor="mdi-icon-search" className="sr-only">
+                Search all MDI icons
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="mdi-icon-search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search the full MDI set"
+                  className="border-zinc-700 bg-zinc-900 pl-9 text-zinc-100"
+                />
+              </div>
+            </div>
+
+            {showCustomSelection ? (
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  Selected icon
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect(selectedIcon);
+                    onClose();
+                  }}
+                  className="mt-2 flex w-full items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-left text-zinc-100 transition hover:border-zinc-500"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900">
+                    <MdiIcon
+                      icon={selectedIcon}
+                      size={18}
+                      className="h-[1.05rem] w-[1.05rem]"
+                    />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {selectedLabel}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-zinc-500">
+                      {selectedIcon}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            ) : null}
+
+            <div className="mt-5">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                Quick picks
+              </p>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {SLIDER_ICON_OPTIONS.map((option) => {
                 const isSelected = option.value === selectedIcon;
                 return (
@@ -180,10 +319,123 @@ function SliderIconPickerDialog({
                 );
               })}
             </div>
+
+            {normalizedQuery.length > 0 ? (
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                    Search results
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {searchResults.length === 0
+                      ? "No icons found"
+                      : `${searchResults.length} shown`}
+                  </p>
+                </div>
+                {searchResults.length > 0 ? (
+                  <div className="mt-3 grid max-h-[20rem] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
+                    {searchResults.map((result) => {
+                      const isSelected = result.iconName === selectedIcon;
+                      return (
+                        <button
+                          key={result.iconName}
+                          type="button"
+                          onClick={() => {
+                            onSelect(result.iconName);
+                            onClose();
+                          }}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            isSelected
+                              ? "border-zinc-100 bg-zinc-100 text-zinc-950"
+                              : "border-zinc-800 bg-zinc-900/70 text-zinc-100 hover:border-zinc-600"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${
+                                isSelected
+                                  ? "border-zinc-300 bg-zinc-950/5"
+                                  : "border-zinc-700 bg-zinc-950"
+                              }`}
+                            >
+                              <MdiIcon
+                                icon={result.iconName}
+                                size={18}
+                                className="h-[1.05rem] w-[1.05rem]"
+                              />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">
+                                {result.label}
+                              </span>
+                              <span
+                                className={`mt-0.5 block truncate text-xs ${
+                                  isSelected ? "text-zinc-700" : "text-zinc-500"
+                                }`}
+                              >
+                                {result.iconName}
+                              </span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+function EditablePageTab({
+  page,
+  index,
+  selected,
+  onSelect,
+}: EditablePageTabProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={page.id}
+      dragListener={false}
+      dragControls={dragControls}
+      layout
+      className="list-none"
+    >
+      <div
+        className={`flex items-center rounded-full border transition ${
+          selected
+            ? "border-zinc-100 bg-zinc-100 text-zinc-950"
+            : "border-zinc-700 bg-zinc-900/70 text-zinc-300"
+        }`}
+      >
+        <button
+          type="button"
+          onPointerDown={(event) => dragControls.start(event)}
+          className={`flex h-10 w-10 items-center justify-center rounded-l-full border-r transition ${
+            selected
+              ? "border-zinc-300/80 text-zinc-700 hover:text-zinc-950"
+              : "border-zinc-700 text-zinc-500 hover:text-zinc-100"
+          }`}
+          aria-label={`Reorder ${page.name}`}
+          title="Drag to reorder page"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onSelect}
+          className="px-4 py-2 text-sm"
+        >
+          {index + 1}. {page.name}
+        </button>
+      </div>
+    </Reorder.Item>
   );
 }
 
@@ -192,14 +444,22 @@ function EditableWidgetCard({
   widgetIndex,
   widgetsCount,
   homeAssistant,
+  textWidgetMqttValidation,
   onRemove,
   onUpdate,
 }: EditableWidgetCardProps) {
   const dragControls = useDragControls();
   const [sliderIconPickerOpen, setSliderIconPickerOpen] = useState(false);
-  const sliderIconOption = widget.type === "slider"
+  const homeAssistantReady = isHomeAssistantConfigured(homeAssistant);
+  const sliderIconOption = widget.type === "slider" || widget.type === "switch"
     ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
     : null;
+  const sliderIconLabel =
+    widget.type === "slider" || widget.type === "switch"
+      ? sliderIconOption?.label ??
+        formatMdiIconLabel(widget.icon ?? SLIDER_ICON_OPTIONS[0].value)
+      : "";
+  const textWidgetEntityId = textWidgetMqttValidation?.entityId ?? "";
 
   return (
     <Reorder.Item
@@ -252,22 +512,129 @@ function EditableWidgetCard({
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor={`${widget.id}-label`}>Label</Label>
-          <Input
-            id={`${widget.id}-label`}
-            value={widget.label}
-            onChange={(event) =>
-              onUpdate(widget.id, (current) => ({
-                ...current,
-                label: event.target.value,
-              }))
-            }
-          />
+          <Label htmlFor={`${widget.id}-label`}>
+            {widget.type === "text" ? "Text" : "Label"}
+          </Label>
+          {widget.type === "text" ? (
+            <textarea
+              id={`${widget.id}-label`}
+              value={widget.label}
+              rows={3}
+              className="min-h-24 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-zinc-400"
+              onChange={(event) =>
+                onUpdate(widget.id, (current) => ({
+                  ...current,
+                  label: event.target.value,
+                }))
+              }
+            />
+          ) : (
+            <Input
+              id={`${widget.id}-label`}
+              value={widget.label}
+              onChange={(event) =>
+                onUpdate(widget.id, (current) => ({
+                  ...current,
+                  label: event.target.value,
+                }))
+              }
+            />
+          )}
         </div>
 
-        {widget.type === "slider" && (
+        {widget.type === "text" ? (
+          <div className="space-y-3">
+            <Label
+              htmlFor={`${widget.id}-mqtt-expose`}
+              className="sr-only"
+            >
+              Expose text widget via MQTT
+            </Label>
+            <div className="rounded-md border border-zinc-800 px-3 py-2">
+              <Switch
+                id={`${widget.id}-mqtt-expose`}
+                label="Expose as Home Assistant text input via MQTT"
+                checked={widget.mqttExpose === true}
+                onCheckedChange={(checked) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    mqttExpose: checked,
+                    mqttName:
+                      checked &&
+                      normalizeTextWidgetMqttName(current.mqttName).length === 0
+                        ? normalizeTextWidgetMqttName(current.label) ||
+                          `text_${widgetIndex + 1}`
+                        : normalizeTextWidgetMqttName(current.mqttName),
+                  }))
+                }
+              />
+            </div>
+
+            {widget.mqttExpose === true ? (
+              <div className="space-y-2">
+                <Label htmlFor={`${widget.id}-mqtt-name`}>
+                  MQTT Input Name
+                </Label>
+                <Input
+                  id={`${widget.id}-mqtt-name`}
+                  value={widget.mqttName ?? ""}
+                  maxLength={48}
+                  placeholder="welcome_home"
+                  onChange={(event) =>
+                    onUpdate(widget.id, (current) => ({
+                      ...current,
+                      mqttName: normalizeTextWidgetMqttName(
+                        event.target.value,
+                      ),
+                    }))
+                  }
+                />
+                <p className="text-xs text-zinc-500">
+                  Creates the Home Assistant entity{" "}
+                  <span className="font-mono">
+                    {textWidgetEntityId || "text.your_name"}
+                  </span>
+                  .
+                </p>
+                {textWidgetMqttValidation?.invalidReason ? (
+                  <p className="text-xs text-red-300">
+                    {textWidgetMqttValidation.invalidReason}
+                  </p>
+                ) : null}
+                {textWidgetMqttValidation?.duplicateInLayout ? (
+                  <p className="text-xs text-red-300">
+                    This input name is already used by another text widget in
+                    this layout.
+                  </p>
+                ) : null}
+                {!homeAssistantReady ? (
+                  <p className="text-xs text-zinc-500">
+                    Connect Home Assistant above to validate the entity name
+                    before building.
+                  </p>
+                ) : textWidgetMqttValidation?.checking ? (
+                  <p className="text-xs text-zinc-500">
+                    Checking Home Assistant for conflicts...
+                  </p>
+                ) : textWidgetMqttValidation?.lookupError ? (
+                  <p className="text-xs text-amber-300">
+                    {textWidgetMqttValidation.lookupError}
+                  </p>
+                ) : textWidgetMqttValidation?.existsInHomeAssistant ? (
+                  <p className="text-xs text-red-300">
+                    Home Assistant already has{" "}
+                    <span className="font-mono">{textWidgetEntityId}</span>.
+                    Choose another input name for this widget.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {(widget.type === "slider" || widget.type === "switch") && (
           <div className="space-y-2">
-            <Label>Slider Icon</Label>
+            <Label>{widget.type === "switch" ? "Switch Icon" : "Slider Icon"}</Label>
             <button
               type="button"
               onClick={() => setSliderIconPickerOpen(true)}
@@ -281,7 +648,7 @@ function EditableWidgetCard({
                     className="h-4 w-4"
                   />
                 </span>
-                <span>{sliderIconOption?.label ?? "Lightbulb"}</span>
+                <span>{sliderIconLabel}</span>
               </span>
               <span className="text-xs text-zinc-500">Choose</span>
             </button>
@@ -398,10 +765,11 @@ function EditableWidgetCard({
         </div>
       ) : null}
 
-      {widget.type === "slider" ? (
+      {widget.type === "slider" || widget.type === "switch" ? (
         <SliderIconPickerDialog
           open={sliderIconPickerOpen}
           selectedIcon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
+          title={widget.type === "switch" ? "Choose Switch Icon" : "Choose Slider Icon"}
           onClose={() => setSliderIconPickerOpen(false)}
           onSelect={(icon) =>
             onUpdate(widget.id, (current) => ({
@@ -447,6 +815,12 @@ export default function Home() {
   const [homeAssistantStates, setHomeAssistantStates] = useState<
     Record<string, HomeAssistantEntityState>
   >({});
+  const [existingHomeAssistantTextEntityIds, setExistingHomeAssistantTextEntityIds] =
+    useState<Record<string, true>>({});
+  const [textWidgetValidationPending, setTextWidgetValidationPending] =
+    useState(false);
+  const [textWidgetValidationError, setTextWidgetValidationError] =
+    useState("");
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -482,6 +856,63 @@ export default function Home() {
   const boundEntityCount = useMemo(
     () => boundEntityIds.length,
     [boundEntityIds],
+  );
+  const textWidgetMqttValidationById = useMemo(() => {
+    const nameCounts = new Map<string, number>();
+    const validationById = new Map<
+      string,
+      {
+        entityId: string;
+        invalidReason?: string;
+        duplicateInLayout?: boolean;
+      }
+    >();
+
+    for (const page of buildConfig.pages) {
+      for (const widget of page.widgets) {
+        if (widget.type !== "text" || widget.mqttExpose !== true) {
+          continue;
+        }
+
+        const normalizedName = normalizeTextWidgetMqttName(widget.mqttName);
+        const entityId = getTextWidgetMqttEntityId(normalizedName);
+        validationById.set(widget.id, {
+          entityId,
+          invalidReason:
+            normalizedName.length === 0
+              ? "Enter an input name with letters, numbers, or underscores."
+              : undefined,
+        });
+
+        if (entityId) {
+          nameCounts.set(entityId, (nameCounts.get(entityId) ?? 0) + 1);
+        }
+      }
+    }
+
+    for (const [widgetId, validation] of validationById) {
+      if (validation.entityId && (nameCounts.get(validation.entityId) ?? 0) > 1) {
+        validation.duplicateInLayout = true;
+      }
+    }
+
+    return Object.fromEntries(validationById);
+  }, [buildConfig.pages]);
+  const textWidgetEntityIdsToValidate = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Object.values(textWidgetMqttValidationById)
+            .filter(
+              (validation) =>
+                validation.entityId.length > 0 &&
+                !validation.invalidReason &&
+                !validation.duplicateInLayout,
+            )
+            .map((validation) => validation.entityId),
+        ),
+      ),
+    [textWidgetMqttValidationById],
   );
   const editorPageIndex = useMemo(() => {
     const index = buildConfig.pages.findIndex(
@@ -585,6 +1016,78 @@ export default function Home() {
     };
   }, [boundEntityIds, buildConfig.homeAssistant, thermostatHistoryEntityIds]);
 
+  useEffect(() => {
+    if (
+      !isHomeAssistantConfigured(buildConfig.homeAssistant) ||
+      textWidgetEntityIdsToValidate.length === 0
+    ) {
+      setExistingHomeAssistantTextEntityIds({});
+      setTextWidgetValidationPending(false);
+      setTextWidgetValidationError("");
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setTextWidgetValidationPending(true);
+      setTextWidgetValidationError("");
+
+      try {
+        const response = await fetch("/api/home-assistant/entity-presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: buildConfig.homeAssistant.url,
+            token: buildConfig.homeAssistant.token,
+            entityIds: textWidgetEntityIdsToValidate,
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          existingEntityIds?: string[];
+          error?: string;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok || payload.ok === false) {
+          setExistingHomeAssistantTextEntityIds({});
+          setTextWidgetValidationError(
+            payload.error ?? "Unable to validate Home Assistant entity names.",
+          );
+          return;
+        }
+
+        const nextExisting = Object.fromEntries(
+          (payload.existingEntityIds ?? []).map((entityId) => [
+            entityId.toLowerCase(),
+            true,
+          ]),
+        ) as Record<string, true>;
+        setExistingHomeAssistantTextEntityIds(nextExisting);
+        setTextWidgetValidationError("");
+      } catch {
+        if (!cancelled) {
+          setExistingHomeAssistantTextEntityIds({});
+          setTextWidgetValidationError(
+            "Unable to validate Home Assistant entity names right now.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setTextWidgetValidationPending(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [buildConfig.homeAssistant, textWidgetEntityIdsToValidate]);
+
   function handleSaveActiveDevice(device: SavedDevice) {
     setSavedDevices((prev) => {
       const safePrev = Array.isArray(prev) ? prev.filter(isSavedDevice) : [];
@@ -625,9 +1128,31 @@ export default function Home() {
     updatePages((current) => current.filter((page) => page.id !== pageId));
   }
 
+  function reorderPages(pageIds: string[]) {
+    updatePages((current) => {
+      const currentById = new Map(current.map((page) => [page.id, page]));
+      const reordered = pageIds
+        .map((pageId) => currentById.get(pageId))
+        .filter((page): page is PageConfig => Boolean(page));
+
+      return reordered.length === current.length ? reordered : current;
+    });
+  }
+
   function addWidget(type: WidgetType) {
     if (!editorPage || editorPage.widgets.length >= MAX_WIDGETS_PER_PAGE) {
       return;
+    }
+    if (editorPage.type === "overview") {
+      if (type !== "clock" && type !== "switch" && type !== "text") {
+        return;
+      }
+      if (type === "clock" && editorPage.widgets.some((widget) => widget.type === "clock")) {
+        return;
+      }
+      if (type === "switch" && editorPage.widgets.filter((widget) => widget.type === "switch").length >= 6) {
+        return;
+      }
     }
     updateCurrentPage((page) => ({
       ...page,
@@ -858,7 +1383,7 @@ export default function Home() {
                         <p className="text-xs text-zinc-500">
                           {pageCount} page{pageCount === 1 ? "" : "s"} and{" "}
                           {widgetCount} widget{widgetCount === 1 ? "" : "s"} in
-                          this layout.
+                          this layout. Drag the page chips to reorder them.
                         </p>
                       </div>
                       <Button
@@ -869,6 +1394,15 @@ export default function Home() {
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Add Page
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addPage("overview")}
+                        disabled={buildConfig.pages.length >= MAX_PAGES}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Overview Page
                       </Button>
                       <Button
                         size="sm"
@@ -890,22 +1424,22 @@ export default function Home() {
                       </Button>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <Reorder.Group
+                      axis="x"
+                      values={buildConfig.pages.map((page) => page.id)}
+                      onReorder={reorderPages}
+                      className="mt-4 flex flex-wrap gap-2"
+                    >
                       {buildConfig.pages.map((page, index) => (
-                        <button
+                        <EditablePageTab
                           key={page.id}
-                          type="button"
-                          onClick={() => setEditorPageId(page.id)}
-                          className={`rounded-full border px-4 py-2 text-sm transition ${
-                            page.id === editorPage?.id
-                              ? "border-zinc-100 bg-zinc-100 text-zinc-950"
-                              : "border-zinc-700 bg-zinc-900/70 text-zinc-300"
-                          }`}
-                        >
-                          {index + 1}. {page.name}
-                        </button>
+                          page={page}
+                          index={index}
+                          selected={page.id === editorPage?.id}
+                          onSelect={() => setEditorPageId(page.id)}
+                        />
                       ))}
-                    </div>
+                    </Reorder.Group>
                   </div>
 
                   {editorPage ? (
@@ -933,7 +1467,9 @@ export default function Home() {
                             onChange={(event) =>
                               updateCurrentPage((page) => {
                                 const nextType =
-                                  event.target.value === "weather-focus"
+                                  event.target.value === "overview"
+                                    ? "overview"
+                                    : event.target.value === "weather-focus"
                                     ? "weather-focus"
                                     : event.target.value === "media-player"
                                       ? "media-player"
@@ -955,12 +1491,15 @@ export default function Home() {
                                   type: nextType,
                                   homeAssistant: undefined,
                                   widgets:
-                                    page.widgets.length > 0
+                                    page.widgets.length > 0 &&
+                                    nextType !== "overview"
                                       ? page.widgets
-                                      : [
-                                          createWidget("clock"),
-                                          createWidget("weather"),
-                                        ],
+                                      : nextType === "overview"
+                                        ? [createWidget("clock"), createWidget("text")]
+                                        : [
+                                            createWidget("clock"),
+                                            createWidget("weather"),
+                                          ],
                                 };
                               })
                             }
@@ -972,9 +1511,9 @@ export default function Home() {
                             ))}
                           </select>
                           <p className="text-xs text-zinc-500">
-                            Weather Focus and Media Player pages use dedicated
-                            device render paths instead of the normal widget
-                            stack.
+                            Overview, Weather Focus and Media Player pages use
+                            dedicated device render paths instead of the normal
+                            widget stack.
                           </p>
                         </div>
                         <Button
@@ -1039,12 +1578,34 @@ export default function Home() {
                         </div>
                       ) : (
                         <>
+                          {editorPage.type === "overview" ? (
+                            <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
+                              <p className="font-medium text-zinc-100">
+                                Dedicated overview page
+                              </p>
+                              <p className="mt-2 text-zinc-400">
+                                This page renders a large clock with centered
+                                text and up to six icon-only Home Assistant
+                                switches. Reorder text widgets above or below
+                                the clock to control their placement.
+                              </p>
+                            </div>
+                          ) : null}
+
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-zinc-100">
                               Add Widget
                             </p>
                             <div className="flex flex-wrap gap-2">
-                              {WIDGET_OPTIONS.map((widgetOption) => (
+                              {(editorPage.type === "overview"
+                                ? WIDGET_OPTIONS.filter(
+                                    (widgetOption) =>
+                                      widgetOption.type === "clock" ||
+                                      widgetOption.type === "switch" ||
+                                      widgetOption.type === "text",
+                                  )
+                                : WIDGET_OPTIONS
+                              ).map((widgetOption) => (
                                 <Button
                                   key={widgetOption.type}
                                   type="button"
@@ -1053,7 +1614,16 @@ export default function Home() {
                                   onClick={() => addWidget(widgetOption.type)}
                                   disabled={
                                     editorPage.widgets.length >=
-                                    MAX_WIDGETS_PER_PAGE
+                                      MAX_WIDGETS_PER_PAGE ||
+                                    (editorPage.type === "overview" &&
+                                      ((widgetOption.type === "clock" &&
+                                        editorPage.widgets.some(
+                                          (widget) => widget.type === "clock",
+                                        )) ||
+                                        (widgetOption.type === "switch" &&
+                                          editorPage.widgets.filter(
+                                            (widget) => widget.type === "switch",
+                                          ).length >= 6)))
                                   }
                                 >
                                   <Plus className="mr-2 h-4 w-4" />
@@ -1083,6 +1653,40 @@ export default function Home() {
                                   widgetIndex={widgetIndex}
                                   widgetsCount={editorPage.widgets.length}
                                   homeAssistant={homeAssistant}
+                                  textWidgetMqttValidation={
+                                    widget.type === "text" &&
+                                    widget.mqttExpose === true
+                                      ? {
+                                          ...(textWidgetMqttValidationById[
+                                            widget.id
+                                          ] ?? { entityId: "" }),
+                                          existsInHomeAssistant: Boolean(
+                                            existingHomeAssistantTextEntityIds[
+                                              (
+                                                textWidgetMqttValidationById[
+                                                  widget.id
+                                                ]?.entityId ?? ""
+                                              ).toLowerCase()
+                                            ],
+                                          ),
+                                          checking:
+                                            textWidgetValidationPending &&
+                                            Boolean(
+                                              textWidgetMqttValidationById[
+                                                widget.id
+                                              ]?.entityId,
+                                            ) &&
+                                            !textWidgetMqttValidationById[
+                                              widget.id
+                                            ]?.invalidReason &&
+                                            !textWidgetMqttValidationById[
+                                              widget.id
+                                            ]?.duplicateInLayout,
+                                          lookupError:
+                                            textWidgetValidationError || undefined,
+                                        }
+                                      : undefined
+                                  }
                                   onRemove={removeWidget}
                                   onUpdate={updateWidget}
                                 />

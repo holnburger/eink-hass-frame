@@ -353,6 +353,34 @@ export async function searchHomeAssistantEntities(input: {
   };
 }
 
+export async function findExistingHomeAssistantEntityIds(input: {
+  url: string;
+  token: string;
+  entityIds: string[];
+}) {
+  const requestedEntityIds = Array.from(
+    new Set(
+      input.entityIds
+        .map((entityId) =>
+          typeof entityId === "string" ? entityId.trim().toLowerCase() : "",
+        )
+        .filter((entityId) => entityId.length > 0),
+    ),
+  );
+
+  if (requestedEntityIds.length === 0) {
+    return [];
+  }
+
+  const requested = new Set(requestedEntityIds);
+  const states = await fetchStates(input.url, input.token);
+
+  return states
+    .map((state) => state.entityId.trim())
+    .filter((entityId) => requested.has(entityId.toLowerCase()))
+    .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: "base" }));
+}
+
 export async function fetchSelectedHomeAssistantStates(input: {
   url: string;
   token: string;

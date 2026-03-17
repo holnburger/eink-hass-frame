@@ -10,6 +10,22 @@ type MdiIconProps = {
   className?: string;
 };
 
+const MDI_ICON_NAMES = Object.keys(icons.icons ?? {}).sort((left, right) =>
+  left.localeCompare(right),
+);
+
+export function getAllMdiIconNames() {
+  return MDI_ICON_NAMES;
+}
+
+export function formatMdiIconLabel(iconName: string) {
+  return iconName
+    .split("-")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
 export function MdiIcon({ icon, size = 24, className = "" }: MdiIconProps) {
   const rendered = useMemo(() => {
     const iconData = getIconData(icons, icon);

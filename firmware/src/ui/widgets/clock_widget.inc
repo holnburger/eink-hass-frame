@@ -100,6 +100,10 @@ static void drawClockWidget(int widgetIndex, bool pushPartial)
 {
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+  if (state.cardRect.w <= 0 || state.cardRect.h <= 0)
+  {
+    return;
+  }
   char clockText[16];
   struct tm timeInfo;
   const bool hasTime = readClockTime(timeInfo);
@@ -107,9 +111,12 @@ static void drawClockWidget(int widgetIndex, bool pushPartial)
 
   display.setMode(BB_MODE_1BPP);
   setThemeMonoText();
-  drawWidgetCardBase(state.cardRect);
-  drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
-  display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, uiMonoPaper());
+  if (!activePageIsOverview())
+  {
+    drawWidgetCardBase(state.cardRect);
+    drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
+    display.fillRect(state.contentRect.x, state.contentRect.y, state.contentRect.w, state.contentRect.h, uiMonoPaper());
+  }
 
   if (clockWidgetIsAnalog(widget) && hasTime && state.faceRect.w > 0 && state.faceRect.h > 0)
   {
@@ -142,6 +149,29 @@ static void drawClockSecondsPartial(int widgetIndex, const char *clockText)
   setThemeMonoText();
   display.fillRect(state.secondsRect.x, state.secondsRect.y, state.secondsRect.w, state.secondsRect.h, uiMonoPaper());
   drawLargeClockText(state, clockText, 6, strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : 7);
+  display.partialUpdate(false);
+  partialCounter++;
+  lastPartialRefresh = millis();
+}
+
+static void drawClockTimePartial(int widgetIndex, const char *clockText)
+{
+  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+  if (state.clockTimeRect.w <= 0 || state.clockTimeRect.h <= 0)
+  {
+    drawClockWidget(widgetIndex, true);
+    return;
+  }
+
+  display.setMode(BB_MODE_1BPP);
+  setThemeMonoText();
+  display.fillRect(
+      state.clockTimeRect.x,
+      state.clockTimeRect.y,
+      state.clockTimeRect.w,
+      state.clockTimeRect.h,
+      uiMonoPaper());
+  drawLargeClockText(state, clockText, 0, strlen(clockText) > 0 ? (int)strlen(clockText) - 1 : 0);
   display.partialUpdate(false);
   partialCounter++;
   lastPartialRefresh = millis();
