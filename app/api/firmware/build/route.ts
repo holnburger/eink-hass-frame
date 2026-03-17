@@ -123,7 +123,7 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, \"\"}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, \"\"}";
 
   const pageSource = config.pages
     .map((page) => {
@@ -138,8 +138,16 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
           const enabled = widget.enabled ? 1 : 0;
           const clockStyle = clockStyleToCpp(widget.clockStyle);
           const showSeconds = widget.showSeconds !== false ? 1 : 0;
+          const showHistoryGraph =
+            widget.type === "thermostat" && widget.showHistoryGraph === true
+              ? 1
+              : 0;
+          const hideWhenUnavailable =
+            widget.type === "progress" && widget.hideWhenUnavailable === true
+              ? 1
+              : 0;
           const entityId = sanitizeCString(widget.homeAssistant?.entityId ?? "");
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, "${entityId}"}`;
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, ${showHistoryGraph}, ${hideWhenUnavailable}, "${entityId}"}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
@@ -196,6 +204,8 @@ typedef struct {
   uint8_t enabled;
   uint8_t clockStyle;
   uint8_t showSeconds;
+  uint8_t showHistoryGraph;
+  uint8_t hideWhenUnavailable;
   const char *entityId;
 } UiWidgetConfig;
 

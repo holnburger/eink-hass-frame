@@ -1,5 +1,10 @@
 static void drawWidgetByType(int widgetIndex, bool pushPartial)
 {
+  if (!widgetShouldBeVisible(currentPageIndex, widgetIndex))
+  {
+    return;
+  }
+
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   switch (widget.type)
   {

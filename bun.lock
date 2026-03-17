@@ -18,6 +18,7 @@
       "devDependencies": {
         "@iconify-json/mdi": "^1.2.3",
         "@iconify-json/meteocons": "^1.2.4",
+        "@iconify-json/wi": "^1.2.1",
         "@iconify/utils": "^3.1.0",
         "@playwright/test": "^1.56.1",
         "@tailwindcss/postcss": "^4",
@@ -108,6 +109,8 @@
     "@iconify-json/mdi": ["@iconify-json/mdi@1.2.3", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-O3cLwbDOK7NNDf2ihaQOH5F9JglnulNDFV7WprU2dSoZu3h3cWH//h74uQAB87brHmvFVxIOkuBX2sZSzYhScg=="],
 
     "@iconify-json/meteocons": ["@iconify-json/meteocons@1.2.4", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-E7YV02ql5WmJgAOpXU/hoF9Mdshq73KjwR6fBxZ5SrqMJghMa3CIcRG6NQGwP4I1uBOhIjOFlAikYoPAKuT56A=="],
+
+    "@iconify-json/wi": ["@iconify-json/wi@1.2.1", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-I4rLsMC0ta51SzapStkF253WMX7CwjwuAYSa8uWNDOHqM4kYXfkyMbATAQ/oRTOKXiqd/eHCL/RzI5sDvCh8lA=="],
 
     "@iconify/types": ["@iconify/types@2.0.0", "", {}, "sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg=="],
 

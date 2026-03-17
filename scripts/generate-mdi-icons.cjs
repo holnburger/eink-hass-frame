@@ -36,6 +36,9 @@ const ICONS = [
   { key: "media_pause", icon: "pause", width: 40, height: 40, threshold: 208 },
   { key: "media_skip_next", icon: "skip-next", width: 40, height: 40, threshold: 208 },
   { key: "media_music_note", icon: "music-note", width: 112, height: 112, threshold: 208 },
+  { key: "thermostat_power", icon: "power", width: 18, height: 18, threshold: 208 },
+  { key: "thermostat_power_off", icon: "power-off", width: 18, height: 18, threshold: 208 },
+  { key: "thermostat_snowflake", icon: "snowflake", width: 18, height: 18, threshold: 208 },
 ];
 
 function renderIconSvg(iconName, width, height) {

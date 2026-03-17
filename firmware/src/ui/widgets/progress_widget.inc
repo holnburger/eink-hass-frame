@@ -2,6 +2,10 @@ static void drawProgressWidget(int widgetIndex, bool pushPartial)
 {
   const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
   WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+  if (state.cardRect.w <= 0 || state.cardRect.h <= 0)
+  {
+    return;
+  }
   const bool hasHomeAssistantValue = !state.homeAssistantBound || state.homeAssistantAvailable;
   const int safeValue = clampInt(state.value, 0, state.maxValue > 0 ? state.maxValue : 100);
 

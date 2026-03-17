@@ -21,12 +21,14 @@ static void initializeWidgetStates()
         state.value = clampInt(widget.value, 120, widget.maxValue > 0 ? widget.maxValue : 300);
         state.currentValue = widget.currentValue != 0 ? widget.currentValue : 205;
         state.maxValue = widget.maxValue > 0 ? widget.maxValue : 300;
+        normalizeTemperatureUnitLabel("", state.temperatureUnit, sizeof(state.temperatureUnit));
       }
       else
       {
         state.value = clampInt(widget.value, 0, widget.maxValue > 0 ? widget.maxValue : 100);
         state.currentValue = widget.currentValue;
         state.maxValue = widget.maxValue > 0 ? widget.maxValue : 100;
+        state.temperatureUnit[0] = '\0';
       }
       state.enabled = widget.enabled != 0;
       state.direction = 1;
@@ -237,7 +239,10 @@ static void layoutCurrentPage()
   int totalWeight = 0;
   for (int i = 0; i < page.widgetCount; i++)
   {
-    totalWeight += widgetWeight(page.widgets[i].type);
+    if (widgetShouldBeVisible(currentPageIndex, i))
+    {
+      totalWeight += widgetWeight(page.widgets[i]);
+    }
   }
   if (totalWeight <= 0)
   {
@@ -247,27 +252,48 @@ static void layoutCurrentPage()
   int currentY = topY;
   int remainingHeight = availableHeight;
   int remainingWeight = totalWeight;
+  int visibleWidgetCount = 0;
+
+  for (int i = 0; i < page.widgetCount; i++)
+  {
+    if (widgetShouldBeVisible(currentPageIndex, i))
+    {
+      visibleWidgetCount++;
+    }
+  }
+
+  int visibleWidgetIndex = 0;
 
   for (int i = 0; i < page.widgetCount; i++)
   {
     const UiWidgetConfig widget = page.widgets[i];
     WidgetRuntimeState &state = getWidgetState(currentPageIndex, i);
-    const int weight = widgetWeight(widget.type);
-    int cardHeight = (i == page.widgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
+      state.cardRect = {0, 0, 0, 0};
+      state.contentRect = {0, 0, 0, 0};
+      state.controlRect = {0, 0, 0, 0};
+      state.secondaryRect = {0, 0, 0, 0};
+      state.tertiaryRect = {0, 0, 0, 0};
+      state.faceRect = {0, 0, 0, 0};
+      state.secondsRect = {0, 0, 0, 0};
+      memset(state.actionRects, 0, sizeof(state.actionRects));
+
+    if (!widgetShouldBeVisible(currentPageIndex, i))
+    {
+      continue;
+    }
+
+    const int weight = widgetWeight(widget);
+    const bool thermostatHistoryGraph = thermostatWidgetShowsHistoryGraph(widget);
+    int cardHeight = (visibleWidgetIndex == visibleWidgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
     const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? 100
+                                                               : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 182 : 100)
                                                                                                      : 88;
     const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? 132
+                                                               : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 224 : 132)
                                                                                                      : 340;
     cardHeight = clampInt(cardHeight, minHeight, maxHeight);
     state.cardRect = {margin, currentY, width - (margin * 2), cardHeight};
     state.contentRect = {state.cardRect.x + 18, state.cardRect.y + 52, state.cardRect.w - 36, state.cardRect.h - 70};
-    state.controlRect = {0, 0, 0, 0};
-    state.secondaryRect = {0, 0, 0, 0};
-    state.tertiaryRect = {0, 0, 0, 0};
-    state.faceRect = {0, 0, 0, 0};
-    state.secondsRect = {0, 0, 0, 0};
 
     if (widget.type == UI_WIDGET_CLOCK)
     {
@@ -300,14 +326,25 @@ static void layoutCurrentPage()
     {
       const int valueTop = state.cardRect.y + 46;
       const int chevronX = state.cardRect.x + state.cardRect.w - 44;
-      state.tertiaryRect = {chevronX - 90, valueTop + 1, 84, 24};
-      state.controlRect = {chevronX, valueTop - 6, 24, 24};
-      state.secondaryRect = {chevronX, valueTop + 50, 24, 24};
+      const int chevronTouchSize = 36;
+      const int chevronTouchInset = 6;
+      const int buttonSize = 26;
+      const int buttonGap = 8;
+      const int buttonY = thermostatHistoryGraph
+                              ? state.cardRect.y + 44
+                              : state.cardRect.y + state.cardRect.h - buttonSize - 11;
+      state.tertiaryRect = {chevronX - 108, valueTop + 14, 92, 24};
+      state.controlRect = {chevronX - chevronTouchInset, valueTop - 8, chevronTouchSize, chevronTouchSize};
+      state.secondaryRect = {chevronX - chevronTouchInset, valueTop + 28, chevronTouchSize, chevronTouchSize};
+      state.actionRects[THERMOSTAT_BUTTON_ACTIVATE] = {state.cardRect.x + 18, buttonY, buttonSize, buttonSize};
+      state.actionRects[THERMOSTAT_BUTTON_DEACTIVATE] = {state.cardRect.x + 18 + buttonSize + buttonGap, buttonY, buttonSize, buttonSize};
+      state.actionRects[THERMOSTAT_BUTTON_COOL] = {state.cardRect.x + 18 + ((buttonSize + buttonGap) * 2), buttonY, buttonSize, buttonSize};
     }
 
     currentY += cardHeight + gap;
     remainingHeight -= cardHeight;
     remainingWeight -= weight;
+    visibleWidgetIndex++;
   }
 
   navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};

@@ -1,11 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Cloud, CloudRain, Lightbulb, SunMedium, Wind } from "lucide-react";
+import { icons as weatherIcons } from "@iconify-json/wi";
+import { getIconData, iconToSVG, replaceIDs } from "@iconify/utils";
+import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MdiIcon } from "@/components/dashboard/mdi-icon";
 import {
+  THERMOSTAT_HISTORY_POINT_COUNT,
+  WEATHER_HOURLY_FORECAST_POINT_COUNT,
   isHomeAssistantEntityUnavailable,
   resolveHomeAssistantMediaPlayer,
   resolveHomeAssistantEnabled,
@@ -26,6 +30,11 @@ type DevicePreviewProps = {
   homeAssistantStates: Record<string, HomeAssistantEntityState>;
   activePageIndex: number;
   onPageChange: (pageIndex: number) => void;
+};
+
+type PreviewThermostatHistoryEntry = {
+  label: string;
+  temperature: number | null;
 };
 
 function previewCardClasses(darkMode: boolean, extra = "") {
@@ -50,6 +59,9 @@ const MEDIA_MOCK = {
   state: "playing",
 } as const;
 
+const PREVIEW_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const PREVIEW_HOURLY_LABELS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"] as const;
+
 function truncateMediaTitle(title: string, fontClass: string) {
   const hardLimit = fontClass.includes("font-mono") ? 22 : 30;
   if (title.length <= hardLimit) {
@@ -58,17 +70,93 @@ function truncateMediaTitle(title: string, fontClass: string) {
   return `${title.slice(0, hardLimit)}...`;
 }
 
+function WeatherGlyph({
+  iconName,
+  className = "h-14 w-14",
+}: {
+  iconName: string;
+  className?: string;
+}) {
+  const rendered = useMemo(() => {
+    const iconData = getIconData(weatherIcons, iconName);
+    if (!iconData) {
+      return null;
+    }
+    const svg = iconToSVG(iconData, { width: "128", height: "128" });
+    return {
+      viewBox: String(svg.attributes.viewBox ?? "0 0 128 128"),
+      body: replaceIDs(svg.body),
+    };
+  }, [iconName]);
+
+  if (!rendered) {
+    return null;
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox={rendered.viewBox}
+      className={className}
+      fill="currentColor"
+      dangerouslySetInnerHTML={{ __html: rendered.body }}
+    />
+  );
+}
+
 function WeatherIcon({ condition, className = "h-14 w-14" }: { condition: string; className?: string }) {
-  if (condition.includes("Clear")) {
-    return <SunMedium className={className} />;
-  }
-  if (condition.includes("Wind")) {
-    return <Wind className={className} />;
-  }
-  if (condition.includes("rain") || condition.includes("Rain")) {
-    return <CloudRain className={className} />;
-  }
-  return <Cloud className={className} />;
+  const iconName = useMemo(() => {
+    const normalizedCondition = condition.toLowerCase();
+    if (normalizedCondition.includes("clear-night") || normalizedCondition.includes("night")) {
+      return "night-clear";
+    }
+    if (normalizedCondition.includes("partly")) {
+      return normalizedCondition.includes("night")
+        ? "night-alt-partly-cloudy"
+        : "day-cloudy";
+    }
+    if (normalizedCondition.includes("sunny") || normalizedCondition.includes("clear")) {
+      return "day-sunny";
+    }
+    if (normalizedCondition.includes("windy-variant")) {
+      return "cloudy-windy";
+    }
+    if (normalizedCondition.includes("wind")) {
+      return "strong-wind";
+    }
+    if (
+      normalizedCondition.includes("drizzle") ||
+      normalizedCondition.includes("sprinkle")
+    ) {
+      return "sprinkle";
+    }
+    if (normalizedCondition.includes("lightning-rainy") || normalizedCondition.includes("storm")) {
+      return "storm-showers";
+    }
+    if (normalizedCondition.includes("lightning")) {
+      return "lightning";
+    }
+    if (normalizedCondition.includes("snowy-rainy") || normalizedCondition.includes("sleet")) {
+      return "sleet";
+    }
+    if (normalizedCondition.includes("snow")) {
+      return "snow";
+    }
+    if (normalizedCondition.includes("hail")) {
+      return "hail";
+    }
+    if (normalizedCondition.includes("fog")) {
+      return "fog";
+    }
+    if (normalizedCondition.includes("pouring") || normalizedCondition.includes("showers")) {
+      return "showers";
+    }
+    if (normalizedCondition.includes("rain")) {
+      return "rain";
+    }
+    return "cloudy";
+  }, [condition]);
+  return <WeatherGlyph iconName={iconName} className={className} />;
 }
 
 function formatClock(date: Date | null, showSeconds: boolean) {
@@ -87,7 +175,7 @@ function formatPreviewWeatherDate(date: Date | null) {
     return "Today";
   }
 
-  return date.toLocaleDateString([], {
+  return date.toLocaleDateString("en-US", {
     weekday: "long",
     month: "short",
     day: "numeric",
@@ -147,6 +235,9 @@ function PreviewProgress({
   darkMode: boolean;
 }) {
   const entityUnavailable = isHomeAssistantEntityUnavailable(entity);
+  if (widget.hideWhenUnavailable && entityUnavailable) {
+    return null;
+  }
   const liveValue = entityUnavailable
     ? undefined
     : resolveHomeAssistantNumericValue(entity, "progress");
@@ -249,40 +340,93 @@ function PreviewSlider({
 function PreviewThermostat({
   widget,
   entity,
+  now,
   darkMode,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
+  now: Date | null;
   darkMode: boolean;
 }) {
-  const liveThermostat = resolveHomeAssistantThermostat(entity);
+  const hasHomeAssistantBinding = Boolean(widget.homeAssistant?.entityId);
+  const liveThermostat = resolveHomeAssistantThermostat(entity, {
+    now: now ?? new Date(),
+  });
   const currentTemp =
-    liveThermostat?.currentValue ?? widget.currentValue ?? 20.5;
-  const targetTemp = liveThermostat?.value ?? widget.value ?? 22.5;
+    liveThermostat?.currentValue ??
+    (hasHomeAssistantBinding ? undefined : widget.currentValue ?? 20.5);
+  const targetTemp =
+    liveThermostat?.value ??
+    (hasHomeAssistantBinding ? undefined : widget.value ?? 22.5);
+  const temperatureUnit = liveThermostat?.temperatureUnit ?? "°C";
+  const thermostatControls = [
+    liveThermostat?.supportsActivate
+      ? { key: "activate", icon: "power", active: liveThermostat.activeControl === "activate" }
+      : null,
+    liveThermostat?.supportsDeactivate
+      ? { key: "deactivate", icon: "power-off", active: liveThermostat.activeControl === "deactivate" }
+      : null,
+    liveThermostat?.supportsCool
+      ? { key: "cool", icon: "snowflake", active: liveThermostat.activeControl === "cool" }
+      : null,
+  ].filter((control): control is { key: string; icon: string; active: boolean } => Boolean(control));
+  const currentText =
+    typeof currentTemp === "number" ? currentTemp.toFixed(1) : "--.-";
+  const targetText =
+    typeof targetTemp === "number" ? targetTemp.toFixed(1) : "--.-";
+  const history =
+    !widget.showHistoryGraph
+      ? []
+      : hasHomeAssistantBinding
+        ? (liveThermostat?.history ?? [])
+        : buildPreviewThermostatHistoryFallback(
+            typeof currentTemp === "number" ? currentTemp : 20.5,
+            now,
+          );
 
   return (
     <div
-      className={`rounded-[1.45rem] px-4 py-5.5 ${
+      className={`rounded-[1.45rem] px-4 pt-5.5 ${
         darkMode
           ? "border border-white/12 bg-black"
           : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(238,238,234,0.92)_100%)]"
-      }`}
+      } ${widget.showHistoryGraph ? "pb-5" : "pb-5.5"}`}
     >
       <p className="text-[10px] uppercase tracking-[0.22em] opacity-55">Thermostat</p>
-      <div className="mt-3 flex items-center justify-between gap-4">
-        <p className="min-w-0 truncate text-lg">{widget.label}</p>
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="truncate text-lg">{widget.label}</p>
+          {thermostatControls.length > 0 ? (
+            <div className="mt-3 flex items-center gap-2.5">
+              {thermostatControls.map((control) => (
+                <PreviewThermostatModeButton
+                  key={control.key}
+                  icon={control.icon}
+                  darkMode={darkMode}
+                  active={control.active}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
 
-        <div className="mr-5 flex items-start gap-3">
-          <div className="w-[8.75rem] shrink-0 text-right">
+        <div className="mr-6 flex items-start gap-4">
+          <div className="w-[10rem] shrink-0 text-right">
             <p className="text-[10px] uppercase tracking-[0.16em] opacity-45">Current / Target</p>
-            <div className="mt-1 flex items-end gap-2">
-              <p className="text-[1.9rem] font-black tabular-nums leading-none">{currentTemp.toFixed(1)}°C</p>
-              <span className="pb-0.5 text-sm opacity-55">/</span>
+            <div className="mt-1.5 flex items-end justify-end gap-3">
+              <div className="flex items-end">
+                <p className="text-[1.9rem] font-black tabular-nums leading-none">{currentText}</p>
+                <span className="ml-1 translate-y-[1px] text-[0.72rem] opacity-60">{temperatureUnit}</span>
+              </div>
+              <span className="translate-y-[1px] text-sm opacity-40">/</span>
+              <div className="flex items-end">
+                <p className="text-[1.45rem] font-medium tabular-nums leading-none">{targetText}</p>
+                <span className="ml-1 translate-y-[1px] text-[0.68rem] opacity-55">{temperatureUnit}</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center pl-1 pr-0.5 py-2">
-            <p className="text-[1.45rem] font-medium tabular-nums leading-none">{targetTemp.toFixed(1)}°C</p>
+          <div className="flex items-center pl-2 pr-0 py-2">
             <div className="ml-2 flex flex-col items-center gap-1">
               <div className="flex h-6 w-6 items-center justify-center rounded-full text-current/80">
                 <ChevronRight className="h-4.5 w-4.5 -rotate-90 stroke-[3.2]" />
@@ -294,6 +438,41 @@ function PreviewThermostat({
           </div>
         </div>
       </div>
+
+      {widget.showHistoryGraph ? (
+        <div className="mt-5.5">
+          <PreviewThermostatHistoryChart
+            entries={history}
+            darkMode={darkMode}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PreviewThermostatModeButton({
+  icon,
+  darkMode,
+  active,
+}: {
+  icon: string;
+  darkMode: boolean;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+        active
+          ? darkMode
+            ? "border-white/18 bg-zinc-100 text-zinc-950"
+            : "border-zinc-900 bg-zinc-900 text-white"
+          : darkMode
+            ? "border-white/14 bg-white/4 text-zinc-200"
+            : "border-current/15 bg-white/75 text-zinc-700"
+      }`}
+    >
+      <MdiIcon icon={icon} size={16} className="h-4 w-4" />
     </div>
   );
 }
@@ -364,12 +543,25 @@ function buildPreviewWeatherDailyFallback(
   pageIndex: number,
   now: Date | null,
 ): PreviewWeatherForecastEntry[] {
+  if (!now) {
+    return Array.from({ length: 3 }, (_, index) => {
+      const source = WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
+      return {
+        label: PREVIEW_DAY_LABELS[(pageIndex + index + 1) % PREVIEW_DAY_LABELS.length],
+        temperature: source.temperature,
+        lowTemperature: source.temperature - 2,
+        condition: source.condition,
+        precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+      };
+    });
+  }
+
   return Array.from({ length: 3 }, (_, index) => {
     const source = WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
-    const date = new Date((now ?? new Date()).getTime());
+    const date = new Date(now.getTime());
     date.setDate(date.getDate() + index + 1);
     return {
-      label: date.toLocaleDateString([], { weekday: "short" }),
+      label: date.toLocaleDateString("en-US", { weekday: "short" }),
       temperature: source.temperature,
       lowTemperature: source.temperature - 2,
       condition: source.condition,
@@ -383,17 +575,199 @@ function buildPreviewWeatherHourlyFallback(
   currentTemperature: number,
   now: Date | null,
 ): PreviewWeatherHourlyEntry[] {
-  const offsets = [0, 1, 2, 1, 0, -1];
-  return Array.from({ length: 6 }, (_, index) => {
+  const offsets = [0, 1, 2, 3, 4, 4, 3, 2, 1, 0, -1, -1];
+
+  if (!now) {
+    return Array.from({ length: WEATHER_HOURLY_FORECAST_POINT_COUNT }, (_, index) => {
+      const source = WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
+      return {
+        label: PREVIEW_HOURLY_LABELS[index] ?? PREVIEW_HOURLY_LABELS[PREVIEW_HOURLY_LABELS.length - 1],
+        temperature: Math.round((currentTemperature * 2 + source.temperature + offsets[index]) / 3),
+        precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+      };
+    });
+  }
+
+  return Array.from({ length: WEATHER_HOURLY_FORECAST_POINT_COUNT }, (_, index) => {
     const source = WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
-    const date = new Date((now ?? new Date()).getTime());
+    const date = new Date(now.getTime());
     date.setHours(date.getHours() + index + 1);
     return {
-      label: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+      label: date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
       temperature: Math.round((currentTemperature * 2 + source.temperature + offsets[index]) / 3),
       precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
     };
   });
+}
+
+function buildPreviewThermostatHistoryFallback(
+  currentTemperature: number,
+  now: Date | null,
+): PreviewThermostatHistoryEntry[] {
+  const baseDate = now ? new Date(now.getTime()) : new Date();
+  baseDate.setMinutes(0, 0, 0);
+
+  return Array.from({ length: THERMOSTAT_HISTORY_POINT_COUNT }, (_, index) => {
+    const slotDate = new Date(baseDate.getTime());
+    slotDate.setHours(
+      slotDate.getHours() -
+        (THERMOSTAT_HISTORY_POINT_COUNT - 1 - index),
+    );
+    return {
+      label: slotDate.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      temperature: Number(
+        (
+          currentTemperature +
+          Math.sin(index / 3.1) * 0.45 +
+          Math.cos(index / 4.3) * 0.15
+        ).toFixed(1),
+      ),
+    };
+  });
+}
+
+function formatPreviewTemperaturePointLabel(value: number) {
+  return `${value.toFixed(1)}°`;
+}
+
+function PreviewThermostatHistoryChart({
+  entries,
+  darkMode,
+}: {
+  entries: PreviewThermostatHistoryEntry[];
+  darkMode: boolean;
+}) {
+  const numericEntries = entries.filter(
+    (entry): entry is PreviewThermostatHistoryEntry & { temperature: number } =>
+      typeof entry.temperature === "number",
+  );
+  if (numericEntries.length === 0) {
+    return (
+      <div className="flex h-[5.5rem] items-center justify-center rounded-[1.1rem] border border-current/10 text-[0.72rem] opacity-50">
+        No temperature history
+      </div>
+    );
+  }
+
+  const chartColor = darkMode ? "#f5f5f5" : "#111827";
+  const secondaryColor = darkMode ? "#a1a1aa" : "#71717a";
+  const width = 248;
+  const height = 104;
+  const left = 6;
+  const right = width - 6;
+  const top = 12;
+  const bottom = height - 28;
+
+  let minValue = Math.min(...numericEntries.map((entry) => entry.temperature));
+  let maxValue = Math.max(...numericEntries.map((entry) => entry.temperature));
+  const observedRange = maxValue - minValue;
+  const paddedRange = Math.max(0.8, observedRange + 0.4);
+  const center = (maxValue + minValue) / 2;
+  minValue = center - paddedRange / 2;
+  maxValue = center + paddedRange / 2;
+
+  const points = entries.map((entry, index) => {
+    const temperature =
+      typeof entry.temperature === "number" ? entry.temperature : minValue;
+    const x =
+      entries.length > 1
+        ? left + ((right - left) * index) / (entries.length - 1)
+        : (left + right) / 2;
+    const y =
+      bottom -
+      ((temperature - minValue) / Math.max(0.1, maxValue - minValue)) *
+        (bottom - top);
+    return {
+      ...entry,
+      x,
+      y,
+      temperature,
+    };
+  });
+
+  const linePoints = points.filter(
+    (point): point is (typeof points)[number] & { temperature: number } =>
+      typeof point.temperature === "number",
+  );
+  const path = linePoints.reduce((acc, point, index, array) => {
+    if (index === 0) {
+      return `M ${point.x} ${point.y}`;
+    }
+    const previous = array[index - 1];
+    const next = array[index + 1] ?? point;
+    const afterNext = array[index + 2] ?? next;
+    const control1X = previous.x + (point.x - previous.x) / 3;
+    const control1Y = previous.y + (point.y - previous.y) / 3;
+    const control2X = next.x - (afterNext.x - point.x) / 6;
+    const control2Y = next.y - (afterNext.y - point.y) / 6;
+    return `${acc} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${point.x} ${point.y}`;
+  }, "");
+
+  const highestPoint = numericEntries.reduce((selected, entry) =>
+    entry.temperature > selected.temperature ? entry : selected,
+  );
+  const lowestPoint = numericEntries.reduce((selected, entry) =>
+    entry.temperature < selected.temperature ? entry : selected,
+  );
+  const labelStep = Math.max(3, Math.floor(entries.length / 4));
+  const labelEdgePadding = 8;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-[6.1rem] w-full overflow-visible">
+      <path
+        d={path}
+        fill="none"
+        stroke={chartColor}
+        strokeWidth="3.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {points.map((point, index) => (
+        <g key={`${point.label}-${point.x}`}>
+          {typeof point.temperature === "number" &&
+          (point.temperature === highestPoint.temperature ||
+            point.temperature === lowestPoint.temperature) ? (
+            <text
+              x={point.x}
+              y={Math.max(10, point.y - 10)}
+              textAnchor="middle"
+              fontSize="8.5"
+              fill={secondaryColor}
+            >
+              {formatPreviewTemperaturePointLabel(point.temperature)}
+            </text>
+          ) : null}
+          {(index + 1) % labelStep === 0 ? (
+            <text
+              x={
+                index === entries.length - 1
+                  ? width - labelEdgePadding
+                  : index === labelStep - 1
+                    ? labelEdgePadding
+                    : point.x
+              }
+              y={height - 6}
+              textAnchor={
+                index === entries.length - 1
+                  ? "end"
+                  : index === labelStep - 1
+                    ? "start"
+                    : "middle"
+              }
+              fontSize="7.2"
+              fill={secondaryColor}
+            >
+              {point.label}
+            </text>
+          ) : null}
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 function PreviewWeatherMetric({
@@ -407,10 +781,9 @@ function PreviewWeatherMetric({
 }) {
   return (
     <div className="flex flex-col items-center justify-center px-2 py-2 text-center">
-      <MdiIcon
-        icon={icon}
-        size={31}
-        className={darkMode ? "text-zinc-100" : "text-zinc-900"}
+      <WeatherGlyph
+        iconName={icon}
+        className={`h-[1.95rem] w-[1.95rem] ${darkMode ? "text-zinc-100" : "text-zinc-900"}`}
       />
       <p className="mt-2 text-[0.68rem] font-medium tabular-nums">{value}</p>
     </div>
@@ -468,53 +841,84 @@ function PreviewWeatherHourlyChart({
       temperature,
     };
   });
+  const linePoints = points.filter(
+    (point): point is (typeof points)[number] & { temperature: number } =>
+      typeof point.temperature === "number",
+  );
+  const path = linePoints.reduce((acc, point, index, array) => {
+    if (index === 0) {
+      return `M ${point.x} ${point.y}`;
+    }
+    const previous = array[index - 1];
+    const next = array[index + 1] ?? point;
+    const afterNext = array[index + 2] ?? next;
+    const control1X = previous.x + (point.x - previous.x) / 3;
+    const control1Y = previous.y + (point.y - previous.y) / 3;
+    const control2X = next.x - (afterNext.x - point.x) / 6;
+    const control2Y = next.y - (afterNext.y - point.y) / 6;
+    return `${acc} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${point.x} ${point.y}`;
+  }, "");
+  const highestPoint = numericEntries.reduce((selected, entry) =>
+    entry.temperature > selected.temperature ? entry : selected,
+  );
+  const lowestPoint = numericEntries.reduce((selected, entry) =>
+    entry.temperature < selected.temperature ? entry : selected,
+  );
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-[7.2rem] w-full overflow-visible">
-      <line x1={left} y1={(top + bottom) / 2} x2={right} y2={(top + bottom) / 2} stroke={secondaryColor} strokeOpacity="0.35" strokeWidth="1" />
-      <line x1={left} y1={bottom} x2={right} y2={bottom} stroke={secondaryColor} strokeOpacity="0.3" strokeWidth="1" />
-      <polyline
+      <path
+        d={path}
         fill="none"
         stroke={chartColor}
-        strokeWidth="2.6"
+        strokeWidth="3.8"
         strokeLinejoin="round"
         strokeLinecap="round"
-        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
       />
       {points.map((point) => (
         <g key={`${point.label}-${point.x}`}>
-          <text
-            x={point.x}
-            y={Math.max(10, point.y - 10)}
-            textAnchor="middle"
-            fontSize="9"
-            fill={secondaryColor}
-          >
-            {point.temperature}°
-          </text>
-          <circle cx={point.x} cy={point.y} r="2.8" fill={chartColor} />
-          <text
-            x={point.x - 2}
-            y={height - 18}
-            textAnchor="middle"
-            fontSize="8"
-            fill={secondaryColor}
-          >
-            {
-              typeof point.precipitationProbability === "number"
-                ? `${point.precipitationProbability}%`
-                : "--"
-            }
-          </text>
-          <text
-            x={point.x + 2}
-            y={height - 6}
-            textAnchor="middle"
-            fontSize="8"
-            fill={secondaryColor}
-          >
-            {point.label}
-          </text>
+          {typeof point.temperature === "number" ? (
+            <>
+              {point.temperature === highestPoint.temperature ||
+              point.temperature === lowestPoint.temperature ? (
+                <text
+                  x={point.x}
+                  y={Math.max(10, point.y - 10)}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fill={secondaryColor}
+                >
+                  {point.temperature}°
+                </text>
+              ) : null}
+            </>
+          ) : null}
+          {(points.indexOf(point) + 1) % 3 === 0 ? (
+            <>
+              <text
+                x={point.x}
+                y={height - 18}
+                textAnchor="middle"
+                fontSize="8"
+                fill={secondaryColor}
+              >
+                {
+                  typeof point.precipitationProbability === "number"
+                    ? `${point.precipitationProbability}%`
+                    : "--"
+                }
+              </text>
+              <text
+                x={point.x}
+                y={height - 6}
+                textAnchor="middle"
+                fontSize="8"
+                fill={secondaryColor}
+              >
+                {point.label}
+              </text>
+            </>
+          ) : null}
         </g>
       ))}
     </svg>
@@ -524,17 +928,22 @@ function PreviewWeatherHourlyChart({
 function PreviewWeatherFocusPage({
   pageIndex,
   entity,
+  homeAssistantStates,
   now,
   darkMode,
 }: {
   pageIndex: number;
   entity?: HomeAssistantEntityState;
+  homeAssistantStates: Record<string, HomeAssistantEntityState>;
   now: Date | null;
   darkMode: boolean;
 }) {
-  const weatherPage = resolveHomeAssistantWeatherPage(entity, {
-    now: now ?? undefined,
-  });
+  const weatherPage = now
+    ? resolveHomeAssistantWeatherPage(entity, {
+        now,
+        states: homeAssistantStates,
+      })
+    : undefined;
   const current = weatherPage ?? WEATHER_STATES[pageIndex % WEATHER_STATES.length];
   const temperatureUnit = weatherPage?.temperatureUnit ?? "°C";
   const currentTemperature =
@@ -545,31 +954,36 @@ function PreviewWeatherFocusPage({
     typeof weatherPage?.apparentTemperature === "number"
       ? `${Math.round(weatherPage.apparentTemperature)}${temperatureUnit}`
       : `${numericCurrentTemperature - 1}${temperatureUnit}`;
+  const hasLiveWeather = Boolean(entity);
   const upcoming =
     weatherPage?.forecast.length
       ? weatherPage.forecast
+      : hasLiveWeather
+        ? []
       : buildPreviewWeatherDailyFallback(pageIndex, now);
   const hourly =
     weatherPage?.hourlyForecast.length
       ? weatherPage.hourlyForecast
+      : hasLiveWeather
+        ? []
       : buildPreviewWeatherHourlyFallback(pageIndex, numericCurrentTemperature, now);
   const stats = [
     {
-      icon: "water-percent",
+      icon: "humidity",
       value:
         typeof weatherPage?.humidity === "number"
           ? `${Math.round(weatherPage.humidity)}%`
           : "--",
     },
     {
-      icon: "weather-windy",
+      icon: "strong-wind",
       value:
         typeof weatherPage?.windSpeed === "number"
           ? `${Math.round(weatherPage.windSpeed)}${weatherPage.windSpeedUnit ? ` ${weatherPage.windSpeedUnit}` : ""}`
           : "--",
     },
     {
-      icon: "gauge",
+      icon: "barometer",
       value:
         typeof weatherPage?.pressure === "number"
           ? `${Math.round(weatherPage.pressure)}${weatherPage.pressureUnit ? ` ${weatherPage.pressureUnit}` : ""}`
@@ -595,12 +1009,8 @@ function PreviewWeatherFocusPage({
             {formatPreviewWeatherDate(now)}
           </p>
           <div className="mt-5 flex items-center justify-between gap-4">
-            <div
-              className={`flex h-[12.5rem] w-[12.5rem] items-center justify-center rounded-[2.4rem] ${
-                darkMode ? "bg-white/[0.055]" : "bg-zinc-400/10"
-              }`}
-            >
-              <WeatherIcon condition={current.condition} className="h-[11.9rem] w-[11.9rem]" />
+            <div className="flex h-[12.5rem] w-[12.5rem] items-center justify-center">
+              <WeatherIcon condition={current.condition} className="h-[12.2rem] w-[12.2rem]" />
             </div>
             <div className="flex-1 text-right">
               <div className="mt-4 flex items-start justify-end gap-1">
@@ -667,8 +1077,8 @@ function PreviewWeatherFocusPage({
                 className="px-1 py-1 text-center"
               >
                 <p className="text-[8px] uppercase tracking-[0.14em] opacity-45">{entry.label}</p>
-                <div className="mt-1 flex justify-center">
-                  <WeatherIcon condition={entry.condition} className="h-12 w-12" />
+                <div className="flex min-h-[4.8rem] items-center justify-center">
+                  <WeatherIcon condition={entry.condition} className="h-[4.35rem] w-[4.35rem]" />
                 </div>
                 <p className="mt-1 text-[0.6rem] font-medium tabular-nums">
                   {high} / {low}
@@ -920,11 +1330,15 @@ export function DevicePreview({
   activePageIndex,
   onPageChange,
 }: DevicePreviewProps) {
-  const [now, setNow] = useState<Date | null>(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setNow(new Date()));
     const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      clearInterval(timer);
+    };
   }, []);
 
   const safePageIndex = useMemo(() => {
@@ -980,6 +1394,7 @@ export function DevicePreview({
             <PreviewWeatherFocusPage
               pageIndex={safePageIndex}
               entity={pageEntity}
+              homeAssistantStates={homeAssistantStates}
               now={now}
               darkMode={darkMode}
             />
@@ -1016,7 +1431,7 @@ export function DevicePreview({
                   case "slider":
                     return <PreviewSlider key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "thermostat":
-                    return <PreviewThermostat key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                    return <PreviewThermostat key={widget.id} widget={widget} entity={entity} now={now} darkMode={darkMode} />;
                   default:
                     return null;
                 }

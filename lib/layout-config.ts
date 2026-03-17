@@ -51,6 +51,8 @@ export type WidgetConfig = {
   label: string;
   clockStyle?: ClockStyle;
   showSeconds?: boolean;
+  showHistoryGraph?: boolean;
+  hideWhenUnavailable?: boolean;
   icon?: SliderIconName;
   value?: number;
   currentValue?: number;
@@ -174,6 +176,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       ...base,
       value: 40,
       max: 100,
+      ...(type === "progress" ? { hideWhenUnavailable: false } : {}),
       ...(type === "slider" ? { icon: SLIDER_ICON_OPTIONS[0].value } : {}),
     };
   }
@@ -191,6 +194,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       value: 22.5,
       currentValue: 20.5,
       max: 30,
+      showHistoryGraph: false,
     };
   }
 
@@ -246,9 +250,24 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
       widgets: [
         { id: "widget-clock", type: "clock", label: "Clock", clockStyle: "digital", showSeconds: true },
         { id: "widget-weather", type: "weather", label: "Weather" },
-        { id: "widget-progress", type: "progress", label: "Progress", value: 45, max: 100 },
+        {
+          id: "widget-progress",
+          type: "progress",
+          label: "Progress",
+          value: 45,
+          max: 100,
+          hideWhenUnavailable: false,
+        },
         { id: "widget-switch", type: "switch", label: "Switch", enabled: false },
-        { id: "widget-thermostat", type: "thermostat", label: "Thermostat", currentValue: 20.5, value: 22.5, max: 30 },
+        {
+          id: "widget-thermostat",
+          type: "thermostat",
+          label: "Thermostat",
+          currentValue: 20.5,
+          value: 22.5,
+          max: 30,
+          showHistoryGraph: false,
+        },
       ],
     },
   ],
@@ -291,6 +310,9 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
   if (type === "progress" || type === "slider") {
     normalized.value = clampPercent(candidate.value, 40);
     normalized.max = 100;
+    if (type === "progress") {
+      normalized.hideWhenUnavailable = Boolean(candidate.hideWhenUnavailable);
+    }
     if (type === "slider") {
       normalized.icon = normalizeSliderIcon(candidate.icon);
     }
@@ -300,6 +322,7 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     normalized.currentValue = clampTemperature(candidate.currentValue, 20.5, 0.1);
     normalized.value = clampTemperature(candidate.value, 22.5, 0.5);
     normalized.max = 30;
+    normalized.showHistoryGraph = Boolean(candidate.showHistoryGraph);
   }
 
   if (type === "switch") {

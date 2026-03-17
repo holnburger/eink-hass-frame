@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { Button } from "@/components/ui/button";
+
 type EspWebInstallButtonProps = {
   manifest: string;
   onDetectedDeviceUrl?: (url: string) => void;
@@ -90,13 +92,12 @@ export function UsbInstallButton({
 
   return (
     <esp-web-install-button manifest={manifest}>
-      <button
+      <Button
         slot="activate"
         type="button"
-        className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-300 bg-zinc-100 px-5 text-sm font-medium text-zinc-950 transition hover:bg-white"
       >
         Flash & Configure via USB
-      </button>
+      </Button>
       <span slot="unsupported" className="text-xs text-zinc-500">
         WebSerial requires Chrome or Edge.
       </span>

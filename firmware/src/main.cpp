@@ -355,17 +355,39 @@ static uint32_t lastMqttReconnectAttemptMs = 0;
 static uint32_t lastMqttTelemetryPublishMs = 0;
 static char lastMqttError[96] = "";
 static bool currentDarkModeEnabled = UI_THEME_DARK != 0;
+static const char *UI_PREFERENCES_NAMESPACE = "ui";
+static const char *UI_PREFERENCE_DARK_KEY = "dark";
+static const char *UI_PREFERENCE_BUILD_ID_KEY = "build_id";
 static constexpr uint32_t MQTT_TELEMETRY_PUBLISH_INTERVAL_MS = 30000UL;
 static constexpr int PAPERS3_BATTERY_ADC_PIN = 3;
 static constexpr int PAPERS3_USB_DET_PIN = 5;
 static constexpr int PAPERS3_USB_DET_THRESHOLD_MV = 200;
 static constexpr float PAPERS3_BATTERY_DIVIDER_RATIO = 2.0f;
 static const int WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
-static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 6;
+static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 12;
+static const int THERMOSTAT_HISTORY_POINT_COUNT = 24;
+static constexpr uint8_t THERMOSTAT_MODE_BIT_OFF = 1 << 0;
+static constexpr uint8_t THERMOSTAT_MODE_BIT_HEAT = 1 << 1;
+static constexpr uint8_t THERMOSTAT_MODE_BIT_COOL = 1 << 2;
+static constexpr uint8_t THERMOSTAT_MODE_BIT_AUTO = 1 << 3;
+static constexpr uint8_t THERMOSTAT_MODE_BIT_HEAT_COOL = 1 << 4;
+static constexpr uint8_t THERMOSTAT_BUTTON_ACTIVATE = 0;
+static constexpr uint8_t THERMOSTAT_BUTTON_DEACTIVATE = 1;
+static constexpr uint8_t THERMOSTAT_BUTTON_COOL = 2;
 
 static void renderStatusScreen(const char *title, const char *line1 = "", const char *line2 = "");
 static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget);
 static bool pageHasHomeAssistantBinding(int pageIndex);
+static bool thermostatWidgetShowsHistoryGraph(const UiWidgetConfig &widget);
+static void normalizeTemperatureUnitLabel(const char *rawUnit, char *unitOut, size_t unitOutLen);
+static uint8_t thermostatModeBitForName(const char *rawMode);
+static uint8_t thermostatSupportedModeMask(JsonVariantConst hvacModesVariant);
+static bool thermostatSupportsActivate(uint8_t supportedModeMask);
+static bool thermostatSupportsDeactivate(uint8_t supportedModeMask);
+static bool thermostatSupportsCool(uint8_t supportedModeMask);
+static const char *preferredThermostatActivateMode(uint8_t supportedModeMask);
+static uint8_t thermostatVisualButtonForMode(uint8_t activeModeBit);
+static bool fetchHomeAssistantThermostatHistory(const char *entityId, bool redraw);
 static bool ensureMediaPageCoverLoaded(int pageIndex, bool forceReload = false);
 static bool drawCachedMediaCover(int pageIndex, const BB_RECT &rect, int radius);
 static bool setActivePageIndex(int nextIndex, bool pageTransition = true);
@@ -483,6 +505,7 @@ typedef struct
   BB_RECT faceRect;
   BB_RECT digitRects[8];
   BB_RECT secondsRect;
+  BB_RECT actionRects[3];
   int value;
   int currentValue;
   int maxValue;
@@ -494,6 +517,11 @@ typedef struct
   uint32_t lastHomeAssistantUpdateMs;
   char lastClockText[16];
   char detailText[48];
+  char temperatureUnit[8];
+  uint8_t thermostatSupportedModes;
+  uint8_t thermostatActiveMode;
+  uint32_t thermostatHistoryMask;
+  int thermostatHistory[THERMOSTAT_HISTORY_POINT_COUNT];
 } WidgetRuntimeState;
 
 typedef struct
@@ -532,8 +560,14 @@ typedef struct
   char condition[32];
   uint8_t forecastCount;
   WeatherForecastRuntime forecast[WEATHER_FOCUS_FORECAST_DAY_COUNT];
+  uint8_t serviceHourlyForecastCount;
+  WeatherHourlyForecastRuntime serviceHourlyForecast[WEATHER_FOCUS_HOURLY_POINT_COUNT];
   uint8_t hourlyForecastCount;
   WeatherHourlyForecastRuntime hourlyForecast[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  int hourlySensorTemperature[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  int hourlySensorPrecipitationProbability[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  uint16_t hourlySensorTemperatureMask;
+  uint16_t hourlySensorPrecipitationProbabilityMask;
 } WeatherPageRuntimeState;
 
 typedef struct
@@ -576,6 +610,8 @@ static bool activeMediaPageUsesHomeAssistant();
 static bool advanceMediaPagePlaybackClock(int pageIndex, uint32_t nowMs);
 static void fillForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex);
 static void fillHourlyForecastFallbackLabel(char *labelOut, size_t labelOutLen, int fallbackIndex);
+static bool parseWeatherHourlySensorEntityId(const char *weatherEntityId, const char *sensorEntityId, int &hourOffsetOut, bool &temperatureSensorOut, bool &precipitationSensorOut);
+static bool rebuildWeatherPageHourlyForecast(int pageIndex);
 
 static bool isPointInRectExpanded(int x, int y, const BB_RECT &rect, int pad)
 {
@@ -1304,6 +1340,11 @@ static bool clockWidgetShowsSeconds(const UiWidgetConfig &widget)
   return widget.showSeconds != 0;
 }
 
+static bool thermostatWidgetShowsHistoryGraph(const UiWidgetConfig &widget)
+{
+  return widget.type == UI_WIDGET_THERMOSTAT && widget.showHistoryGraph != 0;
+}
+
 static bool readClockTime(struct tm &timeInfo)
 {
   return getLocalTime(&timeInfo, 10);
@@ -1559,9 +1600,31 @@ static bool activePageShowsTitle()
   return !activePageIsMediaPlayer() && !activePageIsWeatherFocus();
 }
 
-static int widgetWeight(uint8_t type)
+static bool progressWidgetHidesWhenUnavailable(const UiWidgetConfig &widget)
 {
-  switch (type)
+  return widget.type == UI_WIDGET_PROGRESS && widget.hideWhenUnavailable != 0;
+}
+
+static bool widgetShouldBeVisible(int pageIndex, int widgetIndex)
+{
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!progressWidgetHidesWhenUnavailable(widget) || !widgetHasHomeAssistantBinding(widget))
+  {
+    return true;
+  }
+
+  const WidgetRuntimeState &state = widgetStates[pageIndex][widgetIndex];
+  return state.lastHomeAssistantUpdateMs == 0 || state.homeAssistantAvailable;
+}
+
+static int widgetWeight(const UiWidgetConfig &widget)
+{
+  if (thermostatWidgetShowsHistoryGraph(widget))
+  {
+    return 14;
+  }
+
+  switch (widget.type)
   {
   case UI_WIDGET_CLOCK:
     return 18;
@@ -2011,36 +2074,75 @@ static const WeatherIconAsset *getWeatherIconAsset(const char *condition)
   {
     return &WEATHER_ICON_ASSET_CLOUDY;
   }
-  if (strstr(condition, "Clear") != nullptr)
+  String normalizedCondition(condition);
+  normalizedCondition.toLowerCase();
+
+  if (normalizedCondition.indexOf("clear-night") >= 0 || normalizedCondition.indexOf("night") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_CLEAR_NIGHT;
+  }
+  if (normalizedCondition.indexOf("partly") >= 0)
+  {
+    return normalizedCondition.indexOf("night") >= 0
+               ? &WEATHER_ICON_ASSET_PARTLY_CLOUDY_NIGHT
+               : &WEATHER_ICON_ASSET_PARTLY_CLOUDY_DAY;
+  }
+  if (normalizedCondition.indexOf("sunny") >= 0 || normalizedCondition.indexOf("clear") >= 0)
   {
     return &WEATHER_ICON_ASSET_CLEAR_DAY;
   }
-  if (strstr(condition, "Wind") != nullptr)
+  if (normalizedCondition.indexOf("windy-variant") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_WINDY_VARIANT;
+  }
+  if (normalizedCondition.indexOf("wind") >= 0)
   {
     return &WEATHER_ICON_ASSET_WIND;
   }
-  if (strstr(condition, "Light rain") != nullptr || strstr(condition, "Drizzle") != nullptr)
+  if (normalizedCondition.indexOf("lightning-rainy") >= 0 || normalizedCondition.indexOf("storm") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_LIGHTNING_RAINY;
+  }
+  if (normalizedCondition.indexOf("lightning") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_LIGHTNING;
+  }
+  if (normalizedCondition.indexOf("snowy-rainy") >= 0 || normalizedCondition.indexOf("sleet") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_SNOWY_RAINY;
+  }
+  if (normalizedCondition.indexOf("snow") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_SNOW;
+  }
+  if (normalizedCondition.indexOf("hail") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_HAIL;
+  }
+  if (normalizedCondition.indexOf("fog") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_FOG;
+  }
+  if (normalizedCondition.indexOf("pouring") >= 0 || normalizedCondition.indexOf("showers") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_POURING;
+  }
+  if (normalizedCondition.indexOf("drizzle") >= 0 || normalizedCondition.indexOf("sprinkle") >= 0)
   {
     return &WEATHER_ICON_ASSET_DRIZZLE;
   }
-  if (strstr(condition, "Rain") != nullptr || strstr(condition, "rain") != nullptr)
+  if (normalizedCondition.indexOf("rain") >= 0)
   {
     return &WEATHER_ICON_ASSET_RAIN;
+  }
+  if (normalizedCondition.indexOf("exceptional") >= 0)
+  {
+    return &WEATHER_ICON_ASSET_EXCEPTIONAL;
   }
   return &WEATHER_ICON_ASSET_CLOUDY;
 }
 
-static bool shouldDrawBlackFromGray(uint8_t gray, int x, int y)
-{
-  static const uint8_t bayer4x4[4][4] = {
-      {0, 8, 2, 10},
-      {12, 4, 14, 6},
-      {3, 11, 1, 9},
-      {15, 7, 13, 5},
-  };
-  const uint8_t adjustedGray = gray > 2 ? gray - 2 : 0;
-  return adjustedGray < bayer4x4[y & 3][x & 3];
-}
+static void drawWeatherMeteoconMonoRaw(const BB_RECT &rect, const char *condition);
 
 static void drawWeatherMeteocon(const BB_RECT &rect, const char *condition)
 {
@@ -2055,7 +2157,6 @@ static void drawWeatherMeteocon(const BB_RECT &rect, const char *condition)
   const int pitch = (icon->width + 1) / 2;
 
   fillDitherRoundRect(rect.x, rect.y, rect.w, rect.h, 14, 0);
-  // display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 14, BBEP_BLACK);
 
   for (int yy = 0; yy < (int)icon->height; yy++)
   {
@@ -2063,7 +2164,11 @@ static void drawWeatherMeteocon(const BB_RECT &rect, const char *condition)
     {
       const uint8_t packed = pgm_read_byte(icon->pixels + (yy * pitch) + (xx / 2));
       const uint8_t gray = (xx & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
-      display.drawPixelFast(iconX + xx, iconY + yy, shouldDrawBlackFromGray(gray, xx, yy) ? uiMonoInk() : uiMonoPaper());
+      if (gray >= 14)
+      {
+        continue;
+      }
+      display.drawPixelFast(iconX + xx, iconY + yy, gray <= 5 ? uiMonoInk() : uiMonoPaper());
     }
   }
 }
@@ -2095,7 +2200,71 @@ static void drawWeatherMeteoconMonoRaw(const BB_RECT &rect, const char *conditio
       const int srcX = (xx * icon->width) / rect.w;
       const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 2));
       const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
-      display.drawPixelFast(destX, destY, shouldDrawBlackFromGray(gray, destX, destY) ? uiMonoInk() : uiMonoPaper());
+      if (gray >= 12)
+      {
+        continue;
+      }
+      display.drawPixelFast(destX, destY, uiMonoInk());
+    }
+  }
+}
+
+static uint8_t mapWeatherIconGrayFor4bpp(uint8_t gray)
+{
+  if (gray <= 2)
+  {
+    return uiGrayValue(0);
+  }
+  if (gray <= 5)
+  {
+    return uiGrayValue(2);
+  }
+  if (gray <= 8)
+  {
+    return uiGrayValue(5);
+  }
+  if (gray <= 11)
+  {
+    return uiGrayValue(8);
+  }
+  if (gray <= 13)
+  {
+    return uiGrayValue(11);
+  }
+  return uiGrayPaper();
+}
+
+static void drawWeatherIconAsset4bppRaw(const BB_RECT &rect, const WeatherIconAsset *icon)
+{
+  if (icon == nullptr || rect.w <= 0 || rect.h <= 0)
+  {
+    return;
+  }
+
+  const int pitch = (icon->width + 1) / 2;
+  for (int yy = 0; yy < rect.h; yy++)
+  {
+    const int destY = rect.y + yy;
+    if (destY < 0 || destY >= display.height())
+    {
+      continue;
+    }
+    const int srcY = (yy * icon->height) / rect.h;
+    for (int xx = 0; xx < rect.w; xx++)
+    {
+      const int destX = rect.x + xx;
+      if (destX < 0 || destX >= display.width())
+      {
+        continue;
+      }
+      const int srcX = (xx * icon->width) / rect.w;
+      const uint8_t packed = pgm_read_byte(icon->pixels + (srcY * pitch) + (srcX / 2));
+      const uint8_t gray = (srcX & 1) == 0 ? ((packed >> 4) & 0x0F) : (packed & 0x0F);
+      if (gray >= 15)
+      {
+        continue;
+      }
+      display.drawPixelFast(destX, destY, mapWeatherIconGrayFor4bpp(gray));
     }
   }
 }
@@ -2131,12 +2300,7 @@ static void drawWeatherMeteocon4bpp(const BB_RECT &rect, const char *condition, 
       {
         continue;
       }
-      uint8_t mappedGray = gray > 3 ? gray - 3 : 0;
-      if (mappedGray > 13)
-      {
-        mappedGray = 13;
-      }
-      display.drawPixelFast(iconX + xx, iconY + yy, uiGrayValue(mappedGray));
+      display.drawPixelFast(iconX + xx, iconY + yy, mapWeatherIconGrayFor4bpp(gray));
     }
   }
 }
@@ -2172,12 +2336,7 @@ static void drawWeatherMeteocon4bppRaw(const BB_RECT &rect, const char *conditio
       {
         continue;
       }
-      uint8_t mappedGray = gray > 2 ? gray - 2 : 0;
-      if (mappedGray > 12)
-      {
-        mappedGray = 12;
-      }
-      display.drawPixelFast(destX, destY, uiGrayValue(mappedGray));
+      display.drawPixelFast(destX, destY, mapWeatherIconGrayFor4bpp(gray));
     }
   }
 }
@@ -3316,6 +3475,96 @@ static void normalizeTemperatureUnitLabel(const char *rawUnit, char *unitOut, si
   snprintf(unitOut, unitOutLen, "%s", rawUnit);
 }
 
+static uint8_t thermostatModeBitForName(const char *rawMode)
+{
+  if (rawMode == nullptr || rawMode[0] == '\0')
+  {
+    return 0;
+  }
+  if (strcmp(rawMode, "off") == 0)
+  {
+    return THERMOSTAT_MODE_BIT_OFF;
+  }
+  if (strcmp(rawMode, "heat") == 0)
+  {
+    return THERMOSTAT_MODE_BIT_HEAT;
+  }
+  if (strcmp(rawMode, "cool") == 0)
+  {
+    return THERMOSTAT_MODE_BIT_COOL;
+  }
+  if (strcmp(rawMode, "auto") == 0)
+  {
+    return THERMOSTAT_MODE_BIT_AUTO;
+  }
+  if (strcmp(rawMode, "heat_cool") == 0)
+  {
+    return THERMOSTAT_MODE_BIT_HEAT_COOL;
+  }
+  return 0;
+}
+
+static uint8_t thermostatSupportedModeMask(JsonVariantConst hvacModesVariant)
+{
+  if (!hvacModesVariant.is<JsonArrayConst>())
+  {
+    return 0;
+  }
+
+  uint8_t supportedModeMask = 0;
+  for (JsonVariantConst modeVariant : hvacModesVariant.as<JsonArrayConst>())
+  {
+    supportedModeMask |= thermostatModeBitForName(modeVariant | "");
+  }
+  return supportedModeMask;
+}
+
+static bool thermostatSupportsActivate(uint8_t supportedModeMask)
+{
+  return (supportedModeMask &
+          (THERMOSTAT_MODE_BIT_HEAT | THERMOSTAT_MODE_BIT_AUTO | THERMOSTAT_MODE_BIT_HEAT_COOL)) != 0;
+}
+
+static bool thermostatSupportsDeactivate(uint8_t supportedModeMask)
+{
+  return (supportedModeMask & THERMOSTAT_MODE_BIT_OFF) != 0;
+}
+
+static bool thermostatSupportsCool(uint8_t supportedModeMask)
+{
+  return (supportedModeMask & THERMOSTAT_MODE_BIT_COOL) != 0;
+}
+
+static const char *preferredThermostatActivateMode(uint8_t supportedModeMask)
+{
+  if (supportedModeMask & THERMOSTAT_MODE_BIT_HEAT)
+  {
+    return "heat";
+  }
+  if (supportedModeMask & THERMOSTAT_MODE_BIT_AUTO)
+  {
+    return "auto";
+  }
+  if (supportedModeMask & THERMOSTAT_MODE_BIT_HEAT_COOL)
+  {
+    return "heat_cool";
+  }
+  return "";
+}
+
+static uint8_t thermostatVisualButtonForMode(uint8_t activeModeBit)
+{
+  if (activeModeBit == THERMOSTAT_MODE_BIT_OFF)
+  {
+    return THERMOSTAT_BUTTON_DEACTIVATE;
+  }
+  if (activeModeBit == THERMOSTAT_MODE_BIT_COOL)
+  {
+    return THERMOSTAT_BUTTON_COOL;
+  }
+  return THERMOSTAT_BUTTON_ACTIVATE;
+}
+
 static void formatRoundedMetricText(float value, const char *suffix, char *textOut, size_t textOutLen)
 {
   if (textOutLen == 0)
@@ -3352,6 +3601,11 @@ static bool tryFormatRoundedMetricText(JsonVariantConst variant, const char *suf
 static void drawHomeAssistantBackedWidget(int pageIndex, int widgetIndex)
 {
   if (!displayReady || !pageReady || pageIndex != currentPageIndex)
+  {
+    return;
+  }
+
+  if (!widgetShouldBeVisible(pageIndex, widgetIndex))
   {
     return;
   }
@@ -3464,6 +3718,15 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
     const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
     int nextCurrent = state.currentValue > 0 ? state.currentValue : widget.currentValue;
     int nextTarget = state.value > 0 ? state.value : widget.value;
+    const char *rawTempUnit = attributes["temperature_unit"] | "";
+    if (rawTempUnit[0] == '\0')
+    {
+      rawTempUnit = attributes["native_temperature_unit"] | "";
+    }
+    char nextTempUnit[sizeof(state.temperatureUnit)];
+    normalizeTemperatureUnitLabel(rawTempUnit, nextTempUnit, sizeof(nextTempUnit));
+    const uint8_t nextSupportedModes = thermostatSupportedModeMask(attributes["hvac_modes"]);
+    const uint8_t nextActiveMode = thermostatModeBitForName(rawState);
 
     if (jsonVariantToFloat(attributes["current_temperature"], numericValue))
     {
@@ -3479,9 +3742,16 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
     }
 
     nextTarget = clampInt(nextTarget, 120, maxTemp);
-    changed = state.currentValue != nextCurrent || state.value != nextTarget;
+    changed = state.currentValue != nextCurrent ||
+              state.value != nextTarget ||
+              strcmp(state.temperatureUnit, nextTempUnit) != 0 ||
+              state.thermostatSupportedModes != nextSupportedModes ||
+              state.thermostatActiveMode != nextActiveMode;
     state.currentValue = nextCurrent;
     state.value = nextTarget;
+    snprintf(state.temperatureUnit, sizeof(state.temperatureUnit), "%s", nextTempUnit);
+    state.thermostatSupportedModes = nextSupportedModes;
+    state.thermostatActiveMode = nextActiveMode;
   }
   else if (widget.type == UI_WIDGET_WEATHER)
   {
@@ -3503,6 +3773,17 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
   state.homeAssistantAvailable = entityAvailable;
   state.lastHomeAssistantUpdateMs = millis();
   changed = changed || previousHomeAssistantAvailable != entityAvailable;
+
+  const bool visibilityChanged =
+      widget.type == UI_WIDGET_PROGRESS &&
+      progressWidgetHidesWhenUnavailable(widget) &&
+      previousHomeAssistantAvailable != entityAvailable;
+
+  if (visibilityChanged && pageIndex == currentPageIndex)
+  {
+    renderActivePage();
+    return changed;
+  }
 
   if (changed && redraw)
   {
@@ -3565,6 +3846,15 @@ static int getLocalUtcOffsetSeconds(time_t epoch)
   localtime_r(&epoch, &localTimeInfo);
   gmtime_r(&epoch, &utcTimeInfo);
   return static_cast<int>(difftime(mktime(&localTimeInfo), mktime(&utcTimeInfo)));
+}
+
+static time_t roundEpochDownToLocalHour(time_t epoch)
+{
+  struct tm localTimeInfo;
+  localtime_r(&epoch, &localTimeInfo);
+  localTimeInfo.tm_min = 0;
+  localTimeInfo.tm_sec = 0;
+  return mktime(&localTimeInfo);
 }
 
 static bool parseForecastTimeInfo(const char *rawDatetime, struct tm &timeInfo, int defaultHour)
@@ -3652,6 +3942,21 @@ static bool parseForecastTimeInfo(const char *rawDatetime, struct tm &timeInfo, 
   return true;
 }
 
+static void formatUtcIsoTime(time_t epoch, char *out, size_t outLen)
+{
+  if (outLen == 0)
+  {
+    return;
+  }
+
+  struct tm utcTimeInfo;
+  gmtime_r(&epoch, &utcTimeInfo);
+  if (strftime(out, outLen, "%Y-%m-%dT%H:%M:%SZ", &utcTimeInfo) == 0)
+  {
+    out[0] = '\0';
+  }
+}
+
 static void fillForecastLabelFromDatetime(const char *rawDatetime, char *labelOut, size_t labelOutLen, int fallbackIndex)
 {
   if (labelOutLen == 0)
@@ -3693,6 +3998,71 @@ static void fillHourlyForecastFallbackLabel(char *labelOut, size_t labelOutLen, 
   snprintf(labelOut, labelOutLen, "%02d:00", (fallbackIndex + 1) % 24);
 }
 
+static bool parseWeatherHourlySensorEntityId(const char *weatherEntityId, const char *sensorEntityId, int &hourOffsetOut, bool &temperatureSensorOut, bool &precipitationSensorOut)
+{
+  hourOffsetOut = 0;
+  temperatureSensorOut = false;
+  precipitationSensorOut = false;
+
+  if (weatherEntityId == nullptr || sensorEntityId == nullptr)
+  {
+    return false;
+  }
+
+  const char *weatherSeparator = strchr(weatherEntityId, '.');
+  const char *sensorSeparator = strchr(sensorEntityId, '.');
+  if (weatherSeparator == nullptr ||
+      sensorSeparator == nullptr ||
+      strncmp(sensorEntityId, "sensor.", 7) != 0)
+  {
+    return false;
+  }
+
+  const char *weatherObjectId = weatherSeparator + 1;
+  const char *sensorObjectId = sensorSeparator + 1;
+  if (weatherObjectId[0] == '\0' || sensorObjectId[0] == '\0')
+  {
+    return false;
+  }
+
+  const size_t weatherObjectIdLength = strlen(weatherObjectId);
+  if (strncmp(sensorObjectId, weatherObjectId, weatherObjectIdLength) != 0 ||
+      sensorObjectId[weatherObjectIdLength] != '_')
+  {
+    return false;
+  }
+
+  const char *suffix = sensorObjectId + weatherObjectIdLength + 1;
+  if (strncmp(suffix, "temperature_", 12) == 0)
+  {
+    temperatureSensorOut = true;
+    suffix += 12;
+  }
+  else if (strncmp(suffix, "precip_probability_", strlen("precip_probability_")) == 0)
+  {
+    precipitationSensorOut = true;
+    suffix += strlen("precip_probability_");
+  }
+  else
+  {
+    return false;
+  }
+
+  char *end = nullptr;
+  const long parsedHourOffset = strtol(suffix, &end, 10);
+  if (end == suffix ||
+      end == nullptr ||
+      strcmp(end, "h") != 0 ||
+      parsedHourOffset < 1 ||
+      parsedHourOffset > WEATHER_FOCUS_HOURLY_POINT_COUNT)
+  {
+    return false;
+  }
+
+  hourOffsetOut = static_cast<int>(parsedHourOffset);
+  return true;
+}
+
 static void fillHourlyForecastLabelFromDatetime(const char *rawDatetime, char *labelOut, size_t labelOutLen, int fallbackIndex)
 {
   if (labelOutLen == 0)
@@ -3708,6 +4078,86 @@ static void fillHourlyForecastLabelFromDatetime(const char *rawDatetime, char *l
   }
 
   fillHourlyForecastFallbackLabel(labelOut, labelOutLen, fallbackIndex);
+}
+
+static bool rebuildWeatherPageHourlyForecast(int pageIndex)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return false;
+  }
+
+  WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+  WeatherHourlyForecastRuntime nextForecast[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  memset(nextForecast, 0, sizeof(nextForecast));
+  int highestPopulatedIndex = -1;
+
+  for (int index = 0; index < WEATHER_FOCUS_HOURLY_POINT_COUNT; index++)
+  {
+    const uint16_t bit = static_cast<uint16_t>(1U << index);
+    const bool hasTemperatureFromSensor = (state.hourlySensorTemperatureMask & bit) != 0;
+    const bool hasPrecipitationFromSensor = (state.hourlySensorPrecipitationProbabilityMask & bit) != 0;
+    const bool hasServiceEntry = index < state.serviceHourlyForecastCount;
+    const WeatherHourlyForecastRuntime &serviceItem =
+        hasServiceEntry ? state.serviceHourlyForecast[index] : WeatherHourlyForecastRuntime{};
+
+    if (!hasServiceEntry && !hasTemperatureFromSensor && !hasPrecipitationFromSensor)
+    {
+      continue;
+    }
+
+    highestPopulatedIndex = index;
+    WeatherHourlyForecastRuntime &forecastItem = nextForecast[index];
+    if (hasServiceEntry)
+    {
+      forecastItem = serviceItem;
+    }
+    else
+    {
+      memset(&forecastItem, 0, sizeof(forecastItem));
+      fillHourlyForecastFallbackLabel(forecastItem.label, sizeof(forecastItem.label), index);
+    }
+
+    if (hasTemperatureFromSensor)
+    {
+      forecastItem.temperature = state.hourlySensorTemperature[index];
+      forecastItem.temperatureAvailable = true;
+      if (forecastItem.label[0] == '\0')
+      {
+        fillHourlyForecastFallbackLabel(forecastItem.label, sizeof(forecastItem.label), index);
+      }
+    }
+
+    if (hasPrecipitationFromSensor)
+    {
+      forecastItem.precipitationProbability = state.hourlySensorPrecipitationProbability[index];
+      forecastItem.precipitationProbabilityAvailable = true;
+      if (forecastItem.label[0] == '\0')
+      {
+        fillHourlyForecastFallbackLabel(forecastItem.label, sizeof(forecastItem.label), index);
+      }
+    }
+  }
+
+  const uint8_t nextForecastCount = highestPopulatedIndex >= 0 ? static_cast<uint8_t>(highestPopulatedIndex + 1) : 0;
+  bool changed = state.hourlyForecastCount != nextForecastCount;
+  for (int index = 0; index < WEATHER_FOCUS_HOURLY_POINT_COUNT; index++)
+  {
+    WeatherHourlyForecastRuntime &currentItem = state.hourlyForecast[index];
+    const WeatherHourlyForecastRuntime &nextItem = nextForecast[index];
+    if (strcmp(currentItem.label, nextItem.label) != 0 ||
+        currentItem.temperature != nextItem.temperature ||
+        currentItem.temperatureAvailable != nextItem.temperatureAvailable ||
+        currentItem.precipitationProbability != nextItem.precipitationProbability ||
+        currentItem.precipitationProbabilityAvailable != nextItem.precipitationProbabilityAvailable)
+    {
+      changed = true;
+    }
+    currentItem = nextItem;
+  }
+
+  state.hourlyForecastCount = nextForecastCount;
+  return changed;
 }
 
 static int compareForecastDateToToday(const char *rawDatetime)
@@ -3875,7 +4325,7 @@ static bool applyHomeAssistantHourlyForecastToWeatherPage(int pageIndex, JsonArr
         break;
       }
 
-      WeatherHourlyForecastRuntime &forecastItem = state.hourlyForecast[forecastCount];
+      WeatherHourlyForecastRuntime &forecastItem = state.serviceHourlyForecast[forecastCount];
       const char *entryDatetime = entry["datetime"] | "";
       if (entryDatetime[0] == '\0')
       {
@@ -3915,8 +4365,23 @@ static bool applyHomeAssistantHourlyForecastToWeatherPage(int pageIndex, JsonArr
     }
   }
 
-  changed = changed || state.hourlyForecastCount != forecastCount;
-  state.hourlyForecastCount = forecastCount;
+  for (int index = forecastCount; index < WEATHER_FOCUS_HOURLY_POINT_COUNT; index++)
+  {
+    WeatherHourlyForecastRuntime emptyForecast = {};
+    if (strcmp(state.serviceHourlyForecast[index].label, emptyForecast.label) != 0 ||
+        state.serviceHourlyForecast[index].temperature != emptyForecast.temperature ||
+        state.serviceHourlyForecast[index].temperatureAvailable != emptyForecast.temperatureAvailable ||
+        state.serviceHourlyForecast[index].precipitationProbability != emptyForecast.precipitationProbability ||
+        state.serviceHourlyForecast[index].precipitationProbabilityAvailable != emptyForecast.precipitationProbabilityAvailable)
+    {
+      changed = true;
+      state.serviceHourlyForecast[index] = emptyForecast;
+    }
+  }
+
+  changed = changed || state.serviceHourlyForecastCount != forecastCount;
+  state.serviceHourlyForecastCount = forecastCount;
+  changed = rebuildWeatherPageHourlyForecast(pageIndex) || changed;
   return changed;
 }
 
@@ -4129,6 +4594,291 @@ static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateOb
   return false;
 }
 
+static bool applyHomeAssistantHourlySensorStateToWeatherPage(int pageIndex, const char *sensorEntityId, JsonObjectConst stateObject, bool redraw)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT || sensorEntityId == nullptr || sensorEntityId[0] == '\0')
+  {
+    return false;
+  }
+
+  const UiPageConfig &page = UI_PAGES[pageIndex];
+  if (page.pageType != UI_PAGE_WEATHER_FOCUS || !pageHasHomeAssistantBinding(pageIndex))
+  {
+    return false;
+  }
+
+  int hourOffset = 0;
+  bool temperatureSensor = false;
+  bool precipitationSensor = false;
+  if (!parseWeatherHourlySensorEntityId(page.entityId, sensorEntityId, hourOffset, temperatureSensor, precipitationSensor))
+  {
+    return false;
+  }
+
+  const int slotIndex = hourOffset - 1;
+  const uint16_t bit = static_cast<uint16_t>(1U << slotIndex);
+  WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+  float numericValue = 0.0f;
+  const bool hasNumericValue = jsonVariantToFloat(stateObject["state"], numericValue);
+  bool changed = false;
+
+  if (temperatureSensor)
+  {
+    const int nextTemperature = hasNumericValue ? static_cast<int>(roundf(numericValue)) : 0;
+    const uint16_t nextMask = hasNumericValue ? static_cast<uint16_t>(state.hourlySensorTemperatureMask | bit)
+                                              : static_cast<uint16_t>(state.hourlySensorTemperatureMask & ~bit);
+    changed = changed ||
+              state.hourlySensorTemperature[slotIndex] != nextTemperature ||
+              state.hourlySensorTemperatureMask != nextMask;
+    state.hourlySensorTemperature[slotIndex] = nextTemperature;
+    state.hourlySensorTemperatureMask = nextMask;
+  }
+
+  if (precipitationSensor)
+  {
+    const int nextProbability = hasNumericValue ? clampPercentFromFloat(numericValue) : 0;
+    const uint16_t nextMask = hasNumericValue ? static_cast<uint16_t>(state.hourlySensorPrecipitationProbabilityMask | bit)
+                                              : static_cast<uint16_t>(state.hourlySensorPrecipitationProbabilityMask & ~bit);
+    changed = changed ||
+              state.hourlySensorPrecipitationProbability[slotIndex] != nextProbability ||
+              state.hourlySensorPrecipitationProbabilityMask != nextMask;
+    state.hourlySensorPrecipitationProbability[slotIndex] = nextProbability;
+    state.hourlySensorPrecipitationProbabilityMask = nextMask;
+  }
+
+  changed = rebuildWeatherPageHourlyForecast(pageIndex) || changed;
+  if (changed && redraw && pageIndex == currentPageIndex)
+  {
+    renderActivePage();
+  }
+  return changed;
+}
+
+static bool parseThermostatHistoryState(
+    JsonObjectConst historyState,
+    time_t &epochOut,
+    int &temperatureTenthsOut)
+{
+  const char *rawDatetime = historyState["last_changed"] | "";
+  if (rawDatetime[0] == '\0')
+  {
+    rawDatetime = historyState["last_updated"] | "";
+  }
+  if (rawDatetime[0] == '\0')
+  {
+    return false;
+  }
+
+  struct tm timeInfo;
+  if (!parseForecastTimeInfo(rawDatetime, timeInfo, 0))
+  {
+    return false;
+  }
+
+  const time_t epoch = mktime(&timeInfo);
+  if (epoch == (time_t)-1)
+  {
+    return false;
+  }
+
+  JsonObjectConst attributes = historyState["attributes"].as<JsonObjectConst>();
+  float numericValue = 0.0f;
+  if (!(jsonVariantToFloat(attributes["current_temperature"], numericValue) ||
+        jsonVariantToFloat(attributes["temperature"], numericValue) ||
+        jsonVariantToFloat(historyState["state"], numericValue)))
+  {
+    return false;
+  }
+
+  epochOut = epoch;
+  temperatureTenthsOut = climateTemperatureToTenths(numericValue, 0);
+  return true;
+}
+
+static bool applyHomeAssistantThermostatHistoryToMatchingWidgets(
+    const char *entityId,
+    const int *historyTenths,
+    uint32_t historyMask,
+    bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0' || historyTenths == nullptr)
+  {
+    return false;
+  }
+
+  bool changed = false;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (widget.type != UI_WIDGET_THERMOSTAT ||
+          !thermostatWidgetShowsHistoryGraph(widget) ||
+          !widgetHasHomeAssistantBinding(widget) ||
+          strcmp(widget.entityId, entityId) != 0)
+      {
+        continue;
+      }
+
+      WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
+      bool widgetChanged = state.thermostatHistoryMask != historyMask;
+      if (!widgetChanged)
+      {
+        for (int index = 0; index < THERMOSTAT_HISTORY_POINT_COUNT; index++)
+        {
+          if (state.thermostatHistory[index] != historyTenths[index])
+          {
+            widgetChanged = true;
+            break;
+          }
+        }
+      }
+
+      if (!widgetChanged)
+      {
+        continue;
+      }
+
+      state.thermostatHistoryMask = historyMask;
+      for (int index = 0; index < THERMOSTAT_HISTORY_POINT_COUNT; index++)
+      {
+        state.thermostatHistory[index] = historyTenths[index];
+      }
+      changed = true;
+
+      if ((redraw || pageIndex == currentPageIndex) && pageIndex == currentPageIndex)
+      {
+        renderActivePage();
+      }
+    }
+  }
+
+  return changed;
+}
+
+static bool fetchHomeAssistantThermostatHistory(const char *entityId, bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  const time_t currentEpoch = time(nullptr);
+  const time_t endEpoch = roundEpochDownToLocalHour(currentEpoch);
+  if (endEpoch < 946684800)
+  {
+    return false;
+  }
+
+  const time_t startEpoch = endEpoch - ((THERMOSTAT_HISTORY_POINT_COUNT - 1) * 3600);
+  char startIso[32];
+  char endIso[32];
+  formatUtcIsoTime(startEpoch, startIso, sizeof(startIso));
+  formatUtcIsoTime(currentEpoch, endIso, sizeof(endIso));
+  if (startIso[0] == '\0' || endIso[0] == '\0')
+  {
+    return false;
+  }
+
+  String responseBody;
+  int statusCode = 0;
+  const String requestUrl = getHomeAssistantApiUrl(
+      String("/api/history/period/") + startIso +
+      "?filter_entity_id=" + entityId +
+      "&end_time=" + endIso +
+      "&significant_changes_only=0");
+  if (!homeAssistantRequest("GET", requestUrl, "", responseBody, statusCode))
+  {
+    return false;
+  }
+  if (statusCode != HTTP_CODE_OK)
+  {
+    return false;
+  }
+
+  DynamicJsonDocument document(32768);
+  const DeserializationError error = deserializeJson(document, responseBody);
+  if (error)
+  {
+    return false;
+  }
+
+  JsonArrayConst historyGroups = document.as<JsonArrayConst>();
+  if (historyGroups.isNull())
+  {
+    return false;
+  }
+
+  JsonArrayConst historyStates = historyGroups[0].as<JsonArrayConst>();
+  int nextHistory[THERMOSTAT_HISTORY_POINT_COUNT];
+  memset(nextHistory, 0, sizeof(nextHistory));
+  uint32_t nextHistoryMask = 0;
+
+  if (!historyStates.isNull())
+  {
+    time_t slotEpochs[THERMOSTAT_HISTORY_POINT_COUNT];
+    for (int index = 0; index < THERMOSTAT_HISTORY_POINT_COUNT; index++)
+    {
+      slotEpochs[index] = startEpoch + (index * 3600);
+    }
+
+    int slotIndex = 0;
+    bool firstValueSet = false;
+    int firstValue = 0;
+    bool lastValueSet = false;
+    int lastValue = 0;
+
+    for (JsonVariantConst historyVariant : historyStates)
+    {
+      JsonObjectConst historyState = historyVariant.as<JsonObjectConst>();
+      if (historyState.isNull())
+      {
+        continue;
+      }
+
+      time_t entryEpoch = 0;
+      int entryTemperature = 0;
+      if (!parseThermostatHistoryState(historyState, entryEpoch, entryTemperature))
+      {
+        continue;
+      }
+
+      if (!firstValueSet)
+      {
+        firstValueSet = true;
+        firstValue = entryTemperature;
+      }
+
+      while (slotIndex < THERMOSTAT_HISTORY_POINT_COUNT && slotEpochs[slotIndex] < entryEpoch)
+      {
+        const int fillValue = lastValueSet ? lastValue : firstValue;
+        nextHistory[slotIndex] = fillValue;
+        nextHistoryMask |= static_cast<uint32_t>(1UL << slotIndex);
+        slotIndex++;
+      }
+
+      lastValue = entryTemperature;
+      lastValueSet = true;
+    }
+
+    while (slotIndex < THERMOSTAT_HISTORY_POINT_COUNT)
+    {
+      if (lastValueSet)
+      {
+        nextHistory[slotIndex] = lastValue;
+        nextHistoryMask |= static_cast<uint32_t>(1UL << slotIndex);
+      }
+      slotIndex++;
+    }
+  }
+
+  return applyHomeAssistantThermostatHistoryToMatchingWidgets(
+      entityId,
+      nextHistory,
+      nextHistoryMask,
+      redraw);
+}
+
 static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, JsonObjectConst stateObject, bool redraw)
 {
   if (entityId == nullptr || entityId[0] == '\0')
@@ -4142,6 +4892,10 @@ static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, Json
     if (pageHasHomeAssistantBinding(pageIndex) && strcmp(UI_PAGES[pageIndex].entityId, entityId) == 0)
     {
       changed = applyHomeAssistantStateToPage(pageIndex, stateObject, redraw) || changed;
+    }
+    else
+    {
+      changed = applyHomeAssistantHourlySensorStateToWeatherPage(pageIndex, entityId, stateObject, redraw) || changed;
     }
 
     for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
@@ -4157,7 +4911,7 @@ static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, Json
   return changed;
 }
 
-static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw)
+static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw, bool optional = false)
 {
   if (entityId == nullptr || entityId[0] == '\0')
   {
@@ -4174,7 +4928,10 @@ static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw)
   }
   if (statusCode != HTTP_CODE_OK)
   {
-    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_%d", statusCode);
+    if (!optional || statusCode != HTTP_CODE_NOT_FOUND)
+    {
+      snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_%d", statusCode);
+    }
     return false;
   }
 
@@ -4278,6 +5035,10 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
   int entityCount = 0;
   String weatherPageEntityIds[UI_PAGE_COUNT];
   int weatherPageEntityCount = 0;
+  String weatherHourlySensorEntityIds[UI_PAGE_COUNT * WEATHER_FOCUS_HOURLY_POINT_COUNT * 2];
+  int weatherHourlySensorEntityCount = 0;
+  String thermostatHistoryEntityIds[UI_PAGE_COUNT * UI_MAX_WIDGETS_PER_PAGE];
+  int thermostatHistoryEntityCount = 0;
 
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
@@ -4312,6 +5073,35 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
         {
           weatherPageEntityIds[weatherPageEntityCount++] = UI_PAGES[pageIndex].entityId;
         }
+
+        const char *weatherEntityId = UI_PAGES[pageIndex].entityId;
+        for (int hourOffset = 1; hourOffset <= WEATHER_FOCUS_HOURLY_POINT_COUNT; hourOffset++)
+        {
+          const char *metricPrefixes[2] = {"temperature", "precip_probability"};
+          for (int metricIndex = 0; metricIndex < 2; metricIndex++)
+          {
+            const String companionEntityId = String("sensor.") +
+                                             String(strchr(weatherEntityId, '.') != nullptr ? strchr(weatherEntityId, '.') + 1 : weatherEntityId) +
+                                             "_" +
+                                             metricPrefixes[metricIndex] +
+                                             "_" +
+                                             String(hourOffset) +
+                                             "h";
+            bool companionAlreadyAdded = false;
+            for (int index = 0; index < weatherHourlySensorEntityCount; index++)
+            {
+              if (weatherHourlySensorEntityIds[index] == companionEntityId)
+              {
+                companionAlreadyAdded = true;
+                break;
+              }
+            }
+            if (!companionAlreadyAdded)
+            {
+              weatherHourlySensorEntityIds[weatherHourlySensorEntityCount++] = companionEntityId;
+            }
+          }
+        }
       }
     }
 
@@ -4336,6 +5126,23 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
       {
         entityIds[entityCount++] = widget.entityId;
       }
+
+      if (widget.type == UI_WIDGET_THERMOSTAT && thermostatWidgetShowsHistoryGraph(widget))
+      {
+        bool historyAlreadyAdded = false;
+        for (int index = 0; index < thermostatHistoryEntityCount; index++)
+        {
+          if (thermostatHistoryEntityIds[index] == widget.entityId)
+          {
+            historyAlreadyAdded = true;
+            break;
+          }
+        }
+        if (!historyAlreadyAdded)
+        {
+          thermostatHistoryEntityIds[thermostatHistoryEntityCount++] = widget.entityId;
+        }
+      }
     }
   }
 
@@ -4343,10 +5150,18 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
   {
     fetchHomeAssistantEntityState(entityIds[index].c_str(), redraw);
   }
+  for (int index = 0; index < weatherHourlySensorEntityCount; index++)
+  {
+    fetchHomeAssistantEntityState(weatherHourlySensorEntityIds[index].c_str(), redraw, true);
+  }
   for (int index = 0; index < weatherPageEntityCount; index++)
   {
     fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "daily", redraw);
     fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "hourly", redraw);
+  }
+  for (int index = 0; index < thermostatHistoryEntityCount; index++)
+  {
+    fetchHomeAssistantThermostatHistory(thermostatHistoryEntityIds[index].c_str(), redraw);
   }
   lastHomeAssistantPollMs = millis();
 }
@@ -4431,6 +5246,39 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
   String responseBody;
   int statusCode = 0;
   const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
+  const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
+  if (!requestOk || statusCode < 200 || statusCode >= 300)
+  {
+    snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_SERVICE_%d", statusCode);
+    return false;
+  }
+
+  return true;
+}
+
+static bool callHomeAssistantClimateModeForWidget(int pageIndex, int widgetIndex, const char *hvacMode)
+{
+  if (hvacMode == nullptr || hvacMode[0] == '\0')
+  {
+    return false;
+  }
+
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (widget.type != UI_WIDGET_THERMOSTAT || !widgetHasHomeAssistantBinding(widget))
+  {
+    return false;
+  }
+
+  const String domain = getEntityDomainString(widget.entityId);
+  if (domain != "climate")
+  {
+    return false;
+  }
+
+  String responseBody;
+  int statusCode = 0;
+  const String payload = String("{\"entity_id\":\"") + widget.entityId + "\",\"hvac_mode\":\"" + hvacMode + "\"}";
+  const String requestUrl = getHomeAssistantApiUrl("/api/services/climate/set_hvac_mode");
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -4869,6 +5717,66 @@ static void pollTouchInput()
         if (widget.type == UI_WIDGET_THERMOSTAT)
         {
           const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
+          const char *activateMode = preferredThermostatActivateMode(state.thermostatSupportedModes);
+          if (thermostatSupportsActivate(state.thermostatSupportedModes) &&
+              activateMode[0] != '\0' &&
+              isPointInRectExpanded(tx, ty, state.actionRects[THERMOSTAT_BUTTON_ACTIVATE], 10))
+          {
+            lastTouchActionMs = now;
+            if (callHomeAssistantClimateModeForWidget(currentPageIndex, widgetIndex, activateMode))
+            {
+              state.thermostatActiveMode = thermostatModeBitForName(activateMode);
+              drawThermostatWidget(widgetIndex, true);
+            }
+            Serial.printf(
+                "THERMOSTAT_TOUCH ACTION=MODE_ACTIVE MODE=%s MAP=%s RAW=%d,%d XY=%d,%d\n",
+                activateMode,
+                mappedNames[i],
+                rawX,
+                rawY,
+                tx,
+                ty);
+            return;
+          }
+
+          if (thermostatSupportsDeactivate(state.thermostatSupportedModes) &&
+              isPointInRectExpanded(tx, ty, state.actionRects[THERMOSTAT_BUTTON_DEACTIVATE], 10))
+          {
+            lastTouchActionMs = now;
+            if (callHomeAssistantClimateModeForWidget(currentPageIndex, widgetIndex, "off"))
+            {
+              state.thermostatActiveMode = THERMOSTAT_MODE_BIT_OFF;
+              drawThermostatWidget(widgetIndex, true);
+            }
+            Serial.printf(
+                "THERMOSTAT_TOUCH ACTION=MODE_OFF MAP=%s RAW=%d,%d XY=%d,%d\n",
+                mappedNames[i],
+                rawX,
+                rawY,
+                tx,
+                ty);
+            return;
+          }
+
+          if (thermostatSupportsCool(state.thermostatSupportedModes) &&
+              isPointInRectExpanded(tx, ty, state.actionRects[THERMOSTAT_BUTTON_COOL], 10))
+          {
+            lastTouchActionMs = now;
+            if (callHomeAssistantClimateModeForWidget(currentPageIndex, widgetIndex, "cool"))
+            {
+              state.thermostatActiveMode = THERMOSTAT_MODE_BIT_COOL;
+              drawThermostatWidget(widgetIndex, true);
+            }
+            Serial.printf(
+                "THERMOSTAT_TOUCH ACTION=MODE_COOL MAP=%s RAW=%d,%d XY=%d,%d\n",
+                mappedNames[i],
+                rawX,
+                rawY,
+                tx,
+                ty);
+            return;
+          }
+
           if (isPointInRectExpanded(tx, ty, state.controlRect, 10))
           {
             lastTouchActionMs = now;
@@ -5390,15 +6298,28 @@ static String getDeviceDisplayName()
 static void loadUiPreferences()
 {
   currentDarkModeEnabled = UI_THEME_DARK != 0;
-  if (!preferences.begin("ui", false))
+  if (!preferences.begin(UI_PREFERENCES_NAMESPACE, false))
   {
     Serial.println("UI_PREFS_UNAVAILABLE");
     return;
   }
 
-  if (preferences.isKey("dark"))
+  const String storedBuildId = preferences.getString(UI_PREFERENCE_BUILD_ID_KEY, "");
+  const bool buildChanged = storedBuildId != String(UI_BUILD_ID);
+
+  if (!buildChanged && preferences.isKey(UI_PREFERENCE_DARK_KEY))
   {
-    currentDarkModeEnabled = preferences.getBool("dark", UI_THEME_DARK != 0);
+    currentDarkModeEnabled = preferences.getBool(UI_PREFERENCE_DARK_KEY, UI_THEME_DARK != 0);
+  }
+  else if (buildChanged)
+  {
+    currentDarkModeEnabled = UI_THEME_DARK != 0;
+    preferences.putBool(UI_PREFERENCE_DARK_KEY, currentDarkModeEnabled);
+    preferences.putString(UI_PREFERENCE_BUILD_ID_KEY, UI_BUILD_ID);
+    Serial.printf(
+        "UI_THEME_SYNC build=%s dark=%d\n",
+        UI_BUILD_ID,
+        currentDarkModeEnabled ? 1 : 0);
   }
   preferences.end();
   Serial.printf("UI_DARK_MODE=%d\n", currentDarkModeEnabled ? 1 : 0);
@@ -5406,12 +6327,13 @@ static void loadUiPreferences()
 
 static void saveUiPreferences()
 {
-  if (!preferences.begin("ui", false))
+  if (!preferences.begin(UI_PREFERENCES_NAMESPACE, false))
   {
     Serial.println("UI_SAVE_FAILED");
     return;
   }
-  preferences.putBool("dark", currentDarkModeEnabled);
+  preferences.putBool(UI_PREFERENCE_DARK_KEY, currentDarkModeEnabled);
+  preferences.putString(UI_PREFERENCE_BUILD_ID_KEY, UI_BUILD_ID);
   preferences.end();
 }
 

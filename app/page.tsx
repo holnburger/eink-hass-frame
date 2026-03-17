@@ -34,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   collectBoundEntityIds,
+  collectThermostatHistoryEntityIds,
   DEFAULT_HOME_ASSISTANT_CONFIG,
   getCompatibleDomainsForPage,
   getCompatibleDomainsForWidget,
@@ -288,61 +289,51 @@ function EditableWidgetCard({
         )}
 
         {widget.type === "thermostat" && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor={`${widget.id}-current`}>
-                Current Temperature (°C)
-              </Label>
-              <Input
-                id={`${widget.id}-current`}
-                type="number"
-                min={12}
-                max={30}
-                step={0.1}
-                value={widget.currentValue ?? 20}
-                onChange={(event) =>
+          <div className="space-y-2">
+            <Label
+              htmlFor={`${widget.id}-history-graph`}
+              className="sr-only"
+            >
+              Show temperature history graph
+            </Label>
+            <div className="rounded-md border border-zinc-800 px-3 py-2">
+              <Switch
+                id={`${widget.id}-history-graph`}
+                label="Show temperature history graph"
+                checked={widget.showHistoryGraph === true}
+                onCheckedChange={(checked) =>
                   onUpdate(widget.id, (current) => ({
                     ...current,
-                    currentValue: Number(
-                      Math.max(
-                        12,
-                        Math.min(30, Number(event.target.value) || 20),
-                      ).toFixed(1),
-                    ),
+                    showHistoryGraph: checked,
                   }))
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${widget.id}-target`}>
-                Target Temperature (°C)
-              </Label>
-              <Input
-                id={`${widget.id}-target`}
-                type="number"
-                min={12}
-                max={30}
-                step={0.5}
-                value={widget.value ?? 22}
-                onChange={(event) =>
+          </div>
+        )}
+
+        {widget.type === "progress" && (
+          <div className="space-y-2">
+            <Label
+              htmlFor={`${widget.id}-hide-when-unavailable`}
+              className="sr-only"
+            >
+              Hide when entity is unavailable
+            </Label>
+            <div className="rounded-md border border-zinc-800 px-3 py-2">
+              <Switch
+                id={`${widget.id}-hide-when-unavailable`}
+                label="Hide when entity is unavailable"
+                checked={widget.hideWhenUnavailable === true}
+                onCheckedChange={(checked) =>
                   onUpdate(widget.id, (current) => ({
                     ...current,
-                    value: Number(
-                      (
-                        Math.round(
-                          Math.max(
-                            12,
-                            Math.min(30, Number(event.target.value) || 22),
-                          ) * 2,
-                        ) / 2
-                      ).toFixed(1),
-                    ),
-                    max: 30,
+                    hideWhenUnavailable: checked,
                   }))
                 }
               />
             </div>
-          </>
+          </div>
         )}
 
         {widget.type === "clock" && (
@@ -484,6 +475,10 @@ export default function Home() {
     () => collectBoundEntityIds(buildConfig.pages),
     [buildConfig.pages],
   );
+  const thermostatHistoryEntityIds = useMemo(
+    () => collectThermostatHistoryEntityIds(buildConfig.pages),
+    [buildConfig.pages],
+  );
   const boundEntityCount = useMemo(
     () => boundEntityIds.length,
     [boundEntityIds],
@@ -562,6 +557,7 @@ export default function Home() {
             url: buildConfig.homeAssistant.url,
             token: buildConfig.homeAssistant.token,
             entityIds: boundEntityIds,
+            thermostatHistoryEntityIds,
           }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
@@ -587,7 +583,7 @@ export default function Home() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [boundEntityIds, buildConfig.homeAssistant]);
+  }, [boundEntityIds, buildConfig.homeAssistant, thermostatHistoryEntityIds]);
 
   function handleSaveActiveDevice(device: SavedDevice) {
     setSavedDevices((prev) => {
@@ -832,19 +828,24 @@ export default function Home() {
                         full refreshes.
                       </p>
                     </div>
-                    <div className="space-y-2 flex-col flex">
-                      <Label htmlFor="fontSelect">Mode</Label>
-                      <Button
-                        variant="outline"
-                        onClick={() => setDarkMode(!darkMode)}
-                      >
+                    <div className="flex flex-col space-y-2">
+                      <Label htmlFor="preview-theme">Preview Theme</Label>
+                      <div className="rounded-md border border-zinc-800 px-3 py-2">
+                        <Switch
+                          id="preview-theme"
+                          label={`Preview theme: ${darkMode ? "Dark" : "Light"}`}
+                          checked={darkMode}
+                          onCheckedChange={setDarkMode}
+                        />
+                      </div>
+                      <p className="flex items-center gap-2 text-xs text-zinc-500">
                         {darkMode ? (
-                          <Sun className="mr-2 h-4 w-4" />
+                          <Moon className="h-3.5 w-3.5" />
                         ) : (
-                          <Moon className="mr-2 h-4 w-4" />
+                          <Sun className="h-3.5 w-3.5" />
                         )}
-                        {darkMode ? "Light" : "Dark"} UI
-                      </Button>
+                        Live preview is currently in {darkMode ? "dark" : "light"} mode.
+                      </p>
                     </div>
                   </div>
 
@@ -1100,7 +1101,8 @@ export default function Home() {
                   <CardHeader>
                     <CardTitle>Live Preview</CardTitle>
                     <CardDescription>
-                      {editorPage?.name ?? "Preview"} · {buildConfig.fontName}
+                      {editorPage?.name ?? "Preview"} · {buildConfig.fontName} ·{" "}
+                      {buildConfig.darkMode ? "Dark Mode" : "Light Mode"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

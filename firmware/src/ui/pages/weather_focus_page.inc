@@ -60,6 +60,7 @@ static void drawWeatherFocusTextAt(const char *text, int x, int topY, const void
   }
 
   selectTextFont(role);
+  setThemeGrayText(foreground, background);
   display.setCursor(0, 0);
   BB_RECT bounds;
   getDisplayStringBox(text, &bounds);
@@ -75,15 +76,7 @@ static void drawWeatherFocusTextCentered(const BB_RECT &rect, const char *text, 
 
 static void drawWeatherFocusHeroIcon(const BB_RECT &rect, const char *condition)
 {
-#if UI_MDI_ICONS_AVAILABLE
-  const MdiMonoIconAsset *mdiIcon = getMdiWeatherIconAsset(condition);
-  if (mdiIcon != nullptr)
-  {
-    drawMdiMonoIconScaledGray(rect, mdiIcon, 4, 4);
-    return;
-  }
-#endif
-  drawWeatherMeteoconMonoRaw(rect, condition);
+  drawWeatherMeteocon4bppRaw(rect, condition);
 }
 
 static void drawWeatherFocusMetricIcon(const BB_RECT &rect, const MdiMonoIconAsset *icon)
@@ -91,12 +84,17 @@ static void drawWeatherFocusMetricIcon(const BB_RECT &rect, const MdiMonoIconAss
 #if UI_MDI_ICONS_AVAILABLE
   if (icon != nullptr)
   {
-    drawMdiMonoIconScaledGray(rect, icon, 2, 2);
+    drawMdiMonoIconScaledGray(rect, icon, 1, 2);
   }
 #else
   (void)rect;
   (void)icon;
 #endif
+}
+
+static void drawWeatherFocusMetricWeatherIcon(const BB_RECT &rect, const WeatherIconAsset *icon)
+{
+  drawWeatherIconAsset4bppRaw(rect, icon);
 }
 
 static int weatherFocusFallbackRainChanceForCondition(const char *condition)
@@ -135,7 +133,7 @@ static void fillFallbackWeatherForecastItem(int index, WeatherForecastRuntime &f
 
 static void fillFallbackWeatherHourlyForecastItem(int index, int currentTemperature, WeatherHourlyForecastRuntime &forecastItem)
 {
-  static const int tempOffsets[WEATHER_FOCUS_HOURLY_POINT_COUNT] = {0, 1, 2, 1, 0, -1};
+  static const int tempOffsets[WEATHER_FOCUS_HOURLY_POINT_COUNT] = {0, 1, 2, 3, 4, 4, 3, 2, 1, 0, -1, -1};
   memset(&forecastItem, 0, sizeof(forecastItem));
   const WeatherFrame hourlyWeather = getWeatherFrameAtOffset(currentPageIndex, index + 1);
   fillHourlyForecastFallbackLabel(forecastItem.label, sizeof(forecastItem.label), index);
@@ -145,41 +143,91 @@ static void fillFallbackWeatherHourlyForecastItem(int index, int currentTemperat
   forecastItem.precipitationProbabilityAvailable = true;
 }
 
-static void drawWeatherFocusStatStripItem(const BB_RECT &rect, const MdiMonoIconAsset *icon, const char *value, bool available, bool drawDivider)
+static void drawWeatherFocusStatStripItem(const BB_RECT &rect, const WeatherIconAsset *icon, const char *value, bool available, bool drawDivider)
 {
   if (drawDivider)
   {
-    display.drawLine(rect.x, rect.y + 10, rect.x, rect.y + rect.h - 10, uiGrayValue(10));
+    display.drawLine(rect.x, rect.y + 10, rect.x, rect.y + rect.h - 10, uiGrayValue(3));
   }
 
   const void *metaFont = getUiTextFont(UI_TEXT_META);
   BB_RECT iconRect = {
-      rect.x + ((rect.w - 39) / 2),
+      rect.x + ((rect.w - 42) / 2),
       rect.y + 2,
-      39,
-      39,
+      42,
+      42,
   };
-  drawWeatherFocusMetricIcon(iconRect, icon);
+  drawWeatherFocusMetricWeatherIcon(iconRect, icon);
   drawWeatherFocusTextCentered(rect, available ? value : "--", rect.y + 46, metaFont, UI_TEXT_META, 2);
 }
 
 static void drawWeatherFocusChartCard(const BB_RECT &rect)
 {
-  display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayValue(15));
+  display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayPaper());
+  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayInk());
+}
+
+static float weatherFocusCatmullRom(float p0, float p1, float p2, float p3, float t)
+{
+  const float t2 = t * t;
+  const float t3 = t2 * t;
+  return 0.5f * ((2.0f * p1) +
+                 (-p0 + p2) * t +
+                 ((2.0f * p0) - (5.0f * p1) + (4.0f * p2) - p3) * t2 +
+                 (-p0 + (3.0f * p1) - (3.0f * p2) + p3) * t3);
+}
+
+static void drawWeatherFocusStrokeSegment(int x1, int y1, int x2, int y2)
+{
+  display.drawLine(x1, y1, x2, y2, uiGrayInk());
+  display.drawLine(x1, y1 - 1, x2, y2 - 1, uiGrayValue(5));
+  display.drawLine(x1, y1 + 1, x2, y2 + 1, uiGrayValue(5));
+}
+
+static void drawWeatherFocusSmoothedLine(const int *xPoints, const int *yPoints, int pointCount)
+{
+  if (pointCount <= 1)
+  {
+    return;
+  }
+
+  int previousX = xPoints[0];
+  int previousY = yPoints[0];
+  for (int segmentIndex = 0; segmentIndex < pointCount - 1; segmentIndex++)
+  {
+    const float p0x = static_cast<float>(segmentIndex > 0 ? xPoints[segmentIndex - 1] : xPoints[segmentIndex]);
+    const float p0y = static_cast<float>(segmentIndex > 0 ? yPoints[segmentIndex - 1] : yPoints[segmentIndex]);
+    const float p1x = static_cast<float>(xPoints[segmentIndex]);
+    const float p1y = static_cast<float>(yPoints[segmentIndex]);
+    const float p2x = static_cast<float>(xPoints[segmentIndex + 1]);
+    const float p2y = static_cast<float>(yPoints[segmentIndex + 1]);
+    const float p3x = static_cast<float>(segmentIndex + 2 < pointCount ? xPoints[segmentIndex + 2] : xPoints[segmentIndex + 1]);
+    const float p3y = static_cast<float>(segmentIndex + 2 < pointCount ? yPoints[segmentIndex + 2] : yPoints[segmentIndex + 1]);
+
+    for (int step = 1; step <= 20; step++)
+    {
+      const float t = static_cast<float>(step) / 20.0f;
+      const int nextX = static_cast<int>(roundf(weatherFocusCatmullRom(p0x, p1x, p2x, p3x, t)));
+      const int nextY = static_cast<int>(roundf(weatherFocusCatmullRom(p0y, p1y, p2y, p3y, t)));
+      drawWeatherFocusStrokeSegment(previousX, previousY, nextX, nextY);
+      previousX = nextX;
+      previousY = nextY;
+    }
+  }
 }
 
 static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourlyForecastRuntime *forecastItems, int forecastCount)
 {
   drawWeatherFocusChartCard(rect);
   const void *metaFont = getUiTextFont(UI_TEXT_META);
-  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 12, rect.y + 7, 29, 29},
+  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 12, rect.y + 8, 28, 28},
 #if UI_MDI_ICONS_AVAILABLE
                              &MDI_ICON_ASSET_SLIDER_THERMOMETER
 #else
                              nullptr
 #endif
   );
-  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 47, rect.y + 7, 29, 29},
+  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 50, rect.y + 8, 28, 28},
 #if UI_MDI_ICONS_AVAILABLE
                              &MDI_ICON_ASSET_WEATHER_RAIN_CHANCE
 #else
@@ -189,11 +237,14 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
 
   if (forecastCount <= 0)
   {
+    drawWeatherFocusTextCentered(rect, "No hourly forecast", rect.y + (rect.h / 2) - 8, metaFont, UI_TEXT_META, 0);
     return;
   }
 
   int minTemp = 1000;
   int maxTemp = -1000;
+  int minTempIndex = -1;
+  int maxTempIndex = -1;
   for (int index = 0; index < forecastCount; index++)
   {
     if (!forecastItems[index].temperatureAvailable)
@@ -203,15 +254,18 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     if (forecastItems[index].temperature < minTemp)
     {
       minTemp = forecastItems[index].temperature;
+      minTempIndex = index;
     }
     if (forecastItems[index].temperature > maxTemp)
     {
       maxTemp = forecastItems[index].temperature;
+      maxTempIndex = index;
     }
   }
 
   if (minTemp == 1000 || maxTemp == -1000)
   {
+    drawWeatherFocusTextCentered(rect, "No hourly forecast", rect.y + (rect.h / 2) - 8, metaFont, UI_TEXT_META, 0);
     return;
   }
   if (maxTemp - minTemp < 4)
@@ -221,42 +275,55 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     maxTemp = center + 2;
   }
 
-  const int plotLeft = rect.x + 22;
-  const int plotRight = rect.x + rect.w - 22;
-  const int plotTop = rect.y + 28;
-  const int plotBottom = rect.y + rect.h - 52;
+  const int plotLeft = rect.x + 18;
+  const int plotRight = rect.x + rect.w - 18;
+  const int plotTop = rect.y + 42;
+  const int plotBottom = rect.y + rect.h - 54;
   const int plotHeight = plotBottom - plotTop;
   const int plotWidth = plotRight - plotLeft;
   const int range = maxTemp - minTemp;
 
-  display.drawLine(plotLeft, plotTop + (plotHeight / 2), plotRight, plotTop + (plotHeight / 2), uiGrayValue(9));
-  display.drawLine(plotLeft, plotBottom, plotRight, plotBottom, uiGrayValue(8));
-
-  int previousX = 0;
-  int previousY = 0;
-  bool hasPrevious = false;
+  int availableX[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  int availableY[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  int availablePointCount = 0;
+  int pointX[WEATHER_FOCUS_HOURLY_POINT_COUNT];
+  int pointY[WEATHER_FOCUS_HOURLY_POINT_COUNT];
   for (int index = 0; index < forecastCount; index++)
   {
+    pointX[index] = forecastCount > 1
+                        ? plotLeft + ((plotWidth * index) / (forecastCount - 1))
+                        : plotLeft + (plotWidth / 2);
+    pointY[index] = plotBottom;
     if (!forecastItems[index].temperatureAvailable)
     {
       continue;
     }
 
-    const int x = forecastCount > 1
-                      ? plotLeft + ((plotWidth * index) / (forecastCount - 1))
-                      : plotLeft + (plotWidth / 2);
-    const int y = plotBottom - (((forecastItems[index].temperature - minTemp) * plotHeight) / (range > 0 ? range : 1));
+    pointY[index] = plotBottom - (((forecastItems[index].temperature - minTemp) * plotHeight) / (range > 0 ? range : 1));
+    availableX[availablePointCount] = pointX[index];
+    availableY[availablePointCount] = pointY[index];
+    availablePointCount++;
+  }
 
-    if (hasPrevious)
+  drawWeatherFocusSmoothedLine(availableX, availableY, availablePointCount);
+
+  const int labeledExtrema[2] = {maxTempIndex, minTempIndex};
+  for (int labelIndex = 0; labelIndex < 2; labelIndex++)
+  {
+    const int pointIndex = labeledExtrema[labelIndex];
+    if (pointIndex < 0 || !forecastItems[pointIndex].temperatureAvailable)
     {
-      display.drawLine(previousX, previousY, x, y, uiGrayValue(2));
-      display.drawLine(previousX, previousY + 1, x, y + 1, uiGrayValue(4));
+      continue;
+    }
+    if (labelIndex == 1 && labeledExtrema[0] == labeledExtrema[1])
+    {
+      continue;
     }
 
     char valueText[12];
-    formatWeatherDegreeValue(forecastItems[index].temperature, valueText, sizeof(valueText));
+    formatWeatherDegreeValue(forecastItems[pointIndex].temperature, valueText, sizeof(valueText));
     const int valueWidth = weatherFocusTextWidth(valueText, metaFont, UI_TEXT_META);
-    int valueX = x - (valueWidth / 2);
+    int valueX = pointX[pointIndex] - (valueWidth / 2);
     if (valueX < rect.x + 8)
     {
       valueX = rect.x + 8;
@@ -265,15 +332,23 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     {
       valueX = rect.x + rect.w - 8 - valueWidth;
     }
-    int valueTop = y - 16;
+
+    int valueTop = pointY[pointIndex] - 20;
     if (valueTop < rect.y + 8)
     {
       valueTop = rect.y + 8;
     }
-    drawWeatherFocusTextAt(valueText, valueX, valueTop, metaFont, UI_TEXT_META, 3);
+    drawWeatherFocusTextAt(valueText, valueX, valueTop, metaFont, UI_TEXT_META, 0);
+  }
 
-    display.fillCircle(x, y, 3, uiGrayValue(0));
-    display.drawCircle(x, y, 3, uiGrayValue(3));
+  for (int index = 0; index < forecastCount; index++)
+  {
+    if (((index + 1) % 3) != 0)
+    {
+      continue;
+    }
+
+    const int x = pointX[index];
 
     char probabilityText[12];
     if (forecastItems[index].precipitationProbabilityAvailable)
@@ -299,7 +374,7 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     {
       probabilityX = rect.x + rect.w - 8 - probabilityWidth;
     }
-    drawWeatherFocusTextAt(probabilityText, probabilityX - 2, rect.y + rect.h - 32, metaFont, UI_TEXT_META, 4);
+    drawWeatherFocusTextAt(probabilityText, probabilityX, rect.y + rect.h - 33, metaFont, UI_TEXT_META, 0);
 
     const int labelWidth = weatherFocusTextWidth(forecastItems[index].label, metaFont, UI_TEXT_META);
     int labelX = x - (labelWidth / 2);
@@ -311,11 +386,7 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     {
       labelX = rect.x + rect.w - 8 - labelWidth;
     }
-    drawWeatherFocusTextAt(forecastItems[index].label, labelX + 2, rect.y + rect.h - 15, metaFont, UI_TEXT_META, 6);
-
-    previousX = x;
-    previousY = y;
-    hasPrevious = true;
+    drawWeatherFocusTextAt(forecastItems[index].label, labelX, rect.y + rect.h - 16, metaFont, UI_TEXT_META, 0);
   }
 }
 
@@ -323,13 +394,20 @@ static void drawWeatherFocusForecastStripItem(const BB_RECT &rect, const Weather
 {
   if (drawDivider)
   {
-    display.drawLine(rect.x, rect.y + 12, rect.x, rect.y + rect.h - 12, uiGrayValue(10));
+    display.drawLine(rect.x, rect.y + 12, rect.x, rect.y + rect.h - 12, uiGrayValue(3));
   }
 
   const void *metaFont = getUiTextFont(UI_TEXT_META);
   drawWeatherFocusTextCentered(rect, forecast.label, rect.y + 12, metaFont, UI_TEXT_META, 7);
 
-  BB_RECT iconRect = {rect.x + ((rect.w - 62) / 2), rect.y + 18, 62, 62};
+  const int iconSize = min(rect.w - 18, 88);
+  const int infoBottomInset = 40;
+  const int iconCenterY = rect.y + ((rect.h - infoBottomInset) / 2) - 2;
+  BB_RECT iconRect = {
+      rect.x + ((rect.w - iconSize) / 2),
+      iconCenterY - (iconSize / 2),
+      iconSize,
+      iconSize};
   drawWeatherFocusHeroIcon(iconRect, forecast.condition);
 
   char rangeText[24];
@@ -339,7 +417,7 @@ static void drawWeatherFocusForecastStripItem(const BB_RECT &rect, const Weather
       forecast.lowTemperatureAvailable,
       rangeText,
       sizeof(rangeText));
-  drawWeatherFocusTextCentered(rect, rangeText, rect.y + 98, metaFont, UI_TEXT_META, 2);
+  drawWeatherFocusTextCentered(rect, rangeText, rect.y + rect.h - 42, metaFont, UI_TEXT_META, 2);
 
   char rainText[12];
   if (forecast.precipitationProbabilityAvailable)
@@ -356,14 +434,14 @@ static void drawWeatherFocusForecastStripItem(const BB_RECT &rect, const Weather
   const int gap = 6;
   const int totalWidth = iconWidth + gap + rainTextWidth;
   const int startX = rect.x + ((rect.w - totalWidth) / 2);
-  drawWeatherFocusMetricIcon(BB_RECT{startX, rect.y + rect.h - 29, iconWidth, iconWidth},
+  drawWeatherFocusMetricIcon(BB_RECT{startX, rect.y + rect.h - 24, iconWidth, iconWidth},
 #if UI_MDI_ICONS_AVAILABLE
                              &MDI_ICON_ASSET_WEATHER_RAIN_CHANCE
 #else
                              nullptr
 #endif
   );
-  drawWeatherFocusTextAt(rainText, startX + iconWidth + gap, rect.y + rect.h - 27, metaFont, UI_TEXT_META, 4);
+  drawWeatherFocusTextAt(rainText, startX + iconWidth + gap, rect.y + rect.h - 22, metaFont, UI_TEXT_META, 4);
 }
 
 static void drawWeatherFocusBody()
@@ -387,7 +465,7 @@ static void drawWeatherFocusBody()
       weatherFocusContentRect.y,
       weatherFocusContentRect.w,
       weatherFocusContentRect.h,
-      uiGrayValue(14));
+      uiGrayPaper());
 
   display.fillRoundRect(
       weatherFocusHeroRect.x,
@@ -395,7 +473,14 @@ static void drawWeatherFocusBody()
       weatherFocusHeroRect.w,
       weatherFocusHeroRect.h,
       34,
-      uiGrayValue(15));
+      uiGrayPaper());
+  display.drawRoundRect(
+      weatherFocusHeroRect.x,
+      weatherFocusHeroRect.y,
+      weatherFocusHeroRect.w,
+      weatherFocusHeroRect.h,
+      34,
+      uiGrayInk());
 
   char dateLabel[40];
   fillCurrentWeatherDateLabel(dateLabel, sizeof(dateLabel));
@@ -403,25 +488,18 @@ static void drawWeatherFocusBody()
   const void *bodyFont = getUiTextFont(UI_TEXT_BODY);
   drawWeatherFocusTextCentered(weatherFocusHeroRect, dateLabel, weatherFocusHeroRect.y + 18, metaFont, UI_TEXT_META, 7);
 
-  display.fillRoundRect(
+  BB_RECT iconRect = {
       weatherFocusHeroIconRect.x,
       weatherFocusHeroIconRect.y,
       weatherFocusHeroIconRect.w,
       weatherFocusHeroIconRect.h,
-      28,
-      uiGrayValue(13));
-  BB_RECT iconRect = {
-      weatherFocusHeroIconRect.x + 4,
-      weatherFocusHeroIconRect.y + 4,
-      weatherFocusHeroIconRect.w - 8,
-      weatherFocusHeroIconRect.h - 8,
   };
   drawWeatherFocusHeroIcon(iconRect, currentCondition);
 
   const int heroRightX = weatherFocusHeroRect.x + weatherFocusHeroRect.w - 28;
   const int tempBaseY = weatherFocusHeroRect.y + 86;
 #if UI_WEATHER_FONT_AVAILABLE
-  setThemeGrayText(1, 15);
+  setThemeGrayText(0, 15);
   const int temperatureValueWidth = customFontTextWidth(Roboto_Black_40, currentTemperatureText);
   const int unitWidth = weatherFocusTextWidth(currentTemperatureUnit, bodyFont, UI_TEXT_BODY);
   const int tempStartX = heroRightX - temperatureValueWidth - unitWidth - 8;
@@ -475,7 +553,14 @@ static void drawWeatherFocusBody()
       weatherFocusStatsRect.w,
       weatherFocusStatsRect.h,
       22,
-      uiGrayValue(15));
+      uiGrayPaper());
+  display.drawRoundRect(
+      weatherFocusStatsRect.x,
+      weatherFocusStatsRect.y,
+      weatherFocusStatsRect.w,
+      weatherFocusStatsRect.h,
+      22,
+      uiGrayInk());
 
   const int statCardWidth = weatherFocusStatsRect.w / 3;
   const BB_RECT statItems[3] = {
@@ -486,49 +571,43 @@ static void drawWeatherFocusBody()
 
   drawWeatherFocusStatStripItem(
       statItems[0],
-#if UI_MDI_ICONS_AVAILABLE
-      &MDI_ICON_ASSET_WEATHER_HUMIDITY,
-#else
-      nullptr,
-#endif
+      &WEATHER_ICON_ASSET_METRIC_HUMIDITY,
       useHomeAssistant ? state.humidityText : "64%",
       useHomeAssistant ? state.hasHumidity : true,
       false);
   drawWeatherFocusStatStripItem(
       statItems[1],
-#if UI_MDI_ICONS_AVAILABLE
-      &MDI_ICON_ASSET_WEATHER_WIND_SMALL,
-#else
-      nullptr,
-#endif
+      &WEATHER_ICON_ASSET_METRIC_WIND,
       useHomeAssistant ? state.windText : "7 km/h",
       useHomeAssistant ? state.hasWind : true,
       true);
   drawWeatherFocusStatStripItem(
       statItems[2],
-#if UI_MDI_ICONS_AVAILABLE
-      &MDI_ICON_ASSET_WEATHER_PRESSURE,
-#else
-      nullptr,
-#endif
+      &WEATHER_ICON_ASSET_METRIC_PRESSURE,
       useHomeAssistant ? state.pressureText : "1008 hPa",
       useHomeAssistant ? state.hasPressure : true,
       true);
 
   WeatherHourlyForecastRuntime hourlyForecastItems[WEATHER_FOCUS_HOURLY_POINT_COUNT];
-  for (int index = 0; index < WEATHER_FOCUS_HOURLY_POINT_COUNT; index++)
+  int hourlyForecastCount = 0;
+  if (useHomeAssistant && state.hourlyForecastCount > 0)
   {
-    if (useHomeAssistant && index < state.hourlyForecastCount)
+    hourlyForecastCount = state.hourlyForecastCount;
+    for (int index = 0; index < hourlyForecastCount; index++)
     {
       hourlyForecastItems[index] = state.hourlyForecast[index];
     }
-    else
+  }
+  else
+  {
+    hourlyForecastCount = WEATHER_FOCUS_HOURLY_POINT_COUNT;
+    for (int index = 0; index < WEATHER_FOCUS_HOURLY_POINT_COUNT; index++)
     {
       fillFallbackWeatherHourlyForecastItem(index, currentTemperature, hourlyForecastItems[index]);
     }
   }
 
-  drawWeatherFocusHourlyGraph(weatherFocusTemperatureChartRect, hourlyForecastItems, WEATHER_FOCUS_HOURLY_POINT_COUNT);
+  drawWeatherFocusHourlyGraph(weatherFocusTemperatureChartRect, hourlyForecastItems, hourlyForecastCount);
 
   display.fillRoundRect(
       weatherFocusTimelineRect.x,
@@ -536,7 +615,14 @@ static void drawWeatherFocusBody()
       weatherFocusTimelineRect.w,
       weatherFocusTimelineRect.h,
       24,
-      uiGrayValue(15));
+      uiGrayPaper());
+  display.drawRoundRect(
+      weatherFocusTimelineRect.x,
+      weatherFocusTimelineRect.y,
+      weatherFocusTimelineRect.w,
+      weatherFocusTimelineRect.h,
+      24,
+      uiGrayInk());
 
   for (int index = 0; index < WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
   {

@@ -9,6 +9,7 @@ type RequestPayload = {
   url?: string;
   token?: string;
   entityIds?: string[];
+  thermostatHistoryEntityIds?: string[];
 };
 
 export async function POST(request: Request) {
@@ -27,6 +28,11 @@ export async function POST(request: Request) {
       url: payload.url,
       token: payload.token,
       entityIds: Array.isArray(payload.entityIds) ? payload.entityIds : [],
+      thermostatHistoryEntityIds: Array.isArray(
+        payload.thermostatHistoryEntityIds,
+      )
+        ? payload.thermostatHistoryEntityIds
+        : [],
     });
     return NextResponse.json({ ok: true, entities });
   } catch (error) {

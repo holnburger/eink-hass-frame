@@ -40,6 +40,9 @@ export type HomeAssistantEntitySummary = {
   unitOfMeasurement: string;
 };
 
+export const WEATHER_HOURLY_FORECAST_POINT_COUNT = 12;
+export const THERMOSTAT_HISTORY_POINT_COUNT = 24;
+
 export const DEFAULT_HOME_ASSISTANT_CONFIG: HomeAssistantConfig = {
   url: "",
   token: "",
@@ -111,6 +114,58 @@ export function pageSupportsHomeAssistant(
 export function getEntityDomain(entityId: string) {
   const separatorIndex = entityId.indexOf(".");
   return separatorIndex > 0 ? entityId.slice(0, separatorIndex) : "";
+}
+
+export function getEntityObjectId(entityId: string) {
+  const separatorIndex = entityId.indexOf(".");
+  return separatorIndex > 0 ? entityId.slice(separatorIndex + 1) : entityId;
+}
+
+export function buildHomeAssistantWeatherHourlySensorEntityId(
+  weatherEntityId: string,
+  kind: "temperature" | "precip_probability",
+  hourOffset: number,
+) {
+  const objectId = getEntityObjectId(weatherEntityId).trim();
+  if (!objectId || hourOffset < 1) {
+    return "";
+  }
+
+  return `sensor.${objectId}_${kind}_${hourOffset}h`;
+}
+
+export function matchHomeAssistantWeatherHourlySensorEntity(
+  weatherEntityId: string,
+  sensorEntityId: string,
+) {
+  const weatherObjectId = getEntityObjectId(weatherEntityId).trim();
+  if (!weatherObjectId || getEntityDomain(sensorEntityId) !== "sensor") {
+    return undefined;
+  }
+
+  const objectId = getEntityObjectId(sensorEntityId).trim();
+  const match = objectId.match(
+    new RegExp(
+      `^${weatherObjectId}_(temperature|precip_probability)_(\\d+)h$`,
+    ),
+  );
+  if (!match) {
+    return undefined;
+  }
+
+  const hourOffset = Number(match[2]);
+  if (
+    !Number.isInteger(hourOffset) ||
+    hourOffset < 1 ||
+    hourOffset > WEATHER_HOURLY_FORECAST_POINT_COUNT
+  ) {
+    return undefined;
+  }
+
+  return {
+    kind: match[1] as "temperature" | "precip_probability",
+    hourOffset,
+  };
 }
 
 export function getCompatibleDomainsForWidget(
@@ -234,6 +289,99 @@ function normalizeTemperatureUnitLabel(value: unknown) {
   return trimmed;
 }
 
+type HomeAssistantThermostatHistoryEntry = {
+  datetime: string;
+  temperature: number | null;
+};
+
+function readHomeAssistantModeList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((candidate) => {
+    if (typeof candidate !== "string") {
+      return [];
+    }
+
+    const trimmed = candidate.trim().toLowerCase();
+    return trimmed ? [trimmed] : [];
+  });
+}
+
+function formatThermostatHistoryLabel(date: Date) {
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function readThermostatHistoryEntries(
+  value: unknown,
+  now = new Date(),
+): HomeAssistantThermostatHistoryEntry[] {
+  const rawEntries = Array.isArray(value) ? value : [];
+  if (rawEntries.length === 0) {
+    return [];
+  }
+
+  const normalized = rawEntries.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+    const candidate = entry as Record<string, unknown>;
+    const temperature = asFiniteNumber(candidate.temperature);
+    const rawDatetime =
+      typeof candidate.datetime === "string"
+        ? candidate.datetime
+        : typeof candidate.last_changed === "string"
+          ? candidate.last_changed
+          : "";
+    const date = parseWeatherDateLike(rawDatetime);
+    if (!date) {
+      return [];
+    }
+
+    return [
+      {
+        datetime: date.toISOString(),
+        temperature:
+          temperature !== null ? Number(temperature.toFixed(1)) : null,
+      },
+    ];
+  });
+
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  if (normalized.length >= THERMOSTAT_HISTORY_POINT_COUNT) {
+    return normalized.slice(-THERMOSTAT_HISTORY_POINT_COUNT);
+  }
+
+  const fallbackEntries: HomeAssistantThermostatHistoryEntry[] = Array.from(
+    { length: THERMOSTAT_HISTORY_POINT_COUNT },
+    (_, index) => {
+      const fallbackDate = new Date(now.getTime());
+      fallbackDate.setHours(
+        fallbackDate.getHours() -
+          (THERMOSTAT_HISTORY_POINT_COUNT - 1 - index),
+      );
+      return {
+        datetime: fallbackDate.toISOString(),
+        temperature: null,
+      };
+    },
+  );
+
+  const startIndex = fallbackEntries.length - normalized.length;
+  for (let index = 0; index < normalized.length; index += 1) {
+    fallbackEntries[startIndex + index] = normalized[index];
+  }
+  return fallbackEntries;
+}
+
 function parseWeatherDateLike(rawDatetime: unknown) {
   if (typeof rawDatetime !== "string") {
     return null;
@@ -305,6 +453,14 @@ function formatWeatherHourlyLabel(
   const fallbackDate = new Date(now);
   fallbackDate.setHours(fallbackDate.getHours() + fallbackIndex + 1);
   return fallbackDate.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatWeatherHourlyLabelForDate(date: Date) {
+  return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -437,6 +593,7 @@ export function resolveHomeAssistantWeatherPage(
   entity: HomeAssistantEntityState | undefined,
   options?: {
     now?: Date;
+    states?: Record<string, HomeAssistantEntityState>;
   },
 ) {
   if (!entity) {
@@ -453,6 +610,41 @@ export function resolveHomeAssistantWeatherPage(
       : [];
   const hourlyForecastInput = Array.isArray(entity.attributes.hourly_forecast)
     ? entity.attributes.hourly_forecast
+    : [];
+  const hourlySensorForecast = options?.states
+    ? Array.from({ length: WEATHER_HOURLY_FORECAST_POINT_COUNT }, (_, index) => {
+        const hourOffset = index + 1;
+        const temperatureEntity =
+          options.states?.[
+            buildHomeAssistantWeatherHourlySensorEntityId(
+              entity.entityId,
+              "temperature",
+              hourOffset,
+            )
+          ];
+        const precipitationEntity =
+          options.states?.[
+            buildHomeAssistantWeatherHourlySensorEntityId(
+              entity.entityId,
+              "precip_probability",
+              hourOffset,
+            )
+          ];
+        const temperature = asFiniteNumber(temperatureEntity?.state);
+        const precipitationProbability = asFiniteNumber(
+          precipitationEntity?.state,
+        );
+        const date = new Date(now.getTime());
+        date.setHours(date.getHours() + hourOffset);
+        return {
+          label: formatWeatherHourlyLabelForDate(date),
+          temperature: temperature !== null ? Math.round(temperature) : null,
+          precipitationProbability:
+            precipitationProbability !== null
+              ? normalizePercent(precipitationProbability)
+              : null,
+        };
+      })
     : [];
   const forecastCandidates = forecastInput
     .flatMap((entry, index) => {
@@ -532,7 +724,7 @@ export function resolveHomeAssistantWeatherPage(
     )
     .slice(0, 3);
 
-  const hourlyForecast = hourlyForecastInput
+  const baseHourlyForecast = hourlyForecastInput
     .flatMap((entry, index) => {
       if (!entry || typeof entry !== "object") {
         return [];
@@ -578,7 +770,8 @@ export function resolveHomeAssistantWeatherPage(
         return [
           {
             label: formatWeatherHourlyLabel(rawDatetime, index, now),
-            temperature: temperature !== null ? Math.round(temperature) : null,
+            temperature:
+              temperature !== null ? Math.round(temperature) : null,
             precipitationProbability:
               precipitationProbability !== null
                 ? normalizePercent(precipitationProbability)
@@ -587,7 +780,33 @@ export function resolveHomeAssistantWeatherPage(
         ];
       },
     )
-    .slice(0, 6);
+    .slice(0, WEATHER_HOURLY_FORECAST_POINT_COUNT);
+
+  const hourlyForecast = Array.from(
+    { length: WEATHER_HOURLY_FORECAST_POINT_COUNT },
+    (_, index) => {
+      const baseEntry = baseHourlyForecast[index];
+      const sensorEntry = hourlySensorForecast[index];
+      if (!baseEntry && !sensorEntry) {
+        const fallbackDate = new Date(now.getTime());
+        fallbackDate.setHours(fallbackDate.getHours() + index + 1);
+        return {
+          label: formatWeatherHourlyLabelForDate(fallbackDate),
+          temperature: null,
+          precipitationProbability: null,
+        };
+      }
+
+      return {
+        label: baseEntry?.label ?? sensorEntry?.label ?? "",
+        temperature: sensorEntry?.temperature ?? baseEntry?.temperature ?? null,
+        precipitationProbability:
+          sensorEntry?.precipitationProbability ??
+          baseEntry?.precipitationProbability ??
+          null,
+      };
+    },
+  );
 
   return {
     temperature: current?.temperature ?? null,
@@ -622,14 +841,32 @@ export function resolveHomeAssistantWeatherPage(
 
 export function resolveHomeAssistantThermostat(
   entity: HomeAssistantEntityState | undefined,
+  options?: {
+    now?: Date;
+  },
 ) {
   if (!entity) {
     return undefined;
   }
 
+  const now = options?.now ?? new Date();
   const current = asFiniteNumber(entity.attributes.current_temperature);
   const targetFromAttributes = asFiniteNumber(entity.attributes.temperature);
   const targetFromState = asFiniteNumber(entity.state);
+  const supportedModes = new Set(
+    readHomeAssistantModeList(entity.attributes.hvac_modes),
+  );
+  const activeMode = entity.state.trim().toLowerCase();
+  const supportsActivate =
+    supportedModes.has("heat") ||
+    supportedModes.has("auto") ||
+    supportedModes.has("heat_cool");
+  const supportsDeactivate = supportedModes.has("off");
+  const supportsCool = supportedModes.has("cool");
+  const history = readThermostatHistoryEntries(
+    entity.attributes.temperature_history,
+    now,
+  );
 
   return {
     currentValue: current !== null ? Number(current.toFixed(1)) : undefined,
@@ -639,7 +876,56 @@ export function resolveHomeAssistantThermostat(
         : targetFromState !== null
           ? Number(targetFromState.toFixed(1))
           : undefined,
+    temperatureUnit: normalizeTemperatureUnitLabel(
+      entity.attributes.temperature_unit ??
+        entity.attributes.native_temperature_unit,
+    ),
+    supportsActivate,
+    supportsDeactivate,
+    supportsCool,
+    activeControl:
+      activeMode === "off"
+        ? "deactivate"
+        : activeMode === "cool"
+          ? "cool"
+          : activeMode &&
+              activeMode !== "unknown" &&
+              activeMode !== "unavailable" &&
+              activeMode !== "none"
+            ? "activate"
+            : undefined,
+    history: history.map((entry) => ({
+      label: formatThermostatHistoryLabel(
+        parseWeatherDateLike(entry.datetime) ?? now,
+      ),
+      temperature: entry.temperature,
+    })),
   };
+}
+
+export function collectThermostatHistoryEntityIds(
+  pages: Array<{
+    widgets: Array<{
+      type?: string;
+      showHistoryGraph?: boolean;
+      homeAssistant?: HomeAssistantBinding | undefined;
+    }>;
+  }>,
+) {
+  const seen = new Set<string>();
+  for (const page of pages) {
+    for (const widget of page.widgets) {
+      const entityId = widget.homeAssistant?.entityId?.trim();
+      if (
+        widget.type === "thermostat" &&
+        widget.showHistoryGraph === true &&
+        entityId
+      ) {
+        seen.add(entityId);
+      }
+    }
+  }
+  return Array.from(seen);
 }
 
 export function resolveHomeAssistantMediaPlayer(
