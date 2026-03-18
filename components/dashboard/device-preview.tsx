@@ -1293,9 +1293,9 @@ function PreviewAnalogClock({ widget, now, darkMode }: { widget: WidgetConfig; n
             x1="80"
             y1="80"
             x2="80"
-            y2="44"
+            y2="58"
             stroke="currentColor"
-            strokeWidth="6"
+            strokeWidth="7"
             strokeLinecap="round"
             transform={`rotate(${hourAngle} 80 80)`}
           />
@@ -1373,8 +1373,8 @@ function PreviewOverviewPage({
         clockWidgetIndex >= 0 && entry.index > clockWidgetIndex,
     )
     .map((entry) => entry.widget);
-  const switchWidgets = page.widgets
-    .filter((widget) => widget.type === "switch")
+  const buttonWidgets = page.widgets
+    .filter((widget) => widget.type === "button")
     .slice(0, 6);
   const hours = now ? now.getHours() % 12 : 10;
   const minutes = now ? now.getMinutes() : 10;
@@ -1479,10 +1479,10 @@ function PreviewOverviewPage({
         ) : null}
       </div>
 
-      {switchWidgets.length > 0 ? (
+      {buttonWidgets.length > 0 ? (
         <div className="mt-3 flex justify-center pb-3">
           <div className="grid max-w-[15.5rem] grid-cols-3 gap-x-5 gap-y-4">
-            {switchWidgets.map((widget) => {
+            {buttonWidgets.map((widget) => {
               const entity = getBoundEntityState(widget, homeAssistantStates);
               const enabled =
                 resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
@@ -1630,6 +1630,8 @@ export function DevicePreview({
                   case "progress":
                     return <PreviewProgress key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "switch":
+                    return <PreviewSwitch key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                  case "button":
                     return <PreviewSwitch key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
                   case "slider":
                     return <PreviewSlider key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;

@@ -451,11 +451,11 @@ function EditableWidgetCard({
   const dragControls = useDragControls();
   const [sliderIconPickerOpen, setSliderIconPickerOpen] = useState(false);
   const homeAssistantReady = isHomeAssistantConfigured(homeAssistant);
-  const sliderIconOption = widget.type === "slider" || widget.type === "switch"
+  const sliderIconOption = widget.type === "slider" || widget.type === "button"
     ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
     : null;
   const sliderIconLabel =
-    widget.type === "slider" || widget.type === "switch"
+    widget.type === "slider" || widget.type === "button"
       ? sliderIconOption?.label ??
         formatMdiIconLabel(widget.icon ?? SLIDER_ICON_OPTIONS[0].value)
       : "";
@@ -632,9 +632,9 @@ function EditableWidgetCard({
           </div>
         ) : null}
 
-        {(widget.type === "slider" || widget.type === "switch") && (
+        {(widget.type === "slider" || widget.type === "button") && (
           <div className="space-y-2">
-            <Label>{widget.type === "switch" ? "Switch Icon" : "Slider Icon"}</Label>
+            <Label>{widget.type === "button" ? "Button Icon" : "Slider Icon"}</Label>
             <button
               type="button"
               onClick={() => setSliderIconPickerOpen(true)}
@@ -765,11 +765,11 @@ function EditableWidgetCard({
         </div>
       ) : null}
 
-      {widget.type === "slider" || widget.type === "switch" ? (
+      {widget.type === "slider" || widget.type === "button" ? (
         <SliderIconPickerDialog
           open={sliderIconPickerOpen}
           selectedIcon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
-          title={widget.type === "switch" ? "Choose Switch Icon" : "Choose Slider Icon"}
+          title={widget.type === "button" ? "Choose Button Icon" : "Choose Slider Icon"}
           onClose={() => setSliderIconPickerOpen(false)}
           onSelect={(icon) =>
             onUpdate(widget.id, (current) => ({
@@ -1099,7 +1099,25 @@ export default function Home() {
 
   function updatePages(updater: (current: PageConfig[]) => PageConfig[]) {
     setPages((current) =>
-      updater(Array.isArray(current) ? current : DEFAULT_BUILD_CONFIG.pages),
+      normalizeBuildConfig({
+        darkMode,
+        fontName: selectedFont,
+        partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
+        fullRefreshEvery,
+        homeAssistant,
+        pages: updater(
+          normalizeBuildConfig({
+            darkMode,
+            fontName: selectedFont,
+            partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
+            fullRefreshEvery,
+            homeAssistant,
+            pages: Array.isArray(current)
+              ? current
+              : DEFAULT_BUILD_CONFIG.pages,
+          }).pages,
+        ),
+      }).pages,
     );
   }
 
@@ -1144,13 +1162,13 @@ export default function Home() {
       return;
     }
     if (editorPage.type === "overview") {
-      if (type !== "clock" && type !== "switch" && type !== "text") {
+      if (type !== "clock" && type !== "button" && type !== "text") {
         return;
       }
       if (type === "clock" && editorPage.widgets.some((widget) => widget.type === "clock")) {
         return;
       }
-      if (type === "switch" && editorPage.widgets.filter((widget) => widget.type === "switch").length >= 6) {
+      if (type === "button" && editorPage.widgets.filter((widget) => widget.type === "button").length >= 6) {
         return;
       }
     }
@@ -1493,7 +1511,11 @@ export default function Home() {
                                   widgets:
                                     page.widgets.length > 0 &&
                                     nextType !== "overview"
-                                      ? page.widgets
+                                      ? page.widgets.map((widget) =>
+                                          widget.type === "button"
+                                            ? { ...widget, type: "switch", icon: undefined }
+                                            : widget,
+                                        )
                                       : nextType === "overview"
                                         ? [createWidget("clock"), createWidget("text")]
                                         : [
@@ -1586,8 +1608,9 @@ export default function Home() {
                               <p className="mt-2 text-zinc-400">
                                 This page renders a large clock with centered
                                 text and up to six icon-only Home Assistant
-                                switches. Reorder text widgets above or below
-                                the clock to control their placement.
+                                buttons, including cover entities. Reorder text
+                                widgets above or below the clock to control
+                                their placement.
                               </p>
                             </div>
                           ) : null}
@@ -1601,10 +1624,13 @@ export default function Home() {
                                 ? WIDGET_OPTIONS.filter(
                                     (widgetOption) =>
                                       widgetOption.type === "clock" ||
-                                      widgetOption.type === "switch" ||
+                                      widgetOption.type === "button" ||
                                       widgetOption.type === "text",
                                   )
-                                : WIDGET_OPTIONS
+                                : WIDGET_OPTIONS.filter(
+                                    (widgetOption) =>
+                                      widgetOption.type !== "button",
+                                  )
                               ).map((widgetOption) => (
                                 <Button
                                   key={widgetOption.type}
@@ -1620,9 +1646,9 @@ export default function Home() {
                                         editorPage.widgets.some(
                                           (widget) => widget.type === "clock",
                                         )) ||
-                                        (widgetOption.type === "switch" &&
+                                        (widgetOption.type === "button" &&
                                           editorPage.widgets.filter(
-                                            (widget) => widget.type === "switch",
+                                            (widget) => widget.type === "button",
                                           ).length >= 6)))
                                   }
                                 >

@@ -2,6 +2,7 @@ export const HOME_ASSISTANT_WIDGET_TYPES = [
   "weather",
   "progress",
   "switch",
+  "button",
   "slider",
   "thermostat",
 ] as const;
@@ -185,6 +186,16 @@ export function getCompatibleDomainsForWidget(
       ];
     case "switch":
       return ["switch", "input_boolean", "light", "fan", "automation", "script"];
+    case "button":
+      return [
+        "switch",
+        "input_boolean",
+        "light",
+        "fan",
+        "automation",
+        "script",
+        "cover",
+      ];
     case "slider":
       return [
         "light",
@@ -496,7 +507,10 @@ export function resolveHomeAssistantEnabled(
 
 export function resolveHomeAssistantNumericValue(
   entity: HomeAssistantEntityState | undefined,
-  widgetType: Exclude<HomeAssistantWidgetType, "weather" | "switch" | "thermostat">,
+  widgetType: Exclude<
+    HomeAssistantWidgetType,
+    "weather" | "switch" | "button" | "thermostat"
+  >,
 ) {
   if (!entity) {
     return undefined;

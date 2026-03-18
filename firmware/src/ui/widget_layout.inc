@@ -227,8 +227,8 @@ static void layoutOverviewPage()
   int textAboveWidgetCount = 0;
   int textBelowWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
   int textBelowWidgetCount = 0;
-  int switchWidgetIndices[6];
-  int switchWidgetCount = 0;
+  int buttonWidgetIndices[6];
+  int buttonWidgetCount = 0;
 
   for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
   {
@@ -253,9 +253,9 @@ static void layoutOverviewPage()
     {
       textWidgetIndices[textWidgetCount++] = widgetIndex;
     }
-    else if (widget.type == UI_WIDGET_SWITCH && switchWidgetCount < 6)
+    else if (widget.type == UI_WIDGET_BUTTON && buttonWidgetCount < 6)
     {
-      switchWidgetIndices[switchWidgetCount++] = widgetIndex;
+      buttonWidgetIndices[buttonWidgetCount++] = widgetIndex;
     }
   }
 
@@ -271,23 +271,23 @@ static void layoutOverviewPage()
     }
   }
 
-  const int switchRows = switchWidgetCount > 3 ? 2 : (switchWidgetCount > 0 ? 1 : 0);
-  const int switchCols = switchWidgetCount >= 3 ? 3 : switchWidgetCount;
-  const int switchSize = 84;
-  const int switchGapX = 22;
-  const int switchGapY = 18;
-  const int switchGridHeight = switchRows > 0 ? (switchRows * switchSize) + ((switchRows - 1) * switchGapY) : 0;
+  const int buttonRows = buttonWidgetCount > 3 ? 2 : (buttonWidgetCount > 0 ? 1 : 0);
+  const int buttonCols = buttonWidgetCount >= 3 ? 3 : buttonWidgetCount;
+  const int buttonSize = 84;
+  const int buttonGapX = 22;
+  const int buttonGapY = 18;
+  const int buttonGridHeight = buttonRows > 0 ? (buttonRows * buttonSize) + ((buttonRows - 1) * buttonGapY) : 0;
   const int textHeight = 152;
   const int textGap = 18;
   const int textAboveBlockHeight = textAboveWidgetCount > 0 ? (textAboveWidgetCount * textHeight) + ((textAboveWidgetCount - 1) * textGap) : 0;
   const int textBelowBlockHeight = textBelowWidgetCount > 0 ? (textBelowWidgetCount * textHeight) + ((textBelowWidgetCount - 1) * textGap) : 0;
-  const int switchBlockTop = footerTop - switchGridHeight - 22;
+  const int buttonBlockTop = footerTop - buttonGridHeight - 22;
   const int textAboveBlockTop = contentTop + 10;
-  const int textBelowBlockTop = switchBlockTop - (textBelowBlockHeight > 0 ? textBelowBlockHeight + 20 : 0);
+  const int textBelowBlockTop = buttonBlockTop - (textBelowBlockHeight > 0 ? textBelowBlockHeight + 20 : 0);
   const int clockTop = textAboveBlockHeight > 0
                          ? textAboveBlockTop + textAboveBlockHeight + 12
                          : contentTop + 8;
-  const int clockBottom = (textBelowBlockHeight > 0 ? textBelowBlockTop : switchBlockTop) - 12;
+  const int clockBottom = (textBelowBlockHeight > 0 ? textBelowBlockTop : buttonBlockTop) - 12;
 
   if (clockWidgetIndex >= 0)
   {
@@ -317,18 +317,18 @@ static void layoutOverviewPage()
     textY += textHeight + textGap;
   }
 
-  if (switchCols > 0)
+  if (buttonCols > 0)
   {
-    const int gridWidth = (switchCols * switchSize) + ((switchCols - 1) * switchGapX);
+    const int gridWidth = (buttonCols * buttonSize) + ((buttonCols - 1) * buttonGapX);
     const int startX = (width - gridWidth) / 2;
-    for (int index = 0; index < switchWidgetCount; index++)
+    for (int index = 0; index < buttonWidgetCount; index++)
     {
       const int row = index / 3;
       const int col = index % 3;
-      WidgetRuntimeState &state = getWidgetState(currentPageIndex, switchWidgetIndices[index]);
-      const int x = startX + (col * (switchSize + switchGapX));
-      const int y = switchBlockTop + (row * (switchSize + switchGapY));
-      state.cardRect = {x, y, switchSize, switchSize};
+      WidgetRuntimeState &state = getWidgetState(currentPageIndex, buttonWidgetIndices[index]);
+      const int x = startX + (col * (buttonSize + buttonGapX));
+      const int y = buttonBlockTop + (row * (buttonSize + buttonGapY));
+      state.cardRect = {x, y, buttonSize, buttonSize};
       state.contentRect = state.cardRect;
       state.controlRect = state.cardRect;
     }
@@ -452,10 +452,12 @@ static void layoutCurrentPage()
     const bool thermostatHistoryGraph = thermostatWidgetShowsHistoryGraph(widget);
     int cardHeight = (visibleWidgetIndex == visibleWidgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
     const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
+                                                               : widget.type == UI_WIDGET_BUTTON   ? 56
                                                                : widget.type == UI_WIDGET_TEXT       ? 148
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 182 : 100)
                                                                                                      : 88;
     const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
+                                                               : widget.type == UI_WIDGET_BUTTON   ? 92
                                                                : widget.type == UI_WIDGET_TEXT       ? 244
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 224 : 132)
                                                                                                      : 340;
@@ -486,7 +488,7 @@ static void layoutCurrentPage()
         state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - 21, state.cardRect.w - 36, 9};
       }
     }
-    else if (widget.type == UI_WIDGET_SWITCH)
+    else if (widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON)
     {
       state.controlRect = {state.cardRect.x + state.cardRect.w - 130, state.cardRect.y + (state.cardRect.h / 2) - 18, 96, 36};
     }

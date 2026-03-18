@@ -76,6 +76,8 @@ function widgetTypeToCpp(type: string) {
       return "UI_WIDGET_PROGRESS";
     case "switch":
       return "UI_WIDGET_SWITCH";
+    case "button":
+      return "UI_WIDGET_BUTTON";
     case "slider":
       return "UI_WIDGET_SLIDER";
     case "thermostat":
@@ -110,7 +112,7 @@ function collectWidgetIconNames(payload: BuildPayload) {
     new Set(
       config.pages.flatMap((page) =>
         page.widgets.flatMap((widget) =>
-          (widget.type === "slider" || widget.type === "switch") &&
+          (widget.type === "slider" || widget.type === "button") &&
           typeof widget.icon === "string" &&
           widget.icon.trim().length > 0
             ? [widget.icon.trim()]
@@ -181,7 +183,7 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
               ? sanitizeMultilineCString(widget.label)
               : sanitizeCString(widget.label);
           const icon = sanitizeCString(
-            widget.type === "slider" || widget.type === "switch"
+            widget.type === "slider" || widget.type === "button"
               ? (widget.icon ?? "lightbulb")
               : "",
           );
@@ -236,9 +238,10 @@ enum UiWidgetType : uint8_t {
   UI_WIDGET_WEATHER = 1,
   UI_WIDGET_PROGRESS = 2,
   UI_WIDGET_SWITCH = 3,
-  UI_WIDGET_SLIDER = 4,
-  UI_WIDGET_THERMOSTAT = 5,
-  UI_WIDGET_TEXT = 6,
+  UI_WIDGET_BUTTON = 4,
+  UI_WIDGET_SLIDER = 5,
+  UI_WIDGET_THERMOSTAT = 6,
+  UI_WIDGET_TEXT = 7,
   UI_WIDGET_NONE = 255,
 };
 

@@ -44,7 +44,15 @@ export type FontName = (typeof FONT_OPTIONS)[number]["name"];
 export type ClockStyle = (typeof CLOCK_STYLE_OPTIONS)[number]["value"];
 export type SliderIconName = string;
 export type PageType = (typeof PAGE_TYPE_OPTIONS)[number]["value"];
-export type WidgetType = "clock" | "weather" | "progress" | "switch" | "slider" | "thermostat" | "text";
+export type WidgetType =
+  | "clock"
+  | "weather"
+  | "progress"
+  | "switch"
+  | "button"
+  | "slider"
+  | "thermostat"
+  | "text";
 
 export type WidgetConfig = {
   id: string;
@@ -86,6 +94,7 @@ export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
   { type: "weather", label: "Weather" },
   { type: "progress", label: "Progress Bar" },
   { type: "switch", label: "Switch" },
+  { type: "button", label: "Button" },
   { type: "slider", label: "Slider" },
   { type: "thermostat", label: "Thermostat" },
   { type: "text", label: "Text" },
@@ -172,6 +181,8 @@ export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
       return count > 1 ? `Progress ${count}` : "Progress";
     case "switch":
       return count > 1 ? `Switch ${count}` : "Switch";
+    case "button":
+      return count > 1 ? `Button ${count}` : "Button";
     case "slider":
       return count > 1 ? `Slider ${count}` : "Slider";
     case "thermostat":
@@ -213,6 +224,13 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
   }
 
   if (type === "switch") {
+    return {
+      ...base,
+      enabled: false,
+    };
+  }
+
+  if (type === "button") {
     return {
       ...base,
       enabled: false,
@@ -333,6 +351,7 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     type !== "weather" &&
     type !== "progress" &&
     type !== "switch" &&
+    type !== "button" &&
     type !== "slider" &&
     type !== "thermostat" &&
     type !== "text"
@@ -379,9 +398,11 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     normalized.mqttName = normalizeTextWidgetMqttName(candidate.mqttName);
   }
 
-  if (type === "switch") {
+  if (type === "switch" || type === "button") {
     normalized.enabled = Boolean(candidate.enabled);
-    normalized.icon = normalizeSliderIcon(candidate.icon);
+    if (type === "button") {
+      normalized.icon = normalizeSliderIcon(candidate.icon);
+    }
   }
 
   normalized.homeAssistant = normalizeHomeAssistantBinding(
@@ -485,7 +506,16 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
                 : widgetsInput
                     .slice(0, MAX_WIDGETS_PER_PAGE)
                     .map((widget, widgetIndex) => normalizeWidget(widget, widgetIndex))
-                    .filter((widget): widget is WidgetConfig => widget !== null);
+                    .filter((widget): widget is WidgetConfig => widget !== null)
+                    .map((widget) =>
+                      type === "overview"
+                        ? widget.type === "switch"
+                          ? { ...widget, type: "button" as const, icon: widget.icon ?? SLIDER_ICON_OPTIONS[0].value }
+                          : widget
+                        : widget.type === "button"
+                          ? { ...widget, type: "switch" as const, icon: undefined }
+                          : widget,
+                    );
             const homeAssistant = normalizeHomeAssistantBinding(
               rawPage.homeAssistant,
             );

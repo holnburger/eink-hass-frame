@@ -18,6 +18,7 @@ static void drawWidgetByType(int widgetIndex, bool pushPartial)
     drawProgressWidget(widgetIndex, pushPartial);
     break;
   case UI_WIDGET_SWITCH:
+  case UI_WIDGET_BUTTON:
     drawSwitchWidget(widgetIndex, pushPartial);
     break;
   case UI_WIDGET_SLIDER:

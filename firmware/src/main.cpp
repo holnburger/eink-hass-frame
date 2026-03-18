@@ -1682,6 +1682,7 @@ static int widgetWeight(const UiWidgetConfig &widget)
   case UI_WIDGET_PROGRESS:
     return 6;
   case UI_WIDGET_SWITCH:
+  case UI_WIDGET_BUTTON:
     return 5;
   case UI_WIDGET_SLIDER:
     return 10;
@@ -3653,6 +3654,7 @@ static void drawHomeAssistantBackedWidget(int pageIndex, int widgetIndex)
     drawProgressWidget(widgetIndex, true);
     break;
   case UI_WIDGET_SWITCH:
+  case UI_WIDGET_BUTTON:
     drawSwitchWidget(widgetIndex, true);
     break;
   case UI_WIDGET_SLIDER:
@@ -3685,7 +3687,7 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
   const bool previousHomeAssistantAvailable = state.homeAssistantAvailable;
   bool changed = false;
 
-  if (widget.type == UI_WIDGET_SWITCH)
+  if (widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON)
   {
     const bool nextEnabled =
         strcmp(rawState, "on") == 0 ||
@@ -5209,12 +5211,26 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
 
   const WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
   const String domain = getEntityDomainString(widget.entityId);
+  String serviceDomain = domain;
   String service;
   String payload = String("{\"entity_id\":\"") + widget.entityId + "\"";
 
   if (widget.type == UI_WIDGET_SWITCH)
   {
     service = state.enabled ? "turn_on" : "turn_off";
+  }
+  else if (widget.type == UI_WIDGET_BUTTON)
+  {
+    if (domain == "cover")
+    {
+      serviceDomain = "cover";
+      service = "toggle";
+    }
+    else
+    {
+      serviceDomain = "homeassistant";
+      service = "toggle";
+    }
   }
   else if (widget.type == UI_WIDGET_SLIDER)
   {
@@ -5278,7 +5294,7 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
 
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
+  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + serviceDomain + "/" + service);
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -5682,7 +5698,7 @@ static void pollTouchInput()
         const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
         WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
 
-        if (widget.type == UI_WIDGET_SWITCH && isPointInRectExpanded(tx, ty, state.cardRect, 10))
+        if ((widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON) && isPointInRectExpanded(tx, ty, state.cardRect, 10))
         {
           lastTouchActionMs = now;
           state.enabled = !state.enabled;
@@ -5933,7 +5949,8 @@ static void runDisplayLoop()
         const bool minuteChanged = strncmp(currentClock, state.lastClockText, 5) != 0;
         if (clockWidgetIsAnalog(widget))
         {
-          drawClockWidget(widgetIndex, true);
+          drawAnalogClockPartial(widgetIndex);
+          snprintf(state.lastClockText, sizeof(state.lastClockText), "%s", currentClock);
         }
         else if (!secondsEnabled || minuteChanged)
         {

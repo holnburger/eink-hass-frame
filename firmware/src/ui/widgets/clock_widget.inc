@@ -50,12 +50,29 @@ static void drawLargeClockText(const WidgetRuntimeState &state, const char *cloc
   }
 }
 
+static void drawClockWidget(int widgetIndex, bool pushPartial);
+
 static void drawClockHand(int cx, int cy, float degrees, int length, int thickness)
 {
   const float radians = (degrees - 90.0f) * 0.01745329252f;
   const int x2 = cx + (int)roundf(cosf(radians) * length);
   const int y2 = cy + (int)roundf(sinf(radians) * length);
   drawBoldLine(cx, cy, x2, y2, thickness);
+}
+
+static void clearAnalogClockFaceRegion(const WidgetRuntimeState &state)
+{
+  if (state.faceRect.w <= 0 || state.faceRect.h <= 0)
+  {
+    return;
+  }
+
+  const int padding = 6;
+  const int clearX = state.faceRect.x - padding;
+  const int clearY = state.faceRect.y - padding;
+  const int clearW = state.faceRect.w + (padding * 2);
+  const int clearH = state.faceRect.h + (padding * 2);
+  display.fillRect(clearX, clearY, clearW, clearH, uiMonoPaper());
 }
 
 static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntimeState &state, const struct tm &timeInfo)
@@ -84,7 +101,7 @@ static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntim
 
   const float hourDegrees = ((timeInfo.tm_hour % 12) + (timeInfo.tm_min / 60.0f)) * 30.0f;
   const float minuteDegrees = (timeInfo.tm_min + (timeInfo.tm_sec / 60.0f)) * 6.0f;
-  drawClockHand(cx, cy, hourDegrees, outerRadius - 34, 7);
+  drawClockHand(cx, cy, hourDegrees, outerRadius - 52, 9);
   drawClockHand(cx, cy, minuteDegrees, outerRadius - 20, 5);
 
   if (clockWidgetShowsSeconds(widget))
@@ -94,6 +111,32 @@ static void drawAnalogClockFace(const UiWidgetConfig &widget, const WidgetRuntim
   }
 
   display.fillCircle(cx, cy, 5, uiMonoInk());
+}
+
+static void drawAnalogClockPartial(int widgetIndex)
+{
+  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
+  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
+  if (state.faceRect.w <= 0 || state.faceRect.h <= 0)
+  {
+    drawClockWidget(widgetIndex, true);
+    return;
+  }
+
+  struct tm timeInfo;
+  if (!readClockTime(timeInfo))
+  {
+    drawClockWidget(widgetIndex, true);
+    return;
+  }
+
+  display.setMode(BB_MODE_1BPP);
+  setThemeMonoText();
+  clearAnalogClockFaceRegion(state);
+  drawAnalogClockFace(widget, state, timeInfo);
+  display.partialUpdate(false);
+  partialCounter++;
+  lastPartialRefresh = millis();
 }
 
 static void drawClockWidget(int widgetIndex, bool pushPartial)
@@ -120,6 +163,7 @@ static void drawClockWidget(int widgetIndex, bool pushPartial)
 
   if (clockWidgetIsAnalog(widget) && hasTime && state.faceRect.w > 0 && state.faceRect.h > 0)
   {
+    clearAnalogClockFaceRegion(state);
     drawAnalogClockFace(widget, state, timeInfo);
   }
   else
