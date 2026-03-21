@@ -59,8 +59,29 @@ const MEDIA_MOCK = {
   state: "playing",
 } as const;
 
-const PREVIEW_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-const PREVIEW_HOURLY_LABELS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"] as const;
+const PREVIEW_DAY_LABELS = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun",
+] as const;
+const PREVIEW_HOURLY_LABELS = [
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+] as const;
 
 function truncateMediaTitle(title: string, fontClass: string) {
   const hardLimit = fontClass.includes("font-mono") ? 22 : 30;
@@ -104,10 +125,19 @@ function WeatherGlyph({
   );
 }
 
-function WeatherIcon({ condition, className = "h-14 w-14" }: { condition: string; className?: string }) {
+function WeatherIcon({
+  condition,
+  className = "h-14 w-14",
+}: {
+  condition: string;
+  className?: string;
+}) {
   const iconName = useMemo(() => {
     const normalizedCondition = condition.toLowerCase();
-    if (normalizedCondition.includes("clear-night") || normalizedCondition.includes("night")) {
+    if (
+      normalizedCondition.includes("clear-night") ||
+      normalizedCondition.includes("night")
+    ) {
       return "night-clear";
     }
     if (normalizedCondition.includes("partly")) {
@@ -115,7 +145,10 @@ function WeatherIcon({ condition, className = "h-14 w-14" }: { condition: string
         ? "night-alt-partly-cloudy"
         : "day-cloudy";
     }
-    if (normalizedCondition.includes("sunny") || normalizedCondition.includes("clear")) {
+    if (
+      normalizedCondition.includes("sunny") ||
+      normalizedCondition.includes("clear")
+    ) {
       return "day-sunny";
     }
     if (normalizedCondition.includes("windy-variant")) {
@@ -130,13 +163,19 @@ function WeatherIcon({ condition, className = "h-14 w-14" }: { condition: string
     ) {
       return "sprinkle";
     }
-    if (normalizedCondition.includes("lightning-rainy") || normalizedCondition.includes("storm")) {
+    if (
+      normalizedCondition.includes("lightning-rainy") ||
+      normalizedCondition.includes("storm")
+    ) {
       return "storm-showers";
     }
     if (normalizedCondition.includes("lightning")) {
       return "lightning";
     }
-    if (normalizedCondition.includes("snowy-rainy") || normalizedCondition.includes("sleet")) {
+    if (
+      normalizedCondition.includes("snowy-rainy") ||
+      normalizedCondition.includes("sleet")
+    ) {
       return "sleet";
     }
     if (normalizedCondition.includes("snow")) {
@@ -148,7 +187,10 @@ function WeatherIcon({ condition, className = "h-14 w-14" }: { condition: string
     if (normalizedCondition.includes("fog")) {
       return "fog";
     }
-    if (normalizedCondition.includes("pouring") || normalizedCondition.includes("showers")) {
+    if (
+      normalizedCondition.includes("pouring") ||
+      normalizedCondition.includes("showers")
+    ) {
       return "showers";
     }
     if (normalizedCondition.includes("rain")) {
@@ -203,10 +245,14 @@ function PreviewSwitch({
     resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
 
   return (
-    <div className={`rounded-[1.25rem] px-4 py-3 text-left ${previewCardClasses(darkMode)}`}>
+    <div
+      className={`rounded-[1.25rem] px-4 py-3 text-left ${previewCardClasses(darkMode)}`}
+    >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">Switch</p>
+          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
+            Switch
+          </p>
           <p className="mt-0.5 text-base font-semibold">{widget.label}</p>
         </div>
         <span
@@ -225,11 +271,7 @@ function PreviewSwitch({
   );
 }
 
-function PreviewText({
-  widget,
-}: {
-  widget: WidgetConfig;
-}) {
+function PreviewText({ widget }: { widget: WidgetConfig }) {
   return (
     <div className="px-4 py-4 text-center">
       <p className="whitespace-pre-line text-[1.28rem] leading-[2.28]">
@@ -260,17 +302,25 @@ function PreviewProgress({
     : Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
 
   return (
-    <div className={`rounded-[1.25rem] px-4 py-3 ${previewCardClasses(darkMode)}`}>
+    <div
+      className={`rounded-[1.25rem] px-4 py-3 ${previewCardClasses(darkMode)}`}
+    >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">Progress</p>
+          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
+            Progress
+          </p>
           <p className="mt-0.5 text-base font-semibold">{widget.label}</p>
         </div>
         {value !== null ? (
-          <p className="text-sm font-medium tabular-nums opacity-70">{value}%</p>
+          <p className="text-sm font-medium tabular-nums opacity-70">
+            {value}%
+          </p>
         ) : null}
       </div>
-      <div className={`mt-3 h-3 rounded-full p-0.5 ${darkMode ? "bg-white/10" : "bg-zinc-400/25"}`}>
+      <div
+        className={`mt-3 h-3 rounded-full p-0.5 ${darkMode ? "bg-white/10" : "bg-zinc-400/25"}`}
+      >
         <div
           className="h-full rounded-full bg-[linear-gradient(90deg,#111827_0%,#6b7280_100%)]"
           style={{ width: `${value ?? 0}%` }}
@@ -300,15 +350,15 @@ function PreviewSlider({
     <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">Slider</p>
+          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
+            Slider
+          </p>
           <p className="mt-1 text-lg font-semibold">{widget.label}</p>
         </div>
         <p className="text-sm font-medium tabular-nums opacity-70">{value}%</p>
       </div>
       <div className="mt-4">
-        <div
-          className="relative h-11 touch-none select-none"
-        >
+        <div className="relative h-11 touch-none select-none">
           <div
             className={`absolute inset-0 rounded-full border ${darkMode ? "border-white/70 bg-black" : "border-zinc-900 bg-white"}`}
           />
@@ -368,35 +418,49 @@ function PreviewThermostat({
   });
   const currentTemp =
     liveThermostat?.currentValue ??
-    (hasHomeAssistantBinding ? undefined : widget.currentValue ?? 20.5);
+    (hasHomeAssistantBinding ? undefined : (widget.currentValue ?? 20.5));
   const targetTemp =
     liveThermostat?.value ??
-    (hasHomeAssistantBinding ? undefined : widget.value ?? 22.5);
+    (hasHomeAssistantBinding ? undefined : (widget.value ?? 22.5));
   const temperatureUnit = liveThermostat?.temperatureUnit ?? "°C";
   const thermostatControls = [
     liveThermostat?.supportsActivate
-      ? { key: "activate", icon: "power", active: liveThermostat.activeControl === "activate" }
+      ? {
+          key: "activate",
+          icon: "power",
+          active: liveThermostat.activeControl === "activate",
+        }
       : null,
     liveThermostat?.supportsDeactivate
-      ? { key: "deactivate", icon: "power-off", active: liveThermostat.activeControl === "deactivate" }
+      ? {
+          key: "deactivate",
+          icon: "power-off",
+          active: liveThermostat.activeControl === "deactivate",
+        }
       : null,
     liveThermostat?.supportsCool
-      ? { key: "cool", icon: "snowflake", active: liveThermostat.activeControl === "cool" }
+      ? {
+          key: "cool",
+          icon: "snowflake",
+          active: liveThermostat.activeControl === "cool",
+        }
       : null,
-  ].filter((control): control is { key: string; icon: string; active: boolean } => Boolean(control));
+  ].filter(
+    (control): control is { key: string; icon: string; active: boolean } =>
+      Boolean(control),
+  );
   const currentText =
     typeof currentTemp === "number" ? currentTemp.toFixed(1) : "--.-";
   const targetText =
     typeof targetTemp === "number" ? targetTemp.toFixed(1) : "--.-";
-  const history =
-    !widget.showHistoryGraph
-      ? []
-      : hasHomeAssistantBinding
-        ? (liveThermostat?.history ?? [])
-        : buildPreviewThermostatHistoryFallback(
-            typeof currentTemp === "number" ? currentTemp : 20.5,
-            now,
-          );
+  const history = !widget.showHistoryGraph
+    ? []
+    : hasHomeAssistantBinding
+      ? (liveThermostat?.history ?? [])
+      : buildPreviewThermostatHistoryFallback(
+          typeof currentTemp === "number" ? currentTemp : 20.5,
+          now,
+        );
 
   return (
     <div
@@ -406,7 +470,9 @@ function PreviewThermostat({
           : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(238,238,234,0.92)_100%)]"
       } ${widget.showHistoryGraph ? "pb-5" : "pb-5.5"}`}
     >
-      <p className="text-[10px] uppercase tracking-[0.22em] opacity-55">Thermostat</p>
+      <p className="text-[10px] uppercase tracking-[0.22em] opacity-55">
+        Thermostat
+      </p>
       <div className="mt-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="truncate text-lg">{widget.label}</p>
@@ -425,17 +491,27 @@ function PreviewThermostat({
         </div>
 
         <div className="mr-6 flex items-start gap-4">
-          <div className="w-[10rem] shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-[0.16em] opacity-45">Current / Target</p>
+          <div className="w-40 shrink-0 text-right">
+            <p className="text-[10px] uppercase tracking-[0.16em] opacity-45">
+              Current / Target
+            </p>
             <div className="mt-1.5 flex items-end justify-end gap-3">
               <div className="flex items-end">
-                <p className="text-[1.9rem] font-black tabular-nums leading-none">{currentText}</p>
-                <span className="ml-1 translate-y-[1px] text-[0.72rem] opacity-60">{temperatureUnit}</span>
+                <p className="text-[1.9rem] font-black tabular-nums leading-none">
+                  {currentText}
+                </p>
+                <span className="ml-1 translate-y-px text-[0.72rem] opacity-60">
+                  {temperatureUnit}
+                </span>
               </div>
-              <span className="translate-y-[1px] text-sm opacity-40">/</span>
+              <span className="translate-y-px text-sm opacity-40">/</span>
               <div className="flex items-end">
-                <p className="text-[1.45rem] font-medium tabular-nums leading-none">{targetText}</p>
-                <span className="ml-1 translate-y-[1px] text-[0.68rem] opacity-55">{temperatureUnit}</span>
+                <p className="text-[1.45rem] font-medium tabular-nums leading-none">
+                  {targetText}
+                </p>
+                <span className="ml-1 translate-y-px text-[0.68rem] opacity-55">
+                  {temperatureUnit}
+                </span>
               </div>
             </div>
           </div>
@@ -503,7 +579,8 @@ function PreviewWeather({
   darkMode: boolean;
 }) {
   const weather =
-    resolveHomeAssistantWeather(entity) ?? WEATHER_STATES[index % WEATHER_STATES.length];
+    resolveHomeAssistantWeather(entity) ??
+    WEATHER_STATES[index % WEATHER_STATES.length];
   const temperature =
     typeof weather.temperature === "number" ? weather.temperature : "--";
   const temperatureUnit =
@@ -513,12 +590,19 @@ function PreviewWeather({
     <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">Weather</p>
+          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
+            Weather
+          </p>
           <p className="mt-1 text-lg font-semibold">{widget.label}</p>
-          <p className="mt-3 text-3xl font-semibold tabular-nums">{temperature}{temperatureUnit}</p>
+          <p className="mt-3 text-3xl font-semibold tabular-nums">
+            {temperature}
+            {temperatureUnit}
+          </p>
           <p className="text-sm opacity-70">{weather.condition}</p>
         </div>
-        <div className={`mt-0.5 flex h-32 w-32 items-center justify-center rounded-[1.35rem] ${darkMode ? "bg-white/6" : "bg-zinc-400/6"}`}>
+        <div
+          className={`mt-0.5 flex h-32 w-32 items-center justify-center rounded-[1.35rem] ${darkMode ? "bg-white/6" : "bg-zinc-400/6"}`}
+        >
           <WeatherIcon condition={weather.condition} className="h-28 w-28" />
         </div>
       </div>
@@ -559,19 +643,26 @@ function buildPreviewWeatherDailyFallback(
 ): PreviewWeatherForecastEntry[] {
   if (!now) {
     return Array.from({ length: 3 }, (_, index) => {
-      const source = WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
+      const source =
+        WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
       return {
-        label: PREVIEW_DAY_LABELS[(pageIndex + index + 1) % PREVIEW_DAY_LABELS.length],
+        label:
+          PREVIEW_DAY_LABELS[
+            (pageIndex + index + 1) % PREVIEW_DAY_LABELS.length
+          ],
         temperature: source.temperature,
         lowTemperature: source.temperature - 2,
         condition: source.condition,
-        precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+        precipitationProbability: previewWeatherRainChanceForCondition(
+          source.condition,
+        ),
       };
     });
   }
 
   return Array.from({ length: 3 }, (_, index) => {
-    const source = WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
+    const source =
+      WEATHER_STATES[(pageIndex + index + 1) % WEATHER_STATES.length];
     const date = new Date(now.getTime());
     date.setDate(date.getDate() + index + 1);
     return {
@@ -579,7 +670,9 @@ function buildPreviewWeatherDailyFallback(
       temperature: source.temperature,
       lowTemperature: source.temperature - 2,
       condition: source.condition,
-      precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
+      precipitationProbability: previewWeatherRainChanceForCondition(
+        source.condition,
+      ),
     };
   });
 }
@@ -592,26 +685,48 @@ function buildPreviewWeatherHourlyFallback(
   const offsets = [0, 1, 2, 3, 4, 4, 3, 2, 1, 0, -1, -1];
 
   if (!now) {
-    return Array.from({ length: WEATHER_HOURLY_FORECAST_POINT_COUNT }, (_, index) => {
-      const source = WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
-      return {
-        label: PREVIEW_HOURLY_LABELS[index] ?? PREVIEW_HOURLY_LABELS[PREVIEW_HOURLY_LABELS.length - 1],
-        temperature: Math.round((currentTemperature * 2 + source.temperature + offsets[index]) / 3),
-        precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
-      };
-    });
+    return Array.from(
+      { length: WEATHER_HOURLY_FORECAST_POINT_COUNT },
+      (_, index) => {
+        const source =
+          WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
+        return {
+          label:
+            PREVIEW_HOURLY_LABELS[index] ??
+            PREVIEW_HOURLY_LABELS[PREVIEW_HOURLY_LABELS.length - 1],
+          temperature: Math.round(
+            (currentTemperature * 2 + source.temperature + offsets[index]) / 3,
+          ),
+          precipitationProbability: previewWeatherRainChanceForCondition(
+            source.condition,
+          ),
+        };
+      },
+    );
   }
 
-  return Array.from({ length: WEATHER_HOURLY_FORECAST_POINT_COUNT }, (_, index) => {
-    const source = WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
-    const date = new Date(now.getTime());
-    date.setHours(date.getHours() + index + 1);
-    return {
-      label: date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      temperature: Math.round((currentTemperature * 2 + source.temperature + offsets[index]) / 3),
-      precipitationProbability: previewWeatherRainChanceForCondition(source.condition),
-    };
-  });
+  return Array.from(
+    { length: WEATHER_HOURLY_FORECAST_POINT_COUNT },
+    (_, index) => {
+      const source =
+        WEATHER_STATES[(pageIndex + index) % WEATHER_STATES.length];
+      const date = new Date(now.getTime());
+      date.setHours(date.getHours() + index + 1);
+      return {
+        label: date.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+        temperature: Math.round(
+          (currentTemperature * 2 + source.temperature + offsets[index]) / 3,
+        ),
+        precipitationProbability: previewWeatherRainChanceForCondition(
+          source.condition,
+        ),
+      };
+    },
+  );
 }
 
 function buildPreviewThermostatHistoryFallback(
@@ -624,8 +739,7 @@ function buildPreviewThermostatHistoryFallback(
   return Array.from({ length: THERMOSTAT_HISTORY_POINT_COUNT }, (_, index) => {
     const slotDate = new Date(baseDate.getTime());
     slotDate.setHours(
-      slotDate.getHours() -
-        (THERMOSTAT_HISTORY_POINT_COUNT - 1 - index),
+      slotDate.getHours() - (THERMOSTAT_HISTORY_POINT_COUNT - 1 - index),
     );
     return {
       label: slotDate.toLocaleTimeString("en-GB", {
@@ -661,7 +775,7 @@ function PreviewThermostatHistoryChart({
   );
   if (numericEntries.length === 0) {
     return (
-      <div className="flex h-[5.5rem] items-center justify-center rounded-[1.1rem] border border-current/10 text-[0.72rem] opacity-50">
+      <div className="flex h-22 items-center justify-center rounded-[1.1rem] border border-current/10 text-[0.72rem] opacity-50">
         No temperature history
       </div>
     );
@@ -731,7 +845,10 @@ function PreviewThermostatHistoryChart({
   const labelEdgePadding = 8;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-[6.1rem] w-full overflow-visible">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-[6.1rem] w-full overflow-visible"
+    >
       <path
         d={path}
         fill="none"
@@ -880,7 +997,10 @@ function PreviewWeatherHourlyChart({
   );
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-[7.2rem] w-full overflow-visible">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-[7.2rem] w-full overflow-visible"
+    >
       <path
         d={path}
         fill="none"
@@ -916,11 +1036,9 @@ function PreviewWeatherHourlyChart({
                 fontSize="8"
                 fill={secondaryColor}
               >
-                {
-                  typeof point.precipitationProbability === "number"
-                    ? `${point.precipitationProbability}%`
-                    : "--"
-                }
+                {typeof point.precipitationProbability === "number"
+                  ? `${point.precipitationProbability}%`
+                  : "--"}
               </text>
               <text
                 x={point.x}
@@ -958,7 +1076,8 @@ function PreviewWeatherFocusPage({
         states: homeAssistantStates,
       })
     : undefined;
-  const current = weatherPage ?? WEATHER_STATES[pageIndex % WEATHER_STATES.length];
+  const current =
+    weatherPage ?? WEATHER_STATES[pageIndex % WEATHER_STATES.length];
   const temperatureUnit = weatherPage?.temperatureUnit ?? "°C";
   const currentTemperature =
     typeof current.temperature === "number" ? current.temperature : "--";
@@ -969,18 +1088,20 @@ function PreviewWeatherFocusPage({
       ? `${Math.round(weatherPage.apparentTemperature)}${temperatureUnit}`
       : `${numericCurrentTemperature - 1}${temperatureUnit}`;
   const hasLiveWeather = Boolean(entity);
-  const upcoming =
-    weatherPage?.forecast.length
-      ? weatherPage.forecast
-      : hasLiveWeather
-        ? []
+  const upcoming = weatherPage?.forecast.length
+    ? weatherPage.forecast
+    : hasLiveWeather
+      ? []
       : buildPreviewWeatherDailyFallback(pageIndex, now);
-  const hourly =
-    weatherPage?.hourlyForecast.length
-      ? weatherPage.hourlyForecast
-      : hasLiveWeather
-        ? []
-      : buildPreviewWeatherHourlyFallback(pageIndex, numericCurrentTemperature, now);
+  const hourly = weatherPage?.hourlyForecast.length
+    ? weatherPage.hourlyForecast
+    : hasLiveWeather
+      ? []
+      : buildPreviewWeatherHourlyFallback(
+          pageIndex,
+          numericCurrentTemperature,
+          now,
+        );
   const stats = [
     {
       icon: "humidity",
@@ -1016,24 +1137,31 @@ function PreviewWeatherFocusPage({
       <div className="relative z-10 flex h-full flex-col px-4 pb-4 pt-4">
         <div
           className={`rounded-[1.9rem] px-4 pb-5 pt-4 ${
-            darkMode ? "bg-white/[0.04]" : "bg-white/70"
+            darkMode ? "bg-white/4" : "bg-white/70"
           }`}
         >
           <p className="text-center text-[9px] uppercase tracking-[0.18em] opacity-45">
             {formatPreviewWeatherDate(now)}
           </p>
           <div className="mt-5 flex items-center justify-between gap-4">
-            <div className="flex h-[12.5rem] w-[12.5rem] items-center justify-center">
-              <WeatherIcon condition={current.condition} className="h-[12.2rem] w-[12.2rem]" />
+            <div className="flex h-50 w-50 items-center justify-center">
+              <WeatherIcon
+                condition={current.condition}
+                className="h-[12.2rem] w-[12.2rem]"
+              />
             </div>
             <div className="flex-1 text-right">
               <div className="mt-4 flex items-start justify-end gap-1">
                 <p className="text-[4.9rem] font-semibold leading-[0.84] tabular-nums">
                   {currentTemperature}
                 </p>
-                <p className="pt-3 text-[1.35rem] font-medium opacity-75">{temperatureUnit}</p>
+                <p className="pt-3 text-[1.35rem] font-medium opacity-75">
+                  {temperatureUnit}
+                </p>
               </div>
-              <p className="mt-1 text-[0.72rem] opacity-52">Feels like {feelsLike}</p>
+              <p className="mt-1 text-[0.72rem] opacity-52">
+                Feels like {feelsLike}
+              </p>
               <p className="mt-1 text-[0.86rem] uppercase tracking-[0.14em] opacity-55">
                 {current.condition}
               </p>
@@ -1044,25 +1172,36 @@ function PreviewWeatherFocusPage({
         <div
           className={`mt-3 grid grid-cols-3 divide-x rounded-[1.35rem] px-1 py-1 ${
             darkMode
-              ? "divide-white/10 bg-white/[0.04]"
+              ? "divide-white/10 bg-white/4"
               : "divide-black/10 bg-white/72"
           }`}
         >
           {stats.map((stat) => (
-            <PreviewWeatherMetric key={stat.icon} icon={stat.icon} value={stat.value} darkMode={darkMode} />
+            <PreviewWeatherMetric
+              key={stat.icon}
+              icon={stat.icon}
+              value={stat.value}
+              darkMode={darkMode}
+            />
           ))}
         </div>
 
         <div
           className={`mt-3 rounded-[1.45rem] px-3 py-3 ${
-            darkMode
-              ? "bg-white/[0.04]"
-              : "bg-white/72"
+            darkMode ? "bg-white/4" : "bg-white/72"
           }`}
         >
           <div className="flex items-center gap-2">
-            <MdiIcon icon="thermometer" size={24} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
-            <MdiIcon icon="weather-pouring" size={24} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
+            <MdiIcon
+              icon="thermometer"
+              size={24}
+              className={darkMode ? "text-zinc-100" : "text-zinc-900"}
+            />
+            <MdiIcon
+              icon="weather-pouring"
+              size={24}
+              className={darkMode ? "text-zinc-100" : "text-zinc-900"}
+            />
           </div>
           <div className="mt-1">
             <PreviewWeatherHourlyChart entries={hourly} darkMode={darkMode} />
@@ -1072,12 +1211,15 @@ function PreviewWeatherFocusPage({
         <div
           className={`mt-3 grid grid-cols-3 divide-x rounded-[1.45rem] px-1 py-2 ${
             darkMode
-              ? "divide-white/10 bg-white/[0.04]"
+              ? "divide-white/10 bg-white/4"
               : "divide-black/10 bg-white/72"
           }`}
         >
           {upcoming.map((entry, index) => {
-            const high = typeof entry.temperature === "number" ? `${entry.temperature}°` : "--";
+            const high =
+              typeof entry.temperature === "number"
+                ? `${entry.temperature}°`
+                : "--";
             const low =
               typeof entry.lowTemperature === "number"
                 ? `${entry.lowTemperature}°`
@@ -1090,15 +1232,24 @@ function PreviewWeatherFocusPage({
                 key={`${entry.label}-${entry.condition}-${index}`}
                 className="px-1 py-1 text-center"
               >
-                <p className="text-[8px] uppercase tracking-[0.14em] opacity-45">{entry.label}</p>
+                <p className="text-[8px] uppercase tracking-[0.14em] opacity-45">
+                  {entry.label}
+                </p>
                 <div className="flex min-h-[4.8rem] items-center justify-center">
-                  <WeatherIcon condition={entry.condition} className="h-[4.35rem] w-[4.35rem]" />
+                  <WeatherIcon
+                    condition={entry.condition}
+                    className="h-[4.35rem] w-[4.35rem]"
+                  />
                 </div>
                 <p className="mt-1 text-[0.6rem] font-medium tabular-nums">
                   {high} / {low}
                 </p>
                 <div className="mt-1 flex items-center justify-center gap-1 text-[0.58rem] tabular-nums opacity-65">
-                  <MdiIcon icon="weather-pouring" size={18} className={darkMode ? "text-zinc-100" : "text-zinc-900"} />
+                  <MdiIcon
+                    icon="weather-pouring"
+                    size={18}
+                    className={darkMode ? "text-zinc-100" : "text-zinc-900"}
+                  />
                   <span>
                     {typeof entry.precipitationProbability === "number"
                       ? `${entry.precipitationProbability}%`
@@ -1142,8 +1293,8 @@ function PreviewMediaPlayerPage({
           : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(241,239,234,0.98)_100%)] text-zinc-900"
       }`}
     >
-      <div className="flex w-full max-w-[22rem] flex-col items-center justify-center px-4 py-6 text-center">
-        <div className="h-[20rem] w-[20rem] overflow-hidden rounded-[2.35rem] border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
+      <div className="flex w-full max-w-88 flex-col items-center justify-center px-4 py-6 text-center">
+        <div className="h-80 w-[20rem] overflow-hidden rounded-[2.35rem] border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
           {hasContent ? (
             media.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1180,16 +1331,18 @@ function PreviewMediaPlayerPage({
         {hasContent ? (
           <>
             {media.artist ? (
-              <p className="mt-4 text-[0.92rem] uppercase tracking-[0.18em] opacity-35">{media.artist}</p>
+              <p className="mt-4 text-[0.92rem] uppercase tracking-[0.18em] opacity-35">
+                {media.artist}
+              </p>
             ) : null}
             <p
-              className={`${media.artist ? "mt-4" : "mt-6"} max-w-[19.75rem] text-[1.1rem] font-medium leading-tight`}
+              className={`${media.artist ? "mt-4" : "mt-6"} max-w-79 text-[1.1rem] font-medium leading-tight`}
               title={media.title}
             >
               {mediaTitle}
             </p>
             <div
-              className={`mt-5 h-2.5 w-[21rem] max-w-full overflow-hidden rounded-full ${
+              className={`mt-5 h-2.5 w-84 max-w-full overflow-hidden rounded-full ${
                 darkMode ? "bg-white/12" : "bg-zinc-400/20"
               }`}
             >
@@ -1198,14 +1351,23 @@ function PreviewMediaPlayerPage({
                 style={{ width: `${media.progress}%` }}
               />
             </div>
-            <div className="mt-4 flex w-[21rem] max-w-full items-center justify-center gap-3">
-              <PreviewMediaControlButton icon="skip-previous" darkMode={darkMode} />
-              <PreviewMediaControlButton icon={playPauseIcon} darkMode={darkMode} emphasized />
+            <div className="mt-4 flex w-84 max-w-full items-center justify-center gap-3">
+              <PreviewMediaControlButton
+                icon="skip-previous"
+                darkMode={darkMode}
+              />
+              <PreviewMediaControlButton
+                icon={playPauseIcon}
+                darkMode={darkMode}
+                emphasized
+              />
               <PreviewMediaControlButton icon="skip-next" darkMode={darkMode} />
             </div>
           </>
         ) : (
-          <p className="mt-6 text-[0.95rem] uppercase tracking-[0.2em] opacity-40">Nothing Playing</p>
+          <p className="mt-6 text-[0.95rem] uppercase tracking-[0.2em] opacity-40">
+            Nothing Playing
+          </p>
         )}
       </div>
     </div>
@@ -1238,9 +1400,19 @@ function PreviewMediaControlButton({
   );
 }
 
-function PreviewDigitalClock({ widget, now, darkMode }: { widget: WidgetConfig; now: Date | null; darkMode: boolean }) {
+function PreviewDigitalClock({
+  widget,
+  now,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  now: Date | null;
+  darkMode: boolean;
+}) {
   return (
-    <div className={`rounded-[1.6rem] px-5 py-6 text-center ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}>
+    <div
+      className={`rounded-[1.6rem] px-5 py-6 text-center ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+    >
       <p className="text-xs uppercase tracking-[0.22em] opacity-55">Clock</p>
       <p className="mt-3 text-[2.2rem] font-semibold tracking-[0.12em] tabular-nums">
         {formatClock(now, widget.showSeconds !== false)}
@@ -1249,7 +1421,15 @@ function PreviewDigitalClock({ widget, now, darkMode }: { widget: WidgetConfig; 
   );
 }
 
-function PreviewAnalogClock({ widget, now, darkMode }: { widget: WidgetConfig; now: Date | null; darkMode: boolean }) {
+function PreviewAnalogClock({
+  widget,
+  now,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  now: Date | null;
+  darkMode: boolean;
+}) {
   const hours = now ? now.getHours() % 12 : 10;
   const minutes = now ? now.getMinutes() : 10;
   const seconds = now ? now.getSeconds() : 30;
@@ -1259,7 +1439,9 @@ function PreviewAnalogClock({ widget, now, darkMode }: { widget: WidgetConfig; n
   const showSeconds = widget.showSeconds !== false;
 
   return (
-    <div className={`rounded-[1.6rem] px-5 py-5 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}>
+    <div
+      className={`rounded-[1.6rem] px-5 py-5 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+    >
       <div className="flex items-center justify-between">
         <p className="text-xs uppercase tracking-[0.22em] opacity-55">Clock</p>
         <p className="text-xs uppercase tracking-[0.18em] opacity-55">
@@ -1268,8 +1450,23 @@ function PreviewAnalogClock({ widget, now, darkMode }: { widget: WidgetConfig; n
       </div>
       <div className="mt-3 flex justify-center">
         <svg viewBox="0 0 160 160" className="h-36 w-36">
-          <circle cx="80" cy="80" r="70" fill={darkMode ? "rgba(8,8,8,0.98)" : "rgba(255,255,255,0.82)"} stroke="currentColor" strokeWidth="4" />
-          <circle cx="80" cy="80" r="58" fill="none" stroke="currentColor" strokeOpacity={darkMode ? "0.36" : "0.22"} strokeWidth="1.5" />
+          <circle
+            cx="80"
+            cy="80"
+            r="70"
+            fill={darkMode ? "rgba(8,8,8,0.98)" : "rgba(255,255,255,0.82)"}
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <circle
+            cx="80"
+            cy="80"
+            r="58"
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity={darkMode ? "0.36" : "0.22"}
+            strokeWidth="1.5"
+          />
           {Array.from({ length: 12 }).map((_, index) => {
             const angle = (index * 30 * Math.PI) / 180;
             const x1 = 80 + Math.sin(angle) * 54;
@@ -1328,7 +1525,15 @@ function PreviewAnalogClock({ widget, now, darkMode }: { widget: WidgetConfig; n
   );
 }
 
-function PreviewClock({ widget, now, darkMode }: { widget: WidgetConfig; now: Date | null; darkMode: boolean }) {
+function PreviewClock({
+  widget,
+  now,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  now: Date | null;
+  darkMode: boolean;
+}) {
   if (widget.clockStyle === "analog") {
     return <PreviewAnalogClock widget={widget} now={now} darkMode={darkMode} />;
   }
@@ -1346,15 +1551,18 @@ function PreviewOverviewPage({
   now: Date | null;
   darkMode: boolean;
 }) {
-  const clockWidget =
-    page.widgets.find((widget) => widget.type === "clock") ?? {
-      id: "preview-overview-clock",
-      type: "clock",
-      label: "Clock",
-      clockStyle: "digital",
-      showSeconds: true,
-    };
-  const clockWidgetIndex = page.widgets.findIndex((widget) => widget.type === "clock");
+  const clockWidget = page.widgets.find(
+    (widget) => widget.type === "clock",
+  ) ?? {
+    id: "preview-overview-clock",
+    type: "clock",
+    label: "Clock",
+    clockStyle: "digital",
+    showSeconds: true,
+  };
+  const clockWidgetIndex = page.widgets.findIndex(
+    (widget) => widget.type === "clock",
+  );
   const orderedTextWidgets = page.widgets
     .map((widget, index) => ({ widget, index }))
     .filter(
@@ -1362,16 +1570,10 @@ function PreviewOverviewPage({
         entry.widget.type === "text" && entry.widget.label.trim().length > 0,
     );
   const textWidgetsAbove = orderedTextWidgets
-    .filter(
-      (entry) =>
-        clockWidgetIndex < 0 || entry.index < clockWidgetIndex,
-    )
+    .filter((entry) => clockWidgetIndex < 0 || entry.index < clockWidgetIndex)
     .map((entry) => entry.widget);
   const textWidgetsBelow = orderedTextWidgets
-    .filter(
-      (entry) =>
-        clockWidgetIndex >= 0 && entry.index > clockWidgetIndex,
-    )
+    .filter((entry) => clockWidgetIndex >= 0 && entry.index > clockWidgetIndex)
     .map((entry) => entry.widget);
   const buttonWidgets = page.widgets
     .filter((widget) => widget.type === "button")
@@ -1403,13 +1605,30 @@ function PreviewOverviewPage({
           <div className="w-full pt-2">{renderTextBlock(textWidgetsAbove)}</div>
         ) : null}
 
-        <div className={`flex min-h-[14rem] w-full items-center justify-center ${
-          textWidgetsAbove.length > 0 ? "mt-3" : ""
-        }`}>
+        <div
+          className={`flex min-h-56 w-full items-center justify-center ${
+            textWidgetsAbove.length > 0 ? "mt-3" : ""
+          }`}
+        >
           {clockWidget.clockStyle === "analog" ? (
-            <svg viewBox="0 0 220 220" className="h-[12.5rem] w-[12.5rem]">
-              <circle cx="110" cy="110" r="95" fill="none" stroke="currentColor" strokeWidth="5" />
-              <circle cx="110" cy="110" r="77" fill="none" stroke="currentColor" strokeOpacity={darkMode ? "0.3" : "0.18"} strokeWidth="1.5" />
+            <svg viewBox="0 0 220 220" className="h-50 w-50">
+              <circle
+                cx="110"
+                cy="110"
+                r="95"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="5"
+              />
+              <circle
+                cx="110"
+                cy="110"
+                r="77"
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity={darkMode ? "0.3" : "0.18"}
+                strokeWidth="1.5"
+              />
               {Array.from({ length: 12 }).map((_, index) => {
                 const angle = (index * 30 * Math.PI) / 180;
                 const x1 = 110 + Math.sin(angle) * 72;
@@ -1481,7 +1700,7 @@ function PreviewOverviewPage({
 
       {buttonWidgets.length > 0 ? (
         <div className="mt-3 flex justify-center pb-3">
-          <div className="grid max-w-[15.5rem] grid-cols-3 gap-x-5 gap-y-4">
+          <div className="grid max-w-62 grid-cols-3 gap-x-5 gap-y-4">
             {buttonWidgets.map((widget) => {
               const entity = getBoundEntityState(widget, homeAssistantStates);
               const enabled =
@@ -1570,14 +1789,18 @@ export function DevicePreview({
 
   return (
     <div
-      className={`mx-auto aspect-[9/16] w-full max-w-xs rounded-[2rem] border p-4 shadow-2xl ${shellClasses} ${fontClass}`}
+      className={`mx-auto aspect-9/16 w-full max-w-xs rounded-4xl border p-4 shadow-2xl ${shellClasses} ${fontClass}`}
     >
       <div className="flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-current/10 bg-white/5 p-3">
         {showPageHeader ? (
           <div className="flex items-start justify-between gap-3 border-b border-current/10 pb-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] opacity-55">M5PaperS3</p>
-              <p className="mt-1 text-[1.02rem] font-medium tracking-[-0.01em]">{activePage.name}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] opacity-55">
+                M5PaperS3
+              </p>
+              <p className="mt-1 text-[1.02rem] font-medium tracking-[-0.01em]">
+                {activePage.name}
+              </p>
             </div>
             <div className="rounded-full border border-current/15 px-2 py-1 text-[10px] uppercase tracking-[0.18em] opacity-70">
               {fontClass.replace("font-", "")}
@@ -1585,7 +1808,9 @@ export function DevicePreview({
           </div>
         ) : null}
 
-        <div className={`${showPageHeader ? "mt-3" : ""} flex-1 overflow-hidden`}>
+        <div
+          className={`${showPageHeader ? "mt-3" : ""} flex-1 overflow-hidden`}
+        >
           {activePage.type === "overview" ? (
             <PreviewOverviewPage
               page={activePage}
@@ -1624,19 +1849,70 @@ export function DevicePreview({
                 const entity = getBoundEntityState(widget, homeAssistantStates);
                 switch (widget.type) {
                   case "clock":
-                    return <PreviewClock key={widget.id} widget={widget} now={now} darkMode={darkMode} />;
+                    return (
+                      <PreviewClock
+                        key={widget.id}
+                        widget={widget}
+                        now={now}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "weather":
-                    return <PreviewWeather key={widget.id} widget={widget} entity={entity} index={index} darkMode={darkMode} />;
+                    return (
+                      <PreviewWeather
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        index={index}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "progress":
-                    return <PreviewProgress key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                    return (
+                      <PreviewProgress
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "switch":
-                    return <PreviewSwitch key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                    return (
+                      <PreviewSwitch
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "button":
-                    return <PreviewSwitch key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                    return (
+                      <PreviewSwitch
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "slider":
-                    return <PreviewSlider key={widget.id} widget={widget} entity={entity} darkMode={darkMode} />;
+                    return (
+                      <PreviewSlider
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "thermostat":
-                    return <PreviewThermostat key={widget.id} widget={widget} entity={entity} now={now} darkMode={darkMode} />;
+                    return (
+                      <PreviewThermostat
+                        key={widget.id}
+                        widget={widget}
+                        entity={entity}
+                        now={now}
+                        darkMode={darkMode}
+                      />
+                    );
                   case "text":
                     return <PreviewText key={widget.id} widget={widget} />;
                   default:
@@ -1651,7 +1927,9 @@ export function DevicePreview({
           <div className="mt-3 flex items-center justify-between gap-3 border-t border-current/10 pt-3">
             <button
               type="button"
-              onClick={() => onPageChange((safePageIndex - 1 + pages.length) % pages.length)}
+              onClick={() =>
+                onPageChange((safePageIndex - 1 + pages.length) % pages.length)
+              }
               className="flex h-8 w-8 items-center justify-center rounded-full text-current/80 transition hover:bg-current/10"
             >
               <ChevronLeft className="h-5 w-5 stroke-[2.6]" />
@@ -1665,7 +1943,9 @@ export function DevicePreview({
                   onClick={() => onPageChange(index)}
                   aria-label={`Open ${page.name}`}
                   className={`h-2.5 rounded-full transition ${
-                    index === safePageIndex ? "w-6 bg-current" : "w-2.5 bg-current/25"
+                    index === safePageIndex
+                      ? "w-6 bg-current"
+                      : "w-2.5 bg-current/25"
                   }`}
                 />
               ))}

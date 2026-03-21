@@ -142,11 +142,15 @@ function SliderIconPickerDialog({
     () => new Set<string>(SLIDER_ICON_OPTIONS.map((option) => option.value)),
     [],
   );
-  const normalizedQuery = searchQuery.trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const normalizedQuery = searchQuery
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
   const selectedPreset = SLIDER_ICON_OPTIONS.find(
     (option) => option.value === selectedIcon,
   );
-  const selectedLabel = selectedPreset?.label ?? formatMdiIconLabel(selectedIcon);
+  const selectedLabel =
+    selectedPreset?.label ?? formatMdiIconLabel(selectedIcon);
   const searchResults = useMemo(() => {
     if (normalizedQuery.length === 0) {
       return [];
@@ -175,9 +179,7 @@ function SliderIconPickerDialog({
         };
       })
       .filter(
-        (
-          result,
-        ): result is { iconName: string; rank: number; label: string } =>
+        (result): result is { iconName: string; rank: number; label: string } =>
           result !== null,
       )
       .sort((left, right) =>
@@ -210,9 +212,7 @@ function SliderIconPickerDialog({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-zinc-100">
-                  {title}
-                </h3>
+                <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
                 <p className="mt-1 text-sm text-zinc-400">
                   Pick from the presets or search the full MDI set. The selected
                   icon is used in both the preview and firmware build.
@@ -313,7 +313,9 @@ function SliderIconPickerDialog({
                           className="h-[1.05rem] w-[1.05rem]"
                         />
                       </span>
-                      <span className="text-sm font-medium">{option.label}</span>
+                      <span className="text-sm font-medium">
+                        {option.label}
+                      </span>
                     </div>
                   </button>
                 );
@@ -333,7 +335,7 @@ function SliderIconPickerDialog({
                   </p>
                 </div>
                 {searchResults.length > 0 ? (
-                  <div className="mt-3 grid max-h-[20rem] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
+                  <div className="mt-3 grid max-h-80 grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
                     {searchResults.map((result) => {
                       const isSelected = result.iconName === selectedIcon;
                       return (
@@ -427,11 +429,7 @@ function EditablePageTab({
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <button
-          type="button"
-          onClick={onSelect}
-          className="px-4 py-2 text-sm"
-        >
+        <button type="button" onClick={onSelect} className="px-4 py-2 text-sm">
           {index + 1}. {page.name}
         </button>
       </div>
@@ -451,13 +449,14 @@ function EditableWidgetCard({
   const dragControls = useDragControls();
   const [sliderIconPickerOpen, setSliderIconPickerOpen] = useState(false);
   const homeAssistantReady = isHomeAssistantConfigured(homeAssistant);
-  const sliderIconOption = widget.type === "slider" || widget.type === "button"
-    ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
-    : null;
+  const sliderIconOption =
+    widget.type === "slider" || widget.type === "button"
+      ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
+      : null;
   const sliderIconLabel =
     widget.type === "slider" || widget.type === "button"
-      ? sliderIconOption?.label ??
-        formatMdiIconLabel(widget.icon ?? SLIDER_ICON_OPTIONS[0].value)
+      ? (sliderIconOption?.label ??
+        formatMdiIconLabel(widget.icon ?? SLIDER_ICON_OPTIONS[0].value))
       : "";
   const textWidgetEntityId = textWidgetMqttValidation?.entityId ?? "";
 
@@ -544,10 +543,7 @@ function EditableWidgetCard({
 
         {widget.type === "text" ? (
           <div className="space-y-3">
-            <Label
-              htmlFor={`${widget.id}-mqtt-expose`}
-              className="sr-only"
-            >
+            <Label htmlFor={`${widget.id}-mqtt-expose`} className="sr-only">
               Expose text widget via MQTT
             </Label>
             <div className="rounded-md border border-zinc-800 px-3 py-2">
@@ -583,9 +579,7 @@ function EditableWidgetCard({
                   onChange={(event) =>
                     onUpdate(widget.id, (current) => ({
                       ...current,
-                      mqttName: normalizeTextWidgetMqttName(
-                        event.target.value,
-                      ),
+                      mqttName: normalizeTextWidgetMqttName(event.target.value),
                     }))
                   }
                 />
@@ -634,7 +628,9 @@ function EditableWidgetCard({
 
         {(widget.type === "slider" || widget.type === "button") && (
           <div className="space-y-2">
-            <Label>{widget.type === "button" ? "Button Icon" : "Slider Icon"}</Label>
+            <Label>
+              {widget.type === "button" ? "Button Icon" : "Slider Icon"}
+            </Label>
             <button
               type="button"
               onClick={() => setSliderIconPickerOpen(true)}
@@ -657,10 +653,7 @@ function EditableWidgetCard({
 
         {widget.type === "thermostat" && (
           <div className="space-y-2">
-            <Label
-              htmlFor={`${widget.id}-history-graph`}
-              className="sr-only"
-            >
+            <Label htmlFor={`${widget.id}-history-graph`} className="sr-only">
               Show temperature history graph
             </Label>
             <div className="rounded-md border border-zinc-800 px-3 py-2">
@@ -746,7 +739,6 @@ function EditableWidgetCard({
             </div>
           </>
         )}
-
       </div>
 
       {widgetSupportsHomeAssistant(widget.type) ? (
@@ -769,7 +761,11 @@ function EditableWidgetCard({
         <SliderIconPickerDialog
           open={sliderIconPickerOpen}
           selectedIcon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
-          title={widget.type === "button" ? "Choose Button Icon" : "Choose Slider Icon"}
+          title={
+            widget.type === "button"
+              ? "Choose Button Icon"
+              : "Choose Slider Icon"
+          }
           onClose={() => setSliderIconPickerOpen(false)}
           onSelect={(icon) =>
             onUpdate(widget.id, (current) => ({
@@ -815,8 +811,10 @@ export default function Home() {
   const [homeAssistantStates, setHomeAssistantStates] = useState<
     Record<string, HomeAssistantEntityState>
   >({});
-  const [existingHomeAssistantTextEntityIds, setExistingHomeAssistantTextEntityIds] =
-    useState<Record<string, true>>({});
+  const [
+    existingHomeAssistantTextEntityIds,
+    setExistingHomeAssistantTextEntityIds,
+  ] = useState<Record<string, true>>({});
   const [textWidgetValidationPending, setTextWidgetValidationPending] =
     useState(false);
   const [textWidgetValidationError, setTextWidgetValidationError] =
@@ -891,7 +889,10 @@ export default function Home() {
     }
 
     for (const [widgetId, validation] of validationById) {
-      if (validation.entityId && (nameCounts.get(validation.entityId) ?? 0) > 1) {
+      if (
+        validation.entityId &&
+        (nameCounts.get(validation.entityId) ?? 0) > 1
+      ) {
         validation.duplicateInLayout = true;
       }
     }
@@ -1098,26 +1099,27 @@ export default function Home() {
   }
 
   function updatePages(updater: (current: PageConfig[]) => PageConfig[]) {
-    setPages((current) =>
-      normalizeBuildConfig({
-        darkMode,
-        fontName: selectedFont,
-        partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
-        fullRefreshEvery,
-        homeAssistant,
-        pages: updater(
-          normalizeBuildConfig({
-            darkMode,
-            fontName: selectedFont,
-            partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
-            fullRefreshEvery,
-            homeAssistant,
-            pages: Array.isArray(current)
-              ? current
-              : DEFAULT_BUILD_CONFIG.pages,
-          }).pages,
-        ),
-      }).pages,
+    setPages(
+      (current) =>
+        normalizeBuildConfig({
+          darkMode,
+          fontName: selectedFont,
+          partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
+          fullRefreshEvery,
+          homeAssistant,
+          pages: updater(
+            normalizeBuildConfig({
+              darkMode,
+              fontName: selectedFont,
+              partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
+              fullRefreshEvery,
+              homeAssistant,
+              pages: Array.isArray(current)
+                ? current
+                : DEFAULT_BUILD_CONFIG.pages,
+            }).pages,
+          ),
+        }).pages,
     );
   }
 
@@ -1165,10 +1167,17 @@ export default function Home() {
       if (type !== "clock" && type !== "button" && type !== "text") {
         return;
       }
-      if (type === "clock" && editorPage.widgets.some((widget) => widget.type === "clock")) {
+      if (
+        type === "clock" &&
+        editorPage.widgets.some((widget) => widget.type === "clock")
+      ) {
         return;
       }
-      if (type === "button" && editorPage.widgets.filter((widget) => widget.type === "button").length >= 6) {
+      if (
+        type === "button" &&
+        editorPage.widgets.filter((widget) => widget.type === "button")
+          .length >= 6
+      ) {
         return;
       }
     }
@@ -1387,7 +1396,8 @@ export default function Home() {
                         ) : (
                           <Sun className="h-3.5 w-3.5" />
                         )}
-                        Live preview is currently in {darkMode ? "dark" : "light"} mode.
+                        Live preview is currently in{" "}
+                        {darkMode ? "dark" : "light"} mode.
                       </p>
                     </div>
                   </div>
@@ -1488,11 +1498,14 @@ export default function Home() {
                                   event.target.value === "overview"
                                     ? "overview"
                                     : event.target.value === "weather-focus"
-                                    ? "weather-focus"
-                                    : event.target.value === "media-player"
-                                      ? "media-player"
-                                    : "standard";
-                                if (nextType === "weather-focus" || nextType === "media-player") {
+                                      ? "weather-focus"
+                                      : event.target.value === "media-player"
+                                        ? "media-player"
+                                        : "standard";
+                                if (
+                                  nextType === "weather-focus" ||
+                                  nextType === "media-player"
+                                ) {
                                   return {
                                     ...page,
                                     type: nextType,
@@ -1513,11 +1526,18 @@ export default function Home() {
                                     nextType !== "overview"
                                       ? page.widgets.map((widget) =>
                                           widget.type === "button"
-                                            ? { ...widget, type: "switch", icon: undefined }
+                                            ? {
+                                                ...widget,
+                                                type: "switch",
+                                                icon: undefined,
+                                              }
                                             : widget,
                                         )
                                       : nextType === "overview"
-                                        ? [createWidget("clock"), createWidget("text")]
+                                        ? [
+                                            createWidget("clock"),
+                                            createWidget("text"),
+                                          ]
                                         : [
                                             createWidget("clock"),
                                             createWidget("weather"),
@@ -1556,8 +1576,8 @@ export default function Home() {
                             Dedicated weather page
                           </p>
                           <p className="mt-2 text-zinc-400">
-                            This page renders a large weather composition on
-                            the device instead of normal widgets. It is now
+                            This page renders a large weather composition on the
+                            device instead of normal widgets. It is now
                             optimized for a crisp 1-bit render path.
                           </p>
                           <HomeAssistantEntityPicker
@@ -1648,7 +1668,8 @@ export default function Home() {
                                         )) ||
                                         (widgetOption.type === "button" &&
                                           editorPage.widgets.filter(
-                                            (widget) => widget.type === "button",
+                                            (widget) =>
+                                              widget.type === "button",
                                           ).length >= 6)))
                                   }
                                 >
@@ -1709,7 +1730,8 @@ export default function Home() {
                                               widget.id
                                             ]?.duplicateInLayout,
                                           lookupError:
-                                            textWidgetValidationError || undefined,
+                                            textWidgetValidationError ||
+                                            undefined,
                                         }
                                       : undefined
                                   }
