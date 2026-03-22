@@ -158,7 +158,7 @@ static void layoutWeatherFocusPage()
   const int statsGap = 14;
   const int statsHeight = 68;
   const int chartGap = 12;
-  const int hourlyChartHeight = 224;
+  const int hourlyChartHeight = 190;
   const int forecastGap = 12;
 
   weatherFocusContentRect = {0, contentTop, width, contentHeight};

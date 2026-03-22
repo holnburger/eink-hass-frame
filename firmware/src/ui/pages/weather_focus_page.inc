@@ -185,6 +185,8 @@ static void drawWeatherFocusStrokeSegment(int x1, int y1, int x2, int y2)
   display.drawLine(x1, y1, x2, y2, uiGrayInk());
   display.drawLine(x1, y1 - 1, x2, y2 - 1, uiGrayValue(5));
   display.drawLine(x1, y1 + 1, x2, y2 + 1, uiGrayValue(5));
+  display.drawLine(x1, y1 - 2, x2, y2 - 2, uiGrayValue(8));
+  display.drawLine(x1, y1 + 2, x2, y2 + 2, uiGrayValue(8));
 }
 
 static void drawWeatherFocusSmoothedLine(const int *xPoints, const int *yPoints, int pointCount)
@@ -264,10 +266,10 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
     maxTemp = center + 2;
   }
 
-  const int plotLeft = rect.x + 18;
-  const int plotRight = rect.x + rect.w - 18;
-  const int plotTop = rect.y + 18;
-  const int plotBottom = rect.y + rect.h - 54;
+  const int plotLeft = rect.x + 38;
+  const int plotRight = rect.x + rect.w - 38;
+  const int plotTop = rect.y + 38;
+  const int plotBottom = rect.y + rect.h - 78;
   const int plotHeight = plotBottom - plotTop;
   const int plotWidth = plotRight - plotLeft;
   const int range = maxTemp - minTemp;
@@ -322,10 +324,16 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
       valueX = rect.x + rect.w - 8 - valueWidth;
     }
 
-    int valueTop = pointY[pointIndex] - 20;
+    const bool warmestPoint = pointIndex == maxTempIndex;
+    int valueTop = warmestPoint ? (pointY[pointIndex] - 28) : (pointY[pointIndex] + 10);
+    const int maxLabelTop = rect.y + rect.h - 74;
     if (valueTop < rect.y + 8)
     {
       valueTop = rect.y + 8;
+    }
+    if (valueTop > maxLabelTop)
+    {
+      valueTop = maxLabelTop;
     }
     drawWeatherFocusTextAt(valueText, valueX, valueTop, metaFont, UI_TEXT_META, 0);
   }

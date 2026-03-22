@@ -137,7 +137,8 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-xs flex-col items-end gap-2">
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50">
+      <div className="mx-auto flex w-full max-w-350 flex-col items-end gap-2 px-4 sm:px-6 lg:px-8">
       {status ? (
         <div className="pointer-events-auto rounded-2xl border border-border-strong bg-panel px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_30px_rgba(17,17,17,0.12)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.35)]">
           {status}
@@ -157,6 +158,7 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
         )}
         {isUpdating ? "Working..." : "Build & Update"}
       </Button>
+      </div>
     </div>
   );
 }

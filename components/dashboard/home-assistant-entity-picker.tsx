@@ -32,6 +32,17 @@ export function HomeAssistantEntityPicker({
   const supportedDomainsKey = supportedDomains.join(",");
 
   useEffect(() => {
+    if (!value) {
+      return;
+    }
+
+    setQuery("");
+    setResults([]);
+    setStatus("");
+    setIsSearching(false);
+  }, [value]);
+
+  useEffect(() => {
     if (!isHomeAssistantConfigured(homeAssistant)) {
       setResults([]);
       setStatus("");
@@ -138,7 +149,12 @@ export function HomeAssistantEntityPicker({
         </div>
       ) : null}
 
-      {isHomeAssistantConfigured(homeAssistant) ? (
+      {!isHomeAssistantConfigured(homeAssistant) ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-border-strong bg-panel px-4 py-4 text-xs text-muted-foreground">
+          <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>Add URL and token first.</p>
+        </div>
+      ) : !value ? (
         <>
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -187,12 +203,7 @@ export function HomeAssistantEntityPicker({
             <p className="text-xs text-muted-foreground">{status}</p>
           ) : null}
         </>
-      ) : (
-        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-border-strong bg-panel px-4 py-4 text-xs text-muted-foreground">
-          <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>Add URL and token first.</p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
