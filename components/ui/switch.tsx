@@ -18,7 +18,7 @@ export function Switch({
   return (
     <label
       htmlFor={id}
-      className="flex items-center justify-between gap-3 text-sm text-zinc-700"
+      className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
     >
       <span>{label}</span>
       <button
@@ -29,16 +29,16 @@ export function Switch({
         aria-label={ariaLabel}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
-          "relative h-6 w-11 rounded-full border border-zinc-900 transition",
-          checked ? "bg-zinc-950" : "bg-white",
+          "relative h-6 w-11 rounded-full border border-border-strong transition",
+          checked ? "bg-foreground" : "bg-panel",
         )}
       >
         <span
           className={cn(
             "absolute left-1 top-[0.2rem] block h-4 w-4 rounded-full transition",
             checked
-              ? "translate-x-5 bg-[#f7f7f5]"
-              : "translate-x-0 bg-zinc-950",
+              ? "translate-x-5 bg-background"
+              : "translate-x-0 bg-foreground",
           )}
         />
       </button>

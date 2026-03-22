@@ -86,13 +86,13 @@ export function HomeAssistantCard({
   }
 
   return (
-    <Card className="border-zinc-950 bg-white">
-      <CardHeader className="border-b border-zinc-950/10 bg-zinc-100 h-18">
+    <Card className="overflow-hidden">
+      <CardHeader className="h-18 border-b border-border bg-panel-strong">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>Home Assistant</CardTitle>
           <div className="flex items-center gap-2">
             {boundEntityCount > 0 ? (
-              <div className="rounded-full border border-zinc-950/70 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700">
+              <div className="rounded-full border border-border-strong bg-panel px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 {boundEntityCount} bound
               </div>
             ) : null}
@@ -118,7 +118,7 @@ export function HomeAssistantCard({
 
       <CardContent className="pt-6">
         {collapsed && isConfigured ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
             <span>{summarizeUrl(value.url)}</span>
             {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
@@ -167,7 +167,7 @@ export function HomeAssistantCard({
                 {isTesting ? "Testing..." : "Test"}
               </Button>
               {status ? (
-                <p className="text-sm text-zinc-700">{status}</p>
+                <p className="text-sm text-muted-foreground">{status}</p>
               ) : null}
             </div>
           </div>

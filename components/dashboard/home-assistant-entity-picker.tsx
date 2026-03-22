@@ -110,16 +110,20 @@ export function HomeAssistantEntityPicker({
   const compatibleDomains = supportedDomains.join(", ");
 
   return (
-    <div className="space-y-3 rounded-3xl border border-zinc-950/15 bg-zinc-50 p-4">
-      <p className="text-sm font-medium text-zinc-950">{compatibleDomains}</p>
+    <div className="space-y-3 rounded-3xl border border-border bg-panel-subtle p-4">
+      <p className="text-sm font-medium text-foreground">
+        {compatibleDomains}
+      </p>
 
       {value ? (
-        <div className="flex items-start justify-between gap-3 rounded-2xl border border-zinc-950/15 bg-white px-4 py-3">
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-panel px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-zinc-950">
+            <p className="truncate text-sm font-medium text-foreground">
               {value.friendlyName ?? value.entityId}
             </p>
-            <p className="truncate text-xs text-zinc-600">{value.entityId}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {value.entityId}
+            </p>
           </div>
           <Button
             type="button"
@@ -137,7 +141,7 @@ export function HomeAssistantEntityPicker({
       {isHomeAssistantConfigured(homeAssistant) ? (
         <>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -146,7 +150,9 @@ export function HomeAssistantEntityPicker({
             />
           </div>
 
-          {isSearching ? <p className="text-xs text-zinc-600">Searching…</p> : null}
+          {isSearching ? (
+            <p className="text-xs text-muted-foreground">Searching…</p>
+          ) : null}
 
           {results.length > 0 ? (
             <div className="max-h-48 space-y-2 overflow-auto">
@@ -160,15 +166,15 @@ export function HomeAssistantEntityPicker({
                       friendlyName: entity.friendlyName,
                     })
                   }
-                  className="w-full rounded-2xl border border-zinc-950/15 bg-white px-4 py-3 text-left transition hover:border-zinc-950/35"
+                  className="w-full rounded-2xl border border-border bg-panel px-4 py-3 text-left transition hover:border-border-strong"
                 >
-                  <p className="truncate text-sm font-medium text-zinc-950">
+                  <p className="truncate text-sm font-medium text-foreground">
                     {entity.friendlyName}
                   </p>
-                  <p className="truncate text-xs text-zinc-600">
+                  <p className="truncate text-xs text-muted-foreground">
                     {entity.entityId}
                   </p>
-                  <p className="mt-1 text-xs text-zinc-600">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {entity.state}
                     {entity.unitOfMeasurement ? ` ${entity.unitOfMeasurement}` : ""}
                   </p>
@@ -177,10 +183,12 @@ export function HomeAssistantEntityPicker({
             </div>
           ) : null}
 
-          {status ? <p className="text-xs text-zinc-600">{status}</p> : null}
+          {status ? (
+            <p className="text-xs text-muted-foreground">{status}</p>
+          ) : null}
         </>
       ) : (
-        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-zinc-700 bg-white px-4 py-4 text-xs text-zinc-600">
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-border-strong bg-panel px-4 py-4 text-xs text-muted-foreground">
           <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
           <p>Add URL and token first.</p>
         </div>

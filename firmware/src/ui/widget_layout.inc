@@ -271,8 +271,42 @@ static void layoutOverviewPage()
     }
   }
 
-  const int buttonRows = buttonWidgetCount > 3 ? 2 : (buttonWidgetCount > 0 ? 1 : 0);
-  const int buttonCols = buttonWidgetCount >= 3 ? 3 : buttonWidgetCount;
+  int buttonRowItemCounts[3] = {0, 0, 0};
+  int buttonRows = 0;
+  if (buttonWidgetCount >= 6)
+  {
+    buttonRows = 2;
+    buttonRowItemCounts[0] = 3;
+    buttonRowItemCounts[1] = 3;
+  }
+  else if (buttonWidgetCount == 5)
+  {
+    buttonRows = 2;
+    buttonRowItemCounts[0] = 3;
+    buttonRowItemCounts[1] = 2;
+  }
+  else if (buttonWidgetCount == 4)
+  {
+    buttonRows = 2;
+    buttonRowItemCounts[0] = 2;
+    buttonRowItemCounts[1] = 2;
+  }
+  else if (buttonWidgetCount == 3)
+  {
+    buttonRows = 1;
+    buttonRowItemCounts[0] = 3;
+  }
+  else if (buttonWidgetCount == 2)
+  {
+    buttonRows = 1;
+    buttonRowItemCounts[0] = 2;
+  }
+  else if (buttonWidgetCount == 1)
+  {
+    buttonRows = 1;
+    buttonRowItemCounts[0] = 1;
+  }
+
   const int buttonSize = 84;
   const int buttonGapX = 22;
   const int buttonGapY = 18;
@@ -317,20 +351,23 @@ static void layoutOverviewPage()
     textY += textHeight + textGap;
   }
 
-  if (buttonCols > 0)
+  if (buttonRows > 0)
   {
-    const int gridWidth = (buttonCols * buttonSize) + ((buttonCols - 1) * buttonGapX);
-    const int startX = (width - gridWidth) / 2;
-    for (int index = 0; index < buttonWidgetCount; index++)
+    int buttonIndex = 0;
+    for (int row = 0; row < buttonRows; row++)
     {
-      const int row = index / 3;
-      const int col = index % 3;
-      WidgetRuntimeState &state = getWidgetState(currentPageIndex, buttonWidgetIndices[index]);
-      const int x = startX + (col * (buttonSize + buttonGapX));
+      const int itemsInRow = buttonRowItemCounts[row];
+      const int rowWidth = (itemsInRow * buttonSize) + ((itemsInRow - 1) * buttonGapX);
+      const int startX = (width - rowWidth) / 2;
       const int y = buttonBlockTop + (row * (buttonSize + buttonGapY));
-      state.cardRect = {x, y, buttonSize, buttonSize};
-      state.contentRect = state.cardRect;
-      state.controlRect = state.cardRect;
+      for (int col = 0; col < itemsInRow && buttonIndex < buttonWidgetCount; col++, buttonIndex++)
+      {
+        WidgetRuntimeState &state = getWidgetState(currentPageIndex, buttonWidgetIndices[buttonIndex]);
+        const int x = startX + (col * (buttonSize + buttonGapX));
+        state.cardRect = {x, y, buttonSize, buttonSize};
+        state.contentRect = state.cardRect;
+        state.controlRect = state.cardRect;
+      }
     }
   }
 

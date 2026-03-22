@@ -91,8 +91,8 @@ export function UsbInstallButton({
   }, [onDetectedDeviceUrl]);
 
   return (
-    <div className="flex flex-col space-y-2 items-center justify-center h-full px-6">
-      <div className="text-center text-base text-zinc-600">
+    <div className="flex h-full flex-col items-center justify-center space-y-2 px-6">
+      <div className="text-center text-base text-muted-foreground">
         <p>
           Currently only the <span className="font-bold">M5PaperS3</span> is
           supported.
@@ -109,10 +109,10 @@ export function UsbInstallButton({
         <Button slot="activate" type="button">
           Flash & Configure via USB
         </Button>
-        <span slot="unsupported" className="text-xs text-zinc-600">
+        <span slot="unsupported" className="text-xs text-muted-foreground">
           WebSerial requires Chrome or Edge.
         </span>
-        <span slot="not-allowed" className="text-xs text-zinc-600">
+        <span slot="not-allowed" className="text-xs text-muted-foreground">
           Open this app on `https://` or `localhost` to use USB flashing.
         </span>
       </esp-web-install-button>

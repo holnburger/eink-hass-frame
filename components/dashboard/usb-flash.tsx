@@ -87,11 +87,11 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
   }, []);
 
   return (
-    <Card className="overflow-hidden border-zinc-950 bg-white">
-      <CardHeader className="border-b border-zinc-950/10 bg-zinc-100">
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border bg-panel-strong">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <CardTitle>Flash Device</CardTitle>
-          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-950/70 bg-white px-4 py-2 text-sm font-medium text-zinc-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-panel px-4 py-2 text-sm font-medium text-muted-foreground">
             {checkingBinaries ? (
               <>
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -113,9 +113,11 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
       </CardHeader>
 
       <CardContent className="grid gap-4 p-6 lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-3xl border border-zinc-950/15 bg-zinc-50 p-4">
+        <div className="rounded-3xl border border-border bg-panel-subtle p-4">
           {checkingBinaries ? (
-            <p className="text-sm text-zinc-600">Checking firmware…</p>
+            <p className="text-sm text-muted-foreground">
+              Checking firmware…
+            </p>
           ) : artifactsReady ? (
             <UsbInstallButton
               manifest="/api/firmware/manifest"
@@ -123,7 +125,9 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
             />
           ) : (
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-zinc-600">Firmware unavailable.</p>
+              <p className="text-sm text-muted-foreground">
+                Firmware unavailable.
+              </p>
               <Button
                 type="button"
                 variant="outline"
@@ -137,7 +141,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
 
         <div
           id="finalize-setup"
-          className="rounded-3xl border border-zinc-950/15 bg-white p-4"
+          className="rounded-3xl border border-border bg-panel p-4"
         >
           <div className="space-y-4">
             <div className="space-y-2">
@@ -164,7 +168,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
               Save Device
             </Button>
 
-            <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+            <div className="rounded-2xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
               {deviceSaveStatus || "IP appears here after Wi-Fi setup."}
             </div>
           </div>

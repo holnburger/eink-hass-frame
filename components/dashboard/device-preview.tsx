@@ -1693,6 +1693,25 @@ function PreviewOverviewPage({
   const buttonWidgets = page.widgets
     .filter((widget) => widget.type === "button")
     .slice(0, 6);
+  const buttonRowCounts =
+    buttonWidgets.length >= 6
+      ? [3, 3]
+      : buttonWidgets.length === 5
+        ? [3, 2]
+        : buttonWidgets.length === 4
+          ? [2, 2]
+          : buttonWidgets.length === 3
+            ? [3]
+            : buttonWidgets.length === 2
+              ? [2]
+              : buttonWidgets.length === 1
+                ? [1]
+                : [];
+  const buttonRows = buttonRowCounts.reduce<WidgetConfig[][]>((rows, count) => {
+    const consumed = rows.reduce((total, row) => total + row.length, 0);
+    rows.push(buttonWidgets.slice(consumed, consumed + count));
+    return rows;
+  }, []);
   const hours = now ? now.getHours() % 12 : 10;
   const minutes = now ? now.getMinutes() : 10;
   const seconds = now ? now.getSeconds() : 30;
@@ -1815,33 +1834,43 @@ function PreviewOverviewPage({
 
       {buttonWidgets.length > 0 ? (
         <div className="mt-3 flex justify-center pb-3">
-          <div className="grid max-w-62 grid-cols-3 gap-x-5 gap-y-4">
-            {buttonWidgets.map((widget) => {
-              const entity = getBoundEntityState(widget, homeAssistantStates);
-              const enabled = getPreviewButtonEnabled(widget, entity);
-              const filled = darkMode ? !enabled : enabled;
-              const offStateClasses = darkMode
-                ? "border border-zinc-100 bg-black text-zinc-100"
-                : "border border-zinc-900 bg-white text-zinc-900";
-              return (
-                <div
-                  key={widget.id}
-                  className={`flex h-16 w-16 items-center justify-center rounded-full ${
-                    filled
-                      ? darkMode
-                        ? "bg-white text-zinc-950"
-                        : "bg-zinc-950 text-white"
-                      : offStateClasses
-                  }`}
-                >
-                  <MdiIcon
-                    icon={widget.icon ?? "lightbulb"}
-                    size={28}
-                    className="h-7 w-7"
-                  />
-                </div>
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {buttonRows.map((row, rowIndex) => (
+              <div
+                key={`overview-row-${rowIndex}`}
+                className="flex justify-center gap-5"
+              >
+                {row.map((widget) => {
+                  const entity = getBoundEntityState(
+                    widget,
+                    homeAssistantStates,
+                  );
+                  const enabled = getPreviewButtonEnabled(widget, entity);
+                  const filled = darkMode ? !enabled : enabled;
+                  const offStateClasses = darkMode
+                    ? "border border-zinc-100 bg-black text-zinc-100"
+                    : "border border-zinc-900 bg-white text-zinc-900";
+                  return (
+                    <div
+                      key={widget.id}
+                      className={`flex h-[4.35rem] w-[4.35rem] items-center justify-center rounded-full ${
+                        filled
+                          ? darkMode
+                            ? "bg-white text-zinc-950"
+                            : "bg-zinc-950 text-white"
+                          : offStateClasses
+                      }`}
+                    >
+                      <MdiIcon
+                        icon={widget.icon ?? "lightbulb"}
+                        size={28}
+                        className="h-7 w-7"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       ) : null}

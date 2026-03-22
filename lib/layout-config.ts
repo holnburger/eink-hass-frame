@@ -28,12 +28,6 @@ export const FONT_OPTIONS = [
     clockClassName: "font-mono",
     firmwareName: "Mono",
   },
-  {
-    name: "7 Segment",
-    className: "font-mono",
-    clockClassName: "font-segment",
-    firmwareName: "Mono",
-  },
 ] as const;
 
 export const CLOCK_STYLE_OPTIONS = [
@@ -316,7 +310,10 @@ export function createPage(index = 0): PageConfig {
   return createPageOfType(index, "standard");
 }
 
-export function createPageOfType(index = 0, type: PageType = "standard"): PageConfig {
+export function createPageOfType(
+  index = 0,
+  type: PageType = "standard",
+): PageConfig {
   const isOverview = type === "overview";
   const isWeatherFocus = type === "weather-focus";
   const isMediaPlayer = type === "media-player";
@@ -344,12 +341,12 @@ export function createPageOfType(index = 0, type: PageType = "standard"): PageCo
         ? []
         : isOverview
           ? [createWidget("clock"), createWidget("text")]
-        : [
-            createWidget("clock"),
-            createWidget("weather"),
-            createWidget("progress"),
-            createWidget("switch"),
-          ].slice(0, MAX_WIDGETS_PER_PAGE),
+          : [
+              createWidget("clock"),
+              createWidget("weather"),
+              createWidget("progress"),
+              createWidget("switch"),
+            ].slice(0, MAX_WIDGETS_PER_PAGE),
   };
 }
 
@@ -367,7 +364,13 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
       type: "standard",
       homeAssistant: undefined,
       widgets: [
-        { id: "widget-clock", type: "clock", label: "Clock", clockStyle: "digital", showSeconds: true },
+        {
+          id: "widget-clock",
+          type: "clock",
+          label: "Clock",
+          clockStyle: "digital",
+          showSeconds: true,
+        },
         { id: "widget-weather", type: "weather", label: "Weather" },
         {
           id: "widget-progress",
@@ -377,7 +380,12 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
           max: 100,
           hideWhenUnavailable: false,
         },
-        { id: "widget-switch", type: "switch", label: "Switch", enabled: false },
+        {
+          id: "widget-switch",
+          type: "switch",
+          label: "Switch",
+          enabled: false,
+        },
         {
           id: "widget-thermostat",
           type: "thermostat",
@@ -392,7 +400,10 @@ export const DEFAULT_BUILD_CONFIG: BuildConfig = {
   ],
 };
 
-function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null {
+function normalizeWidget(
+  raw: unknown,
+  widgetIndex: number,
+): WidgetConfig | null {
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -425,7 +436,8 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
   const normalized: WidgetConfig = { id, type, label };
 
   if (type === "clock") {
-    normalized.clockStyle = candidate.clockStyle === "analog" ? "analog" : "digital";
+    normalized.clockStyle =
+      candidate.clockStyle === "analog" ? "analog" : "digital";
     normalized.showSeconds = candidate.showSeconds !== false;
   }
 
@@ -442,7 +454,11 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
   }
 
   if (type === "thermostat") {
-    normalized.currentValue = clampTemperature(candidate.currentValue, 20.5, 0.1);
+    normalized.currentValue = clampTemperature(
+      candidate.currentValue,
+      20.5,
+      0.1,
+    );
     normalized.value = clampTemperature(candidate.value, 22.5, 0.5);
     normalized.max = 30;
     normalized.showHistoryGraph = Boolean(candidate.showHistoryGraph);
@@ -468,9 +484,12 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
   return normalized;
 }
 
-function normalizePagesFromLegacy(candidate: Record<string, unknown>): PageConfig[] {
+function normalizePagesFromLegacy(
+  candidate: Record<string, unknown>,
+): PageConfig[] {
   const pageName =
-    typeof candidate.pageName === "string" && candidate.pageName.trim().length > 0
+    typeof candidate.pageName === "string" &&
+    candidate.pageName.trim().length > 0
       ? candidate.pageName.trim()
       : "Home";
 
@@ -528,69 +547,92 @@ function normalizePagesFromLegacy(candidate: Record<string, unknown>): PageConfi
 
 export function normalizeBuildConfig(input: unknown): BuildConfig {
   const candidate =
-    input && typeof input === "object" ? (input as Record<string, unknown>) : ({} as Record<string, unknown>);
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
   const pagesInput = Array.isArray(candidate.pages) ? candidate.pages : [];
 
   const pages =
     pagesInput.length > 0
-      ? pagesInput
-          .slice(0, MAX_PAGES)
-        .map((page, pageIndex) => {
-            const rawPage = page && typeof page === "object" ? (page as Record<string, unknown>) : {};
-            const name =
-              typeof rawPage.name === "string" && rawPage.name.trim().length > 0
-                ? rawPage.name.trim()
-                : pageIndex === 0
-                  ? "Home"
-                  : `Page ${pageIndex + 1}`;
-            const id =
-              typeof rawPage.id === "string" && rawPage.id.trim().length > 0
-                ? rawPage.id
-                : `page-${pageIndex + 1}`;
-            const type: PageType =
-              rawPage.type === "overview"
-                ? "overview"
-                : rawPage.type === "weather-focus"
+      ? pagesInput.slice(0, MAX_PAGES).map((page, pageIndex) => {
+          const rawPage =
+            page && typeof page === "object"
+              ? (page as Record<string, unknown>)
+              : {};
+          const name =
+            typeof rawPage.name === "string" && rawPage.name.trim().length > 0
+              ? rawPage.name.trim()
+              : pageIndex === 0
+                ? "Home"
+                : `Page ${pageIndex + 1}`;
+          const id =
+            typeof rawPage.id === "string" && rawPage.id.trim().length > 0
+              ? rawPage.id
+              : `page-${pageIndex + 1}`;
+          const type: PageType =
+            rawPage.type === "overview"
+              ? "overview"
+              : rawPage.type === "weather-focus"
                 ? "weather-focus"
                 : rawPage.type === "media-player"
                   ? "media-player"
                   : "standard";
-            const widgetsInput = Array.isArray(rawPage.widgets) ? rawPage.widgets : [];
-            const widgets =
-              type === "weather-focus" || type === "media-player"
-                ? []
-                : widgetsInput
-                    .slice(0, MAX_WIDGETS_PER_PAGE)
-                    .map((widget, widgetIndex) => normalizeWidget(widget, widgetIndex))
-                    .filter((widget): widget is WidgetConfig => widget !== null)
-                    .map((widget) =>
-                      type === "overview"
-                        ? widget.type === "switch"
-                          ? { ...widget, type: "button" as const, icon: widget.icon ?? SLIDER_ICON_OPTIONS[0].value }
-                          : widget
-                        : widget.type === "button"
-                          ? { ...widget, type: "switch" as const, icon: undefined }
-                          : widget,
-                    );
-            const homeAssistant = normalizeHomeAssistantBinding(
-              rawPage.homeAssistant,
-            );
-            return {
-              id,
-              name,
-              type,
-              homeAssistant,
-              widgets,
-            };
-          })
+          const widgetsInput = Array.isArray(rawPage.widgets)
+            ? rawPage.widgets
+            : [];
+          const widgets =
+            type === "weather-focus" || type === "media-player"
+              ? []
+              : widgetsInput
+                  .slice(0, MAX_WIDGETS_PER_PAGE)
+                  .map((widget, widgetIndex) =>
+                    normalizeWidget(widget, widgetIndex),
+                  )
+                  .filter((widget): widget is WidgetConfig => widget !== null)
+                  .map((widget) =>
+                    type === "overview"
+                      ? widget.type === "switch"
+                        ? {
+                            ...widget,
+                            type: "button" as const,
+                            icon: widget.icon ?? SLIDER_ICON_OPTIONS[0].value,
+                          }
+                        : widget
+                      : widget.type === "button"
+                        ? {
+                            ...widget,
+                            type: "switch" as const,
+                            icon: undefined,
+                          }
+                        : widget,
+                  );
+          const homeAssistant = normalizeHomeAssistantBinding(
+            rawPage.homeAssistant,
+          );
+          return {
+            id,
+            name,
+            type,
+            homeAssistant,
+            widgets,
+          };
+        })
       : normalizePagesFromLegacy(candidate);
 
   return {
     darkMode: Boolean(candidate.darkMode),
     hideWidgetBorders: Boolean(candidate.hideWidgetBorders),
-    fontName: isFontName(candidate.fontName) ? candidate.fontName : DEFAULT_BUILD_CONFIG.fontName,
-    partialRefreshMs: toPositiveInt(candidate.partialRefreshMs, DEFAULT_BUILD_CONFIG.partialRefreshMs),
-    fullRefreshEvery: toPositiveInt(candidate.fullRefreshEvery, DEFAULT_BUILD_CONFIG.fullRefreshEvery),
+    fontName: isFontName(candidate.fontName)
+      ? candidate.fontName
+      : DEFAULT_BUILD_CONFIG.fontName,
+    partialRefreshMs: toPositiveInt(
+      candidate.partialRefreshMs,
+      DEFAULT_BUILD_CONFIG.partialRefreshMs,
+    ),
+    fullRefreshEvery: toPositiveInt(
+      candidate.fullRefreshEvery,
+      DEFAULT_BUILD_CONFIG.fullRefreshEvery,
+    ),
     homeAssistant: normalizeHomeAssistantConfig(candidate.homeAssistant),
     pages: pages.length > 0 ? pages : DEFAULT_BUILD_CONFIG.pages,
   };

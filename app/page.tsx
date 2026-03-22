@@ -1,8 +1,19 @@
 "use client";
 
-import { GripVertical, Plus, Search, Trash2, Usb, X } from "lucide-react";
+import {
+  GripVertical,
+  Monitor,
+  Moon,
+  Plus,
+  Search,
+  Sun,
+  Trash2,
+  Usb,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "motion/react";
+import { useTheme } from "next-themes";
 
 import { DevicePreview } from "@/components/dashboard/device-preview";
 import { HomeAssistantCard } from "@/components/dashboard/home-assistant-card";
@@ -18,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
@@ -65,15 +83,15 @@ type SavedDevice = {
   lastSeen: string;
 };
 
-const selectClassName =
-  "h-11 w-full rounded-2xl border border-zinc-700 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
 const textareaClassName =
-  "min-h-24 w-full rounded-2xl border border-zinc-700 bg-white px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
+  "min-h-24 w-full rounded-2xl border border-border-strong bg-input px-4 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-border-strong";
 // Reused surface tokens keep the configurator styling consistent across sections.
-const mutedPanelClass = "rounded-3xl border border-zinc-950/15 bg-zinc-50";
-const raisedPanelClass = "rounded-3xl border border-zinc-950/15 bg-white";
+const mutedPanelClass =
+  "rounded-3xl border border-border bg-panel-subtle";
+const raisedPanelClass =
+  "rounded-3xl border border-border bg-panel";
 const compactMutedPanelClass =
-  "rounded-2xl border border-zinc-950/15 bg-zinc-50";
+  "rounded-2xl border border-border bg-panel-subtle";
 
 function isSavedDevice(value: unknown): value is SavedDevice {
   if (!value || typeof value !== "object") {
@@ -190,17 +208,19 @@ function SliderIconPickerDialog({
     <AnimatePresence>
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           onClick={onClose}
         >
           <div
-            className="w-full max-w-lg rounded-4xl border border-zinc-950/80 bg-white p-5 shadow-2xl"
+            className="w-full max-w-lg rounded-4xl border border-border-strong bg-panel p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-zinc-950">{title}</h3>
-                <p className="mt-1 text-sm text-zinc-600">
+                <h3 className="text-lg font-semibold text-foreground">
+                  {title}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Pick from the presets or search the full MDI set. The selected
                   icon is used in both the preview and firmware build.
                 </p>
@@ -208,7 +228,7 @@ function SliderIconPickerDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-white text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-panel text-muted-foreground transition hover:border-foreground hover:text-foreground"
                 aria-label="Close icon picker"
               >
                 <X className="h-4 w-4" />
@@ -220,7 +240,7 @@ function SliderIconPickerDialog({
                 Search all MDI icons
               </Label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="mdi-icon-search"
                   value={searchQuery}
@@ -233,7 +253,7 @@ function SliderIconPickerDialog({
 
             {showCustomSelection ? (
               <div className={`mt-4 p-3 ${mutedPanelClass}`}>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   Selected icon
                 </p>
                 <button
@@ -242,9 +262,9 @@ function SliderIconPickerDialog({
                     onSelect(selectedIcon);
                     onClose();
                   }}
-                  className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-zinc-700 bg-white p-3 text-left text-zinc-950 transition hover:border-zinc-950"
+                  className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border-strong bg-panel p-3 text-left text-foreground transition hover:border-foreground"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border-strong bg-panel-strong">
                     <MdiIcon
                       icon={selectedIcon}
                       size={18}
@@ -255,7 +275,7 @@ function SliderIconPickerDialog({
                     <span className="block truncate text-sm font-medium">
                       {selectedLabel}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-zinc-600">
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       {selectedIcon}
                     </span>
                   </span>
@@ -264,7 +284,7 @@ function SliderIconPickerDialog({
             ) : null}
 
             <div className="mt-5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 Quick picks
               </p>
             </div>
@@ -282,16 +302,16 @@ function SliderIconPickerDialog({
                     }}
                     className={`rounded-2xl border p-3 text-left transition ${
                       isSelected
-                        ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
-                        : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border-strong bg-panel text-foreground hover:border-foreground"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={`flex h-10 w-10 items-center justify-center rounded-full border ${
                           isSelected
-                            ? "border-zinc-300 bg-white/10"
-                            : "border-zinc-700 bg-zinc-100"
+                            ? "border-white/20 bg-white/10"
+                            : "border-border-strong bg-panel-strong"
                         }`}
                       >
                         <MdiIcon
@@ -312,10 +332,10 @@ function SliderIconPickerDialog({
             {normalizedQuery.length > 0 ? (
               <div className="mt-5">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                     Search results
                   </p>
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-muted-foreground">
                     {searchResults.length === 0
                       ? "No icons found"
                       : `${searchResults.length} shown`}
@@ -335,16 +355,16 @@ function SliderIconPickerDialog({
                           }}
                           className={`rounded-2xl border p-3 text-left transition ${
                             isSelected
-                              ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
-                              : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-border-strong bg-panel text-foreground hover:border-foreground"
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <span
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${
                                 isSelected
-                                  ? "border-zinc-300 bg-white/10"
-                                  : "border-zinc-700 bg-zinc-100"
+                                  ? "border-white/20 bg-white/10"
+                                  : "border-border-strong bg-panel-strong"
                               }`}
                             >
                               <MdiIcon
@@ -359,7 +379,9 @@ function SliderIconPickerDialog({
                               </span>
                               <span
                                 className={`mt-0.5 block truncate text-xs ${
-                                  isSelected ? "text-zinc-300" : "text-zinc-600"
+                                  isSelected
+                                    ? "text-white/75"
+                                    : "text-muted-foreground"
                                 }`}
                               >
                                 {result.iconName}
@@ -399,8 +421,8 @@ function EditablePageTab({
       <div
         className={`group flex min-w-36 items-center rounded-full border transition ${
           selected
-            ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
-            : "border-zinc-950/15 bg-white text-zinc-700 hover:border-zinc-950/35 hover:bg-zinc-50"
+            ? "border-foreground bg-foreground text-background"
+            : "border-border bg-panel text-muted-foreground hover:border-border-strong hover:bg-panel-subtle"
         }`}
       >
         <button
@@ -408,8 +430,8 @@ function EditablePageTab({
           onPointerDown={(event) => dragControls.start(event)}
           className={`flex h-10 w-9 items-center justify-center rounded-l-full border-r transition ${
             selected
-              ? "border-zinc-200/20 text-zinc-300 hover:text-[#f7f7f5]"
-              : "border-zinc-950/10 text-zinc-400 group-hover:text-zinc-950"
+              ? "border-white/15 text-white/75 hover:text-white"
+              : "border-border text-muted-foreground group-hover:text-foreground"
           }`}
           aria-label={`Reorder ${page.name}`}
           title="Drag to reorder page"
@@ -470,13 +492,13 @@ function EditableWidgetCard({
           <button
             type="button"
             onPointerDown={(event) => dragControls.start(event)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100 text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-panel-strong text-muted-foreground transition hover:border-foreground hover:text-foreground"
             aria-label={`Drag ${widget.label}`}
             title="Drag to reorder"
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <p className="text-sm font-medium text-zinc-950">
+          <p className="text-sm font-medium text-foreground">
             {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)
               ?.label ?? widget.type}
           </p>
@@ -484,7 +506,7 @@ function EditableWidgetCard({
         <button
           type="button"
           onClick={() => onRemove(widget.id)}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-white text-zinc-500 transition hover:border-red-700 hover:text-red-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-border-strong bg-panel text-muted-foreground transition hover:border-red-700 hover:text-red-700"
           aria-label={`Delete ${widget.label}`}
           title="Delete widget"
         >
@@ -540,10 +562,10 @@ function EditableWidgetCard({
             <button
               type="button"
               onClick={() => setSliderIconPickerOpen(true)}
-              className="flex h-11 w-full items-center justify-between rounded-2xl border border-zinc-700 bg-white px-4 text-sm text-zinc-950 transition hover:border-zinc-950"
+              className="flex h-11 w-full items-center justify-between rounded-2xl border border-border-strong bg-panel px-4 text-sm text-foreground transition hover:border-foreground"
             >
               <span className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border-strong bg-panel-strong">
                   <MdiIcon
                     icon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
                     size={16}
@@ -626,24 +648,26 @@ function EditableWidgetCard({
           <>
             <div className="space-y-2">
               <Label htmlFor={`${widget.id}-clock-style`}>Style</Label>
-              <select
-                id={`${widget.id}-clock-style`}
-                className={selectClassName}
+              <Select
                 value={widget.clockStyle ?? "digital"}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   onUpdate(widget.id, (current) => ({
                     ...current,
-                    clockStyle:
-                      event.target.value === "analog" ? "analog" : "digital",
+                    clockStyle: value === "analog" ? "analog" : "digital",
                   }))
                 }
               >
-                {CLOCK_STYLE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id={`${widget.id}-clock-style`}>
+                  <SelectValue placeholder="Style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLOCK_STYLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${widget.id}-seconds`} className="sr-only">
@@ -725,7 +749,7 @@ function EditableWidgetCard({
                 }
               />
               {textWidgetEntityId ? (
-                <p className="text-xs text-zinc-600 font-mono">
+                <p className="text-xs font-mono text-muted-foreground">
                   {textWidgetEntityId}
                 </p>
               ) : null}
@@ -740,7 +764,9 @@ function EditableWidgetCard({
                 </p>
               ) : null}
               {textWidgetMqttValidation?.checking ? (
-                <p className="text-xs text-zinc-600">Checking…</p>
+                <p className="text-xs text-muted-foreground">
+                  Checking…
+                </p>
               ) : textWidgetMqttValidation?.lookupError ? (
                 <p className="text-xs text-amber-700">
                   {textWidgetMqttValidation.lookupError}
@@ -779,6 +805,7 @@ function EditableWidgetCard({
 }
 
 export default function Home() {
+  const { theme, setTheme } = useTheme();
   const [darkMode, setDarkMode] = useLocalStorage(
     "hass.darkMode",
     DEFAULT_BUILD_CONFIG.darkMode,
@@ -806,6 +833,7 @@ export default function Home() {
     );
 
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
+  const [themeModeReady, setThemeModeReady] = useState(false);
   const [activeDeviceId, setActiveDeviceId] = useState("");
   const [showUsbSetup, setShowUsbSetup] = useState(false);
   const [deviceStoreReady, setDeviceStoreReady] = useState(false);
@@ -932,6 +960,10 @@ export default function Home() {
     return index >= 0 ? index : 0;
   }, [buildConfig.pages, editorPageId]);
   const editorPage = buildConfig.pages[editorPageIndex] ?? buildConfig.pages[0];
+
+  useEffect(() => {
+    setThemeModeReady(true);
+  }, []);
 
   useEffect(() => {
     if (buildConfig.pages.length === 0) {
@@ -1274,35 +1306,75 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen text-zinc-950">
+    <main className="min-h-screen text-foreground">
       <div className="mx-auto flex w-full max-w-350 flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="rounded-4xl border border-zinc-950/80 bg-white px-5 py-4">
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-950 sm:text-2xl">
-            E-Ink Frame Configurator
-          </h1>
+        <header className="rounded-4xl border border-border-strong bg-panel px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              E-Ink Frame Configurator
+            </h1>
+            <div className="min-w-40">
+              <Label htmlFor="site-theme" className="sr-only">
+                Site theme
+              </Label>
+              <Select
+                value={themeModeReady ? theme ?? "system" : "system"}
+                onValueChange={(value) =>
+                  setTheme(value as "light" | "dark" | "system")
+                }
+              >
+                <SelectTrigger id="site-theme" aria-label="Site theme mode">
+                  <SelectValue placeholder="Theme mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">
+                    <span className="flex items-center gap-2">
+                      <Monitor className="h-4 w-4" />
+                      <span>System</span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="light">
+                    <span className="flex items-center gap-2">
+                      <Sun className="h-4 w-4" />
+                      <span>Light</span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <span className="flex items-center gap-2">
+                      <Moon className="h-4 w-4" />
+                      <span>Dark</span>
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </header>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <Card className="border-zinc-950 bg-white">
-            <CardHeader className="border-b border-zinc-950/10 bg-zinc-100 h-18 flex justify-center">
+          <Card>
+            <CardHeader className="h-18 border-b border-border bg-panel-strong flex justify-center">
               <CardTitle>Device</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-center gap-3">
                 <label className="min-w-0 flex-1">
                   <span className="sr-only">Device</span>
-                  <select
-                    className={selectClassName}
-                    value={activeDeviceId}
-                    onChange={(event) => setActiveDeviceId(event.target.value)}
+                  <Select
+                    value={activeDeviceId || undefined}
+                    onValueChange={setActiveDeviceId}
                   >
-                    <option value="">Select device</option>
-                    {validSavedDevices.map((device) => (
-                      <option key={device.id} value={device.id}>
-                        {device.name} ({device.ip})
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label="Device">
+                      <SelectValue placeholder="Select device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validSavedDevices.map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name} ({device.ip})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
                 <Button
                   type="button"
@@ -1340,24 +1412,27 @@ export default function Home() {
           <>
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
               <div className="space-y-4">
-                <Card className="border-zinc-950 bg-white">
+                <Card>
                   <CardContent className="grid gap-3 pt-6 md:grid-cols-2 xl:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="fontSelect">Font</Label>
-                      <select
-                        id="fontSelect"
-                        className={selectClassName}
+                      <Select
                         value={selectedFont}
-                        onChange={(event) =>
-                          setSelectedFont(event.target.value as FontName)
+                        onValueChange={(value) =>
+                          setSelectedFont(value as FontName)
                         }
                       >
-                        {FONT_OPTIONS.map((font) => (
-                          <option key={font.name} value={font.name}>
-                            {font.name}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger id="fontSelect">
+                          <SelectValue placeholder="Select font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FONT_OPTIONS.map((font) => (
+                            <SelectItem key={font.name} value={font.name}>
+                              {font.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">
@@ -1376,7 +1451,7 @@ export default function Home() {
                     <div className="space-y-2">
                       <Label htmlFor="theme">Theme</Label>
 
-                      <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-2">
+                      <div className="rounded-2xl border border-border bg-panel-subtle px-4 py-2">
                         <Switch
                           id="theme"
                           label={`${darkMode ? "Dark" : "Light"}`}
@@ -1391,7 +1466,7 @@ export default function Home() {
                     <div className="space-y-2">
                       <Label htmlFor="widgetBorders">Widget Borders</Label>
 
-                      <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-2">
+                      <div className="rounded-2xl border border-border bg-panel-subtle px-4 py-2">
                         <Switch
                           id="widgetBorders"
                           label={`${hideWidgetBorders ? "Hidden" : "Shown"}`}
@@ -1406,8 +1481,8 @@ export default function Home() {
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-zinc-950 bg-white">
-                  <CardHeader className="border-b border-zinc-950/10 bg-zinc-100">
+                <Card className="overflow-hidden">
+                  <CardHeader className="border-b border-border bg-panel-strong">
                     <CardTitle>Pages & Widgets</CardTitle>
                   </CardHeader>
 
@@ -1492,18 +1567,16 @@ export default function Home() {
 
                           <div className="space-y-2">
                             <Label htmlFor="page-type">Type</Label>
-                            <select
-                              id="page-type"
-                              className={selectClassName}
+                            <Select
                               value={editorPage.type}
-                              onChange={(event) =>
+                              onValueChange={(value) =>
                                 updateCurrentPage((page) => {
                                   const nextType =
-                                    event.target.value === "overview"
+                                    value === "overview"
                                       ? "overview"
-                                      : event.target.value === "weather-focus"
+                                      : value === "weather-focus"
                                         ? "weather-focus"
-                                        : event.target.value === "media-player"
+                                        : value === "media-player"
                                           ? "media-player"
                                           : "standard";
                                   if (
@@ -1550,12 +1623,20 @@ export default function Home() {
                                 })
                               }
                             >
-                              {PAGE_TYPE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              <SelectTrigger id="page-type">
+                                <SelectValue placeholder="Page type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAGE_TYPE_OPTIONS.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="flex items-end">
@@ -1706,13 +1787,13 @@ export default function Home() {
               </div>
 
               <div className="h-fit xl:sticky xl:top-4">
-                <Card className="overflow-hidden border-zinc-950 bg-white">
-                  <CardHeader className="border-b border-zinc-950/10 bg-zinc-100">
+                <Card className="overflow-hidden">
+                  <CardHeader className="border-b border-border bg-panel-strong">
                     <CardTitle>Live Preview</CardTitle>
                   </CardHeader>
 
                   <CardContent className="pt-6">
-                    <div className="rounded-4xl border border-zinc-950/15 bg-zinc-100 p-4">
+                    <div className="rounded-4xl border border-border bg-panel-strong p-4">
                       <DevicePreview
                         darkMode={buildConfig.darkMode}
                         hideWidgetBorders={buildConfig.hideWidgetBorders}

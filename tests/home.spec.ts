@@ -29,7 +29,9 @@ test("renders the configurator for an active device", async ({ page }) => {
 
   await page.goto("/");
 
-  await expect(page.getByRole("combobox").first()).toHaveValue("192.168.1.10");
+  await expect(
+    page.getByRole("combobox", { name: "Device" }),
+  ).toContainText("Kitchen Display (192.168.1.10)");
   await expect(
     page.getByRole("heading", { name: "Pages & Widgets" }),
   ).toBeVisible();
@@ -40,9 +42,10 @@ test("renders the configurator for an active device", async ({ page }) => {
     page.getByRole("button", { name: "Build & Update" }),
   ).toBeVisible();
 
-  const fontSelect = page.locator("#fontSelect");
-  await fontSelect.selectOption("7 Segment");
-  await expect(fontSelect).toHaveValue("7 Segment");
+  const fontSelect = page.getByRole("combobox", { name: "Font" });
+  await fontSelect.click();
+  await page.getByRole("option", { name: "7 Segment" }).click();
+  await expect(fontSelect).toContainText("7 Segment");
   await expect(page.getByLabel("Preview clock time")).toBeVisible();
   await expect
     .poll(() =>
