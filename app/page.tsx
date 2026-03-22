@@ -1384,7 +1384,8 @@ export default function Home() {
                   variant={showUsbSetup ? "secondary" : "outline"}
                   onClick={() => setShowUsbSetup((current) => !current)}
                 >
-                  <Usb className="mr-2 h-4 w-4" />
+                  <MdiIcon icon="usb-port" className="mr-2 h-4 w-4" />
+                  {/* <Usb className="mr-2 h-4 w-4" /> */}
                   {showUsbSetup ? "Hide USB" : "New"}
                 </Button>
                 <Button
