@@ -1,12 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { LoaderCircle, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { countWidgets, type BuildConfig } from "@/lib/layout-config";
+import type { BuildConfig } from "@/lib/layout-config";
 
 type SavedDevice = {
   id: string;
@@ -17,35 +15,20 @@ type SavedDevice = {
 
 type OtaFlashCardProps = {
   buildConfig: BuildConfig;
-  devices: SavedDevice[];
-  activeDeviceId: string;
-  onActiveDeviceChange: (id: string) => void;
+  activeDevice: SavedDevice | null;
 };
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function OtaFlashCard({
-  buildConfig,
-  devices,
-  activeDeviceId,
-  onActiveDeviceChange,
-}: OtaFlashCardProps) {
-  const activeDevice = useMemo(
-    () => devices.find((device) => device.id === activeDeviceId) ?? null,
-    [activeDeviceId, devices],
-  );
-
-  const [status, setStatus] = useState("Idle");
-  const [progress, setProgress] = useState(0);
+export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
+  const [status, setStatus] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   async function waitForReboot(deviceIp: string) {
     let sawOffline = false;
     for (let attempt = 0; attempt < 40; attempt++) {
-      const nextProgress = 82 + Math.floor((attempt / 39) * 17);
-      setProgress(nextProgress);
       let online = false;
       try {
         const response = await fetch("/api/device/health", {
@@ -78,20 +61,21 @@ export function OtaFlashCard({
       if (online && (sawOffline || attempt >= 5)) {
         return true;
       }
+
       await sleep(2000);
     }
+
     return false;
   }
 
   async function buildAndUpdate() {
     if (!activeDevice?.ip) {
-      setStatus("Select an active device first.");
+      setStatus("Select a device.");
       return;
     }
 
     setIsUpdating(true);
-    setProgress(5);
-    setStatus("Building firmware from current layout...");
+    setStatus("Building…");
 
     try {
       const buildResponse = await fetch("/api/firmware/build", {
@@ -103,18 +87,16 @@ export function OtaFlashCard({
         ok?: boolean;
         error?: string;
         stage?: string;
-        buildId?: string;
       };
+
       if (!buildResponse.ok || buildResult.ok === false) {
         setStatus(
-          `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}: ${buildResult.error ?? "unknown error"}`,
+          `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}.`,
         );
-        setProgress(0);
         return;
       }
 
-      setProgress(65);
-      setStatus("Sending OTA update to device...");
+      setStatus("Updating…");
 
       const otaResponse = await fetch("/api/device/ota", {
         method: "POST",
@@ -127,100 +109,54 @@ export function OtaFlashCard({
         ok?: boolean;
         error?: string;
         deviceStatus?: number;
-        mode?: "upload" | "url";
-        firmwareUrl?: string;
-        artifactSha256?: string;
-        artifactSize?: number;
       };
 
       if (!otaResponse.ok || otaResult.ok === false) {
         const detail =
           otaResult.error ||
-          (otaResult.deviceStatus ? `device returned ${otaResult.deviceStatus}` : `HTTP ${otaResponse.status}`);
+          (otaResult.deviceStatus
+            ? `device returned ${otaResult.deviceStatus}`
+            : `HTTP ${otaResponse.status}`);
         setStatus(`OTA failed: ${detail}`);
-        setProgress(0);
         return;
       }
 
-      setProgress(80);
-      const modeLabel = otaResult.mode === "url" ? "URL fallback" : "direct upload";
-      const details: string[] = [];
-      if (buildResult.buildId) {
-        details.push(`build ${buildResult.buildId}`);
-      }
-      details.push(`${buildConfig.pages.length} page${buildConfig.pages.length === 1 ? "" : "s"}`);
-      details.push(`${countWidgets(buildConfig.pages)} widgets`);
-      if (otaResult.artifactSha256) {
-        details.push(`sha ${otaResult.artifactSha256.slice(0, 12)}`);
-      }
-      if (otaResult.artifactSize) {
-        details.push(`${otaResult.artifactSize} bytes`);
-      }
-      if (otaResult.mode === "url" && otaResult.firmwareUrl) {
-        details.push(otaResult.firmwareUrl);
-      }
-      const suffix = details.length > 0 ? ` (${details.join(" | ")})` : "";
-      setStatus(`OTA sent via ${modeLabel}${suffix}. Waiting for device reboot...`);
+      setStatus("Waiting for reboot…");
 
       const rebooted = await waitForReboot(activeDevice.ip);
-      if (rebooted) {
-        setProgress(100);
-        setStatus("Update successful. Device restarted and is online.");
-      } else {
-        setProgress(95);
-        setStatus("OTA sent, but reboot confirmation timed out.");
-      }
+      setStatus(rebooted ? "Updated." : "Sent. Reboot not confirmed.");
     } catch {
-      setStatus("Update failed due to network/backend error.");
-      setProgress(0);
+      setStatus("Update failed.");
     } finally {
       setIsUpdating(false);
     }
   }
 
+  if (!activeDevice) {
+    return null;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>OTA Update</CardTitle>
-        <CardDescription>Build the current layout and update the active device in one step.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="active-device">Active Device</Label>
-          <select
-            id="active-device"
-            className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
-            value={activeDeviceId}
-            onChange={(e) => onActiveDeviceChange(e.target.value)}
-          >
-            <option value="">Select saved device</option>
-            {devices.map((device) => (
-              <option key={device.id} value={device.id}>
-                {device.name} ({device.ip})
-              </option>
-            ))}
-          </select>
+    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-xs flex-col items-end gap-2">
+      {status ? (
+        <div className="pointer-events-auto rounded-[22px] border border-zinc-950/80 bg-white px-4 py-3 text-sm text-zinc-700 shadow-[0_12px_30px_rgba(17,17,17,0.12)]">
+          {status}
         </div>
-
-        <div className="rounded-md border border-zinc-700 p-3 text-sm text-zinc-300">
-          <p>
-            <span className="text-zinc-400">Name:</span> {activeDevice?.name ?? "-"}
-          </p>
-          <p>
-            <span className="text-zinc-400">IP:</span> {activeDevice?.ip ?? "-"}
-          </p>
-        </div>
-
-        <Button onClick={buildAndUpdate} disabled={isUpdating || !activeDevice?.ip}>
-          {isUpdating ? "Updating..." : "Build & Update"}
-        </Button>
-
-        <div className="space-y-2">
-          <Progress value={progress} />
-          <p className="text-xs text-zinc-400">{progress}%</p>
-          <p className="text-sm text-zinc-300">{status}</p>
-        </div>
-      </CardContent>
-    </Card>
+      ) : null}
+      <Button
+        type="button"
+        size="lg"
+        className="pointer-events-auto h-14 px-6 shadow-[0_14px_30px_rgba(17,17,17,0.18)]"
+        onClick={buildAndUpdate}
+        disabled={isUpdating}
+      >
+        {isUpdating ? (
+          <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Upload className="mr-2 h-4 w-4" />
+        )}
+        {isUpdating ? "Working..." : "Build & Update"}
+      </Button>
+    </div>
   );
 }

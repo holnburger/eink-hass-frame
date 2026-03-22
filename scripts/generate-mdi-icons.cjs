@@ -6,6 +6,8 @@ const { icons } = require("@iconify-json/mdi");
 const { getIconData, iconToSVG, iconToHTML, replaceIDs } = require("@iconify/utils");
 
 const DEFAULT_OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_mdi_icons.h");
+const WIDGET_ICON_SIZE = 28;
+const OVERVIEW_WIDGET_ICON_SIZE = 48;
 
 const CORE_ICONS = [
   { key: "chevron_left", icon: "chevron-left", width: 18, height: 18, threshold: 208 },
@@ -88,18 +90,19 @@ function sanitizeKeySegment(value) {
   return sanitized.length > 0 ? sanitized : "icon";
 }
 
-function buildWidgetIconSpecs(widgetIcons) {
-  const iconNames = Array.from(
+function resolveWidgetIconNames(widgetIcons) {
+  return Array.from(
     new Set([...DEFAULT_WIDGET_ICON_NAMES, ...widgetIcons]),
   ).filter((iconName) => Boolean(getIconData(icons, iconName)));
+}
 
+function buildWidgetIconSpecs(iconNames, keyPrefix, size) {
   return iconNames.map((iconName) => ({
-    key: `widget_${sanitizeKeySegment(iconName)}`,
+    key: `${keyPrefix}_${sanitizeKeySegment(iconName)}`,
     icon: iconName,
-    width: 28,
-    height: 28,
+    width: size,
+    height: size,
     threshold: 208,
-    kind: "widget",
   }));
 }
 
@@ -168,8 +171,10 @@ function toHexList(bytes) {
 
 async function main() {
   const { outputPath, widgetIcons } = parseCliOptions(process.argv.slice(2));
-  const widgetIconSpecs = buildWidgetIconSpecs(widgetIcons);
-  const renderedSpecs = [...CORE_ICONS, ...widgetIconSpecs];
+  const iconNames = resolveWidgetIconNames(widgetIcons);
+  const widgetIconSpecs = buildWidgetIconSpecs(iconNames, "widget", WIDGET_ICON_SIZE);
+  const overviewIconSpecs = buildWidgetIconSpecs(iconNames, "overview", OVERVIEW_WIDGET_ICON_SIZE);
+  const renderedSpecs = [...CORE_ICONS, ...widgetIconSpecs, ...overviewIconSpecs];
   const renderedIcons = await Promise.all(
     renderedSpecs.map(async ({ key, icon, width, height, threshold }) => ({
       key,
@@ -191,6 +196,13 @@ async function main() {
     .join("\n");
 
   const widgetAssetTableEntries = widgetIconSpecs
+    .map(
+      ({ key, icon }) =>
+        `  {"${icon}", &MDI_ICON_ASSET_${key.toUpperCase()}}`,
+    )
+    .join(",\n");
+
+  const overviewAssetTableEntries = overviewIconSpecs
     .map(
       ({ key, icon }) =>
         `  {"${icon}", &MDI_ICON_ASSET_${key.toUpperCase()}}`,
@@ -224,7 +236,12 @@ static const MdiNamedIconAsset MDI_WIDGET_ICON_ASSETS[] = {
 ${widgetAssetTableEntries}
 };
 
+static const MdiNamedIconAsset MDI_OVERVIEW_ICON_ASSETS[] = {
+${overviewAssetTableEntries}
+};
+
 #define MDI_WIDGET_ICON_ASSET_COUNT ${widgetIconSpecs.length}
+#define MDI_OVERVIEW_ICON_ASSET_COUNT ${overviewIconSpecs.length}
 `;
 
   await fs.writeFile(outputPath, header, "utf8");

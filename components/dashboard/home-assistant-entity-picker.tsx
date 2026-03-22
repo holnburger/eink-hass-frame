@@ -44,9 +44,7 @@ export function HomeAssistantEntityPicker({
       : [];
     if (searchDomains.length === 0 || trimmedQuery.length < 2) {
       setResults([]);
-      setStatus(
-        trimmedQuery.length === 1 ? "Type at least 2 characters to search." : "",
-      );
+      setStatus(trimmedQuery.length === 1 ? "Type 2+ characters." : "");
       return;
     }
 
@@ -86,9 +84,7 @@ export function HomeAssistantEntityPicker({
           ? payload.entities
           : [];
         setResults(nextResults);
-        setStatus(
-          nextResults.length === 0 ? "No matching entities found." : "",
-        );
+        setStatus(nextResults.length === 0 ? "No matches." : "");
       } catch {
         if (!cancelled) {
           setResults([]);
@@ -114,29 +110,22 @@ export function HomeAssistantEntityPicker({
   const compatibleDomains = supportedDomains.join(", ");
 
   return (
-    <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-zinc-100">
-          Home Assistant Entity
-        </p>
-        <p className="text-xs text-zinc-500">
-          Compatible domains: {compatibleDomains}
-        </p>
-      </div>
+    <div className="space-y-3 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+      <p className="text-sm font-medium text-zinc-950">{compatibleDomains}</p>
 
       {value ? (
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+        <div className="flex items-start justify-between gap-3 rounded-[20px] border border-zinc-950/15 bg-white px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-zinc-100">
+            <p className="truncate text-sm font-medium text-zinc-950">
               {value.friendlyName ?? value.entityId}
             </p>
-            <p className="truncate text-xs text-zinc-500">{value.entityId}</p>
+            <p className="truncate text-xs text-zinc-600">{value.entityId}</p>
           </div>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 w-8 shrink-0"
+            className="h-8 w-8 shrink-0 px-0"
             onClick={() => onChange(undefined)}
             aria-label="Clear Home Assistant entity"
           >
@@ -148,18 +137,16 @@ export function HomeAssistantEntityPicker({
       {isHomeAssistantConfigured(homeAssistant) ? (
         <>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search entities by name or entity_id"
-              className="pl-9"
+              placeholder="Search"
+              className="pl-10"
             />
           </div>
 
-          {isSearching ? (
-            <p className="text-xs text-zinc-500">Searching Home Assistant...</p>
-          ) : null}
+          {isSearching ? <p className="text-xs text-zinc-600">Searching…</p> : null}
 
           {results.length > 0 ? (
             <div className="max-h-48 space-y-2 overflow-auto">
@@ -173,15 +160,15 @@ export function HomeAssistantEntityPicker({
                       friendlyName: entity.friendlyName,
                     })
                   }
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-2 text-left transition hover:border-zinc-600"
+                  className="w-full rounded-[20px] border border-zinc-950/15 bg-white px-4 py-3 text-left transition hover:border-zinc-950/35"
                 >
-                  <p className="truncate text-sm font-medium text-zinc-100">
+                  <p className="truncate text-sm font-medium text-zinc-950">
                     {entity.friendlyName}
                   </p>
-                  <p className="truncate text-xs text-zinc-500">
+                  <p className="truncate text-xs text-zinc-600">
                     {entity.entityId}
                   </p>
-                  <p className="mt-1 text-xs text-zinc-400">
+                  <p className="mt-1 text-xs text-zinc-600">
                     {entity.state}
                     {entity.unitOfMeasurement ? ` ${entity.unitOfMeasurement}` : ""}
                   </p>
@@ -190,15 +177,12 @@ export function HomeAssistantEntityPicker({
             </div>
           ) : null}
 
-          {status ? <p className="text-xs text-zinc-500">{status}</p> : null}
+          {status ? <p className="text-xs text-zinc-600">{status}</p> : null}
         </>
       ) : (
-        <div className="flex items-start gap-3 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-3 text-xs text-zinc-400">
+        <div className="flex items-start gap-3 rounded-[20px] border border-dashed border-zinc-700 bg-white px-4 py-4 text-xs text-zinc-600">
           <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Add your Home Assistant URL and long-lived access token first to
-            search and bind entities.
-          </p>
+          <p>Add URL and token first.</p>
         </div>
       )}
     </div>

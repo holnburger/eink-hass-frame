@@ -10,9 +10,30 @@ export const MAX_PAGES = 5;
 export const MAX_WIDGETS_PER_PAGE = 8;
 
 export const FONT_OPTIONS = [
-  { name: "System Sans", className: "font-sans" },
-  { name: "Serif", className: "font-serif" },
-  { name: "Mono", className: "font-mono" },
+  {
+    name: "System Sans",
+    className: "font-sans",
+    clockClassName: "font-sans",
+    firmwareName: "System Sans",
+  },
+  {
+    name: "Serif",
+    className: "font-serif",
+    clockClassName: "font-serif",
+    firmwareName: "Serif",
+  },
+  {
+    name: "Mono",
+    className: "font-mono",
+    clockClassName: "font-mono",
+    firmwareName: "Mono",
+  },
+  {
+    name: "7 Segment",
+    className: "font-mono",
+    clockClassName: "font-segment",
+    firmwareName: "Mono",
+  },
 ] as const;
 
 export const CLOCK_STYLE_OPTIONS = [
@@ -132,7 +153,22 @@ function toPositiveInt(value: unknown, fallback: number) {
 }
 
 export function getFontClass(fontName: string) {
-  return FONT_OPTIONS.find((font) => font.name === fontName)?.className ?? "font-sans";
+  return (
+    FONT_OPTIONS.find((font) => font.name === fontName)?.className ??
+    "font-sans"
+  );
+}
+
+export function getClockFontClass(fontName: string) {
+  const font = FONT_OPTIONS.find((option) => option.name === fontName);
+  return font?.clockClassName ?? "font-sans";
+}
+
+export function getFirmwareFontName(fontName: string): FontName {
+  return (
+    FONT_OPTIONS.find((font) => font.name === fontName)?.firmwareName ??
+    FONT_OPTIONS[0].firmwareName
+  );
 }
 
 export function isFontName(value: unknown): value is FontName {

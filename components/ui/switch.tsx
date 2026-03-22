@@ -9,7 +9,10 @@ type SwitchProps = {
 
 export function Switch({ checked, onCheckedChange, label, id }: SwitchProps) {
   return (
-    <label htmlFor={id} className="flex items-center justify-between gap-3 text-sm text-zinc-300">
+    <label
+      htmlFor={id}
+      className="flex items-center justify-between gap-3 text-sm text-zinc-700"
+    >
       <span>{label}</span>
       <button
         id={id}
@@ -18,14 +21,14 @@ export function Switch({ checked, onCheckedChange, label, id }: SwitchProps) {
         aria-checked={checked}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
-          "relative h-6 w-11 rounded-full border border-zinc-500 transition",
-          checked ? "bg-zinc-100" : "bg-zinc-800",
+          "relative h-6 w-11 rounded-full border border-zinc-900 transition",
+          checked ? "bg-zinc-950" : "bg-white",
         )}
       >
         <span
           className={cn(
             "absolute left-1 top-1 block h-4 w-4 rounded-full transition",
-            checked ? "translate-x-5 bg-zinc-900" : "translate-x-0 bg-zinc-300",
+            checked ? "translate-x-5 bg-[#f7f7f5]" : "translate-x-0 bg-zinc-950",
           )}
         />
       </button>

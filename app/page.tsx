@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  GripVertical,
-  Moon,
-  Palette,
-  Plus,
-  Search,
-  Sun,
-  Trash2,
-  Usb,
-  Wrench,
-  X,
-} from "lucide-react";
+import { GripVertical, Plus, Search, Trash2, Usb, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "motion/react";
 
@@ -26,13 +15,7 @@ import {
 import { OtaFlashCard } from "@/components/dashboard/ota-flash";
 import { UsbFlashCard } from "@/components/dashboard/usb-flash";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -51,12 +34,13 @@ import {
 } from "@/lib/home-assistant";
 import {
   CLOCK_STYLE_OPTIONS,
-  countWidgets,
   createPageOfType,
   createWidget,
   DEFAULT_BUILD_CONFIG,
   FONT_OPTIONS,
+  getClockFontClass,
   getFontClass,
+  getFirmwareFontName,
   getTextWidgetMqttEntityId,
   MAX_PAGES,
   MAX_WIDGETS_PER_PAGE,
@@ -81,6 +65,11 @@ type SavedDevice = {
   lastSeen: string;
 };
 
+const selectClassName =
+  "h-11 w-full rounded-2xl border border-zinc-700 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
+const textareaClassName =
+  "min-h-24 w-full rounded-2xl border border-zinc-700 bg-white px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
+
 function isSavedDevice(value: unknown): value is SavedDevice {
   if (!value || typeof value !== "object") {
     return false;
@@ -97,7 +86,6 @@ function isSavedDevice(value: unknown): value is SavedDevice {
 type EditableWidgetCardProps = {
   widget: WidgetConfig;
   widgetIndex: number;
-  widgetsCount: number;
   homeAssistant: HomeAssistantConfig;
   textWidgetMqttValidation?: {
     entityId: string;
@@ -193,27 +181,21 @@ function SliderIconPickerDialog({
   const showCustomSelection =
     selectedIcon.trim().length > 0 && !presetIconValues.has(selectedIcon);
 
-  useEffect(() => {
-    if (open) {
-      setSearchQuery("");
-    }
-  }, [open]);
-
   return (
     <AnimatePresence>
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-sm"
           onClick={onClose}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+            className="w-full max-w-lg rounded-[30px] border border-zinc-950/80 bg-white p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
-                <p className="mt-1 text-sm text-zinc-400">
+                <h3 className="text-lg font-semibold text-zinc-950">{title}</h3>
+                <p className="mt-1 text-sm text-zinc-600">
                   Pick from the presets or search the full MDI set. The selected
                   icon is used in both the preview and firmware build.
                 </p>
@@ -221,7 +203,7 @@ function SliderIconPickerDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-white text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
                 aria-label="Close icon picker"
               >
                 <X className="h-4 w-4" />
@@ -233,19 +215,19 @@ function SliderIconPickerDialog({
                 Search all MDI icons
               </Label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                 <Input
                   id="mdi-icon-search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search the full MDI set"
-                  className="border-zinc-700 bg-zinc-900 pl-9 text-zinc-100"
+                  className="pl-10"
                 />
               </div>
             </div>
 
             {showCustomSelection ? (
-              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+              <div className="mt-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-3">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                   Selected icon
                 </p>
@@ -255,9 +237,9 @@ function SliderIconPickerDialog({
                     onSelect(selectedIcon);
                     onClose();
                   }}
-                  className="mt-2 flex w-full items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-left text-zinc-100 transition hover:border-zinc-500"
+                  className="mt-2 flex w-full items-center gap-3 rounded-[20px] border border-zinc-700 bg-white p-3 text-left text-zinc-950 transition hover:border-zinc-950"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100">
                     <MdiIcon
                       icon={selectedIcon}
                       size={18}
@@ -268,7 +250,7 @@ function SliderIconPickerDialog({
                     <span className="block truncate text-sm font-medium">
                       {selectedLabel}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-zinc-500">
+                    <span className="mt-0.5 block truncate text-xs text-zinc-600">
                       {selectedIcon}
                     </span>
                   </span>
@@ -293,18 +275,18 @@ function SliderIconPickerDialog({
                       onSelect(option.value);
                       onClose();
                     }}
-                    className={`rounded-xl border p-3 text-left transition ${
+                    className={`rounded-[20px] border p-3 text-left transition ${
                       isSelected
-                        ? "border-zinc-100 bg-zinc-100 text-zinc-950"
-                        : "border-zinc-800 bg-zinc-900/70 text-zinc-100 hover:border-zinc-600"
+                        ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
+                        : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={`flex h-10 w-10 items-center justify-center rounded-full border ${
                           isSelected
-                            ? "border-zinc-300 bg-zinc-950/5"
-                            : "border-zinc-700 bg-zinc-950"
+                            ? "border-zinc-300 bg-white/10"
+                            : "border-zinc-700 bg-zinc-100"
                         }`}
                       >
                         <MdiIcon
@@ -328,7 +310,7 @@ function SliderIconPickerDialog({
                   <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     Search results
                   </p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-600">
                     {searchResults.length === 0
                       ? "No icons found"
                       : `${searchResults.length} shown`}
@@ -346,18 +328,18 @@ function SliderIconPickerDialog({
                             onSelect(result.iconName);
                             onClose();
                           }}
-                          className={`rounded-xl border p-3 text-left transition ${
+                          className={`rounded-[20px] border p-3 text-left transition ${
                             isSelected
-                              ? "border-zinc-100 bg-zinc-100 text-zinc-950"
-                              : "border-zinc-800 bg-zinc-900/70 text-zinc-100 hover:border-zinc-600"
+                              ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
+                              : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <span
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${
                                 isSelected
-                                  ? "border-zinc-300 bg-zinc-950/5"
-                                  : "border-zinc-700 bg-zinc-950"
+                                  ? "border-zinc-300 bg-white/10"
+                                  : "border-zinc-700 bg-zinc-100"
                               }`}
                             >
                               <MdiIcon
@@ -372,7 +354,7 @@ function SliderIconPickerDialog({
                               </span>
                               <span
                                 className={`mt-0.5 block truncate text-xs ${
-                                  isSelected ? "text-zinc-700" : "text-zinc-500"
+                                  isSelected ? "text-zinc-300" : "text-zinc-600"
                                 }`}
                               >
                                 {result.iconName}
@@ -412,8 +394,8 @@ function EditablePageTab({
       <div
         className={`flex items-center rounded-full border transition ${
           selected
-            ? "border-zinc-100 bg-zinc-100 text-zinc-950"
-            : "border-zinc-700 bg-zinc-900/70 text-zinc-300"
+            ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
+            : "border-zinc-700 bg-white text-zinc-700"
         }`}
       >
         <button
@@ -421,8 +403,8 @@ function EditablePageTab({
           onPointerDown={(event) => dragControls.start(event)}
           className={`flex h-10 w-10 items-center justify-center rounded-l-full border-r transition ${
             selected
-              ? "border-zinc-300/80 text-zinc-700 hover:text-zinc-950"
-              : "border-zinc-700 text-zinc-500 hover:text-zinc-100"
+              ? "border-zinc-300/80 text-zinc-300 hover:text-[#f7f7f5]"
+              : "border-zinc-700 text-zinc-500 hover:text-zinc-950"
           }`}
           aria-label={`Reorder ${page.name}`}
           title="Drag to reorder page"
@@ -440,7 +422,6 @@ function EditablePageTab({
 function EditableWidgetCard({
   widget,
   widgetIndex,
-  widgetsCount,
   homeAssistant,
   textWidgetMqttValidation,
   onRemove,
@@ -448,7 +429,6 @@ function EditableWidgetCard({
 }: EditableWidgetCardProps) {
   const dragControls = useDragControls();
   const [sliderIconPickerOpen, setSliderIconPickerOpen] = useState(false);
-  const homeAssistantReady = isHomeAssistantConfigured(homeAssistant);
   const sliderIconOption =
     widget.type === "slider" || widget.type === "button"
       ? SLIDER_ICON_OPTIONS.find((option) => option.value === widget.icon)
@@ -474,34 +454,28 @@ function EditableWidgetCard({
         boxShadow: "0 24px 60px rgba(0, 0, 0, 0.28)",
       }}
       transition={{ type: "spring", stiffness: 360, damping: 28 }}
-      className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4"
+      className="rounded-[24px] border border-zinc-950/15 bg-white p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onPointerDown={(event) => dragControls.start(event)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100 text-zinc-600 transition hover:border-zinc-950 hover:text-zinc-950"
             aria-label={`Drag ${widget.label}`}
             title="Drag to reorder"
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <div>
-            <p className="text-sm font-medium text-zinc-100">
-              {widgetIndex + 1}.{" "}
-              {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)
-                ?.label ?? widget.type}
-            </p>
-            <p className="text-xs text-zinc-500">
-              Type: {widget.type} · Position {widgetIndex + 1} of {widgetsCount}
-            </p>
-          </div>
+          <p className="text-sm font-medium text-zinc-950">
+            {WIDGET_OPTIONS.find((entry) => entry.type === widget.type)
+              ?.label ?? widget.type}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => onRemove(widget.id)}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/80 text-zinc-400 transition hover:border-red-500/60 hover:text-red-300"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-white text-zinc-500 transition hover:border-red-700 hover:text-red-700"
           aria-label={`Delete ${widget.label}`}
           title="Delete widget"
         >
@@ -519,7 +493,7 @@ function EditableWidgetCard({
               id={`${widget.id}-label`}
               value={widget.label}
               rows={3}
-              className="min-h-24 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-zinc-400"
+              className={textareaClassName}
               onChange={(event) =>
                 onUpdate(widget.id, (current) => ({
                   ...current,
@@ -546,10 +520,10 @@ function EditableWidgetCard({
             <Label htmlFor={`${widget.id}-mqtt-expose`} className="sr-only">
               Expose text widget via MQTT
             </Label>
-            <div className="rounded-md border border-zinc-800 px-3 py-2">
+            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
               <Switch
                 id={`${widget.id}-mqtt-expose`}
-                label="Expose as Home Assistant text input via MQTT"
+                label="MQTT input"
                 checked={widget.mqttExpose === true}
                 onCheckedChange={(checked) =>
                   onUpdate(widget.id, (current) => ({
@@ -568,9 +542,7 @@ function EditableWidgetCard({
 
             {widget.mqttExpose === true ? (
               <div className="space-y-2">
-                <Label htmlFor={`${widget.id}-mqtt-name`}>
-                  MQTT Input Name
-                </Label>
+                <Label htmlFor={`${widget.id}-mqtt-name`}>MQTT Name</Label>
                 <Input
                   id={`${widget.id}-mqtt-name`}
                   value={widget.mqttName ?? ""}
@@ -583,42 +555,30 @@ function EditableWidgetCard({
                     }))
                   }
                 />
-                <p className="text-xs text-zinc-500">
-                  Creates the Home Assistant entity{" "}
-                  <span className="font-mono">
-                    {textWidgetEntityId || "text.your_name"}
-                  </span>
-                  .
-                </p>
+                {textWidgetEntityId ? (
+                  <p className="text-xs text-zinc-600 font-mono">
+                    {textWidgetEntityId}
+                  </p>
+                ) : null}
                 {textWidgetMqttValidation?.invalidReason ? (
-                  <p className="text-xs text-red-300">
+                  <p className="text-xs text-red-700">
                     {textWidgetMqttValidation.invalidReason}
                   </p>
                 ) : null}
                 {textWidgetMqttValidation?.duplicateInLayout ? (
-                  <p className="text-xs text-red-300">
-                    This input name is already used by another text widget in
-                    this layout.
+                  <p className="text-xs text-red-700">
+                    Name already used in this layout.
                   </p>
                 ) : null}
-                {!homeAssistantReady ? (
-                  <p className="text-xs text-zinc-500">
-                    Connect Home Assistant above to validate the entity name
-                    before building.
-                  </p>
-                ) : textWidgetMqttValidation?.checking ? (
-                  <p className="text-xs text-zinc-500">
-                    Checking Home Assistant for conflicts...
-                  </p>
+                {textWidgetMqttValidation?.checking ? (
+                  <p className="text-xs text-zinc-600">Checking…</p>
                 ) : textWidgetMqttValidation?.lookupError ? (
-                  <p className="text-xs text-amber-300">
+                  <p className="text-xs text-amber-700">
                     {textWidgetMqttValidation.lookupError}
                   </p>
                 ) : textWidgetMqttValidation?.existsInHomeAssistant ? (
-                  <p className="text-xs text-red-300">
-                    Home Assistant already has{" "}
-                    <span className="font-mono">{textWidgetEntityId}</span>.
-                    Choose another input name for this widget.
+                  <p className="text-xs text-red-700">
+                    Home Assistant already has this entity.
                   </p>
                 ) : null}
               </div>
@@ -628,16 +588,14 @@ function EditableWidgetCard({
 
         {(widget.type === "slider" || widget.type === "button") && (
           <div className="space-y-2">
-            <Label>
-              {widget.type === "button" ? "Button Icon" : "Slider Icon"}
-            </Label>
+            <Label>Icon</Label>
             <button
               type="button"
               onClick={() => setSliderIconPickerOpen(true)}
-              className="flex h-10 w-full items-center justify-between rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 transition hover:border-zinc-500"
+              className="flex h-11 w-full items-center justify-between rounded-2xl border border-zinc-700 bg-white px-4 text-sm text-zinc-950 transition hover:border-zinc-950"
             >
               <span className="flex items-center gap-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100">
                   <MdiIcon
                     icon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
                     size={16}
@@ -646,7 +604,6 @@ function EditableWidgetCard({
                 </span>
                 <span>{sliderIconLabel}</span>
               </span>
-              <span className="text-xs text-zinc-500">Choose</span>
             </button>
           </div>
         )}
@@ -656,10 +613,10 @@ function EditableWidgetCard({
             <Label htmlFor={`${widget.id}-history-graph`} className="sr-only">
               Show temperature history graph
             </Label>
-            <div className="rounded-md border border-zinc-800 px-3 py-2">
+            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
               <Switch
                 id={`${widget.id}-history-graph`}
-                label="Show temperature history graph"
+                label="History graph"
                 checked={widget.showHistoryGraph === true}
                 onCheckedChange={(checked) =>
                   onUpdate(widget.id, (current) => ({
@@ -680,10 +637,10 @@ function EditableWidgetCard({
             >
               Hide when entity is unavailable
             </Label>
-            <div className="rounded-md border border-zinc-800 px-3 py-2">
+            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
               <Switch
                 id={`${widget.id}-hide-when-unavailable`}
-                label="Hide when entity is unavailable"
+                label="Hide if unavailable"
                 checked={widget.hideWhenUnavailable === true}
                 onCheckedChange={(checked) =>
                   onUpdate(widget.id, (current) => ({
@@ -699,10 +656,10 @@ function EditableWidgetCard({
         {widget.type === "clock" && (
           <>
             <div className="space-y-2">
-              <Label htmlFor={`${widget.id}-clock-style`}>Clock Style</Label>
+              <Label htmlFor={`${widget.id}-clock-style`}>Style</Label>
               <select
                 id={`${widget.id}-clock-style`}
-                className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
+                className={selectClassName}
                 value={widget.clockStyle ?? "digital"}
                 onChange={(event) =>
                   onUpdate(widget.id, (current) => ({
@@ -723,10 +680,10 @@ function EditableWidgetCard({
               <Label htmlFor={`${widget.id}-seconds`} className="sr-only">
                 Show Seconds
               </Label>
-              <div className="rounded-md border border-zinc-800 px-3 py-2">
+              <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
                 <Switch
                   id={`${widget.id}-seconds`}
-                  label="Show seconds"
+                  label="Seconds"
                   checked={widget.showSeconds !== false}
                   onCheckedChange={(checked) =>
                     onUpdate(widget.id, (current) => ({
@@ -759,6 +716,7 @@ function EditableWidgetCard({
 
       {widget.type === "slider" || widget.type === "button" ? (
         <SliderIconPickerDialog
+          key={`${widget.id}-${sliderIconPickerOpen ? "open" : "closed"}`}
           open={sliderIconPickerOpen}
           selectedIcon={widget.icon ?? SLIDER_ICON_OPTIONS[0].value}
           title={
@@ -804,6 +762,7 @@ export default function Home() {
 
   const [savedDevices, setSavedDevices] = useState<SavedDevice[]>([]);
   const [activeDeviceId, setActiveDeviceId] = useState("");
+  const [showUsbSetup, setShowUsbSetup] = useState(false);
   const [deviceStoreReady, setDeviceStoreReady] = useState(false);
   const [editorPageId, setEditorPageId] = useState(
     DEFAULT_BUILD_CONFIG.pages[0]?.id ?? "",
@@ -824,7 +783,7 @@ export default function Home() {
     () =>
       normalizeBuildConfig({
         darkMode,
-        fontName: selectedFont,
+        fontName: getFirmwareFontName(selectedFont),
         partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
         fullRefreshEvery,
         homeAssistant,
@@ -833,16 +792,24 @@ export default function Home() {
     [darkMode, fullRefreshEvery, homeAssistant, pages, selectedFont],
   );
   const fontClass = useMemo(
-    () => getFontClass(buildConfig.fontName),
-    [buildConfig.fontName],
+    () => getFontClass(selectedFont),
+    [selectedFont],
+  );
+  const clockFontClass = useMemo(
+    () => getClockFontClass(selectedFont),
+    [selectedFont],
   );
   const validSavedDevices = useMemo(
     () =>
       Array.isArray(savedDevices) ? savedDevices.filter(isSavedDevice) : [],
     [savedDevices],
   );
-  const pageCount = buildConfig.pages.length;
-  const widgetCount = countWidgets(buildConfig.pages);
+  const activeDevice = useMemo(
+    () =>
+      validSavedDevices.find((device) => device.id === activeDeviceId) ?? null,
+    [activeDeviceId, validSavedDevices],
+  );
+  const showUsbOnboarding = showUsbSetup || !activeDevice;
   const boundEntityIds = useMemo(
     () => collectBoundEntityIds(buildConfig.pages),
     [buildConfig.pages],
@@ -888,7 +855,7 @@ export default function Home() {
       }
     }
 
-    for (const [widgetId, validation] of validationById) {
+    for (const [, validation] of validationById) {
       if (
         validation.entityId &&
         (nameCounts.get(validation.entityId) ?? 0) > 1
@@ -968,6 +935,19 @@ export default function Home() {
       // ignore persistence issues
     }
   }, [activeDeviceId, deviceStoreReady, validSavedDevices]);
+
+  useEffect(() => {
+    if (validSavedDevices.length === 0) {
+      if (activeDeviceId) {
+        setActiveDeviceId("");
+      }
+      return;
+    }
+
+    if (!validSavedDevices.some((device) => device.id === activeDeviceId)) {
+      setActiveDeviceId(validSavedDevices[0].id);
+    }
+  }, [activeDeviceId, validSavedDevices]);
 
   useEffect(() => {
     if (
@@ -1096,6 +1076,25 @@ export default function Home() {
       return [device, ...withoutCurrent].slice(0, 10);
     });
     setActiveDeviceId(device.id);
+    setShowUsbSetup(false);
+  }
+
+  function handleDeleteActiveDevice() {
+    if (!activeDevice) {
+      return;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`Delete "${activeDevice.name}"?`)
+    ) {
+      return;
+    }
+
+    setSavedDevices((prev) =>
+      prev.filter((device) => device.id !== activeDevice.id),
+    );
+    setActiveDeviceId("");
   }
 
   function updatePages(updater: (current: PageConfig[]) => PageConfig[]) {
@@ -1230,121 +1229,79 @@ export default function Home() {
   }
 
   return (
-    <div className={darkMode ? "dark" : ""}>
-      <main className="min-h-screen bg-zinc-950 text-zinc-100">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight">
-                E-Ink Home Assistant Manager
-              </h1>
-              <p className="text-zinc-400">
-                M5PaperS3 + FastEPD with a clear USB-to-OTA workflow
-              </p>
-            </div>
-          </header>
+    <main className="min-h-screen text-zinc-950">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <header className="rounded-[28px] border border-zinc-950/80 bg-white px-5 py-4">
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-950 sm:text-2xl">
+            E-Ink Frame Configurator
+          </h1>
+        </header>
 
-          {/* <section className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Step 1: USB Flash</CardTitle>
-                <CardDescription>
-                  Build the current layout, flash over USB, then provision Wi-Fi
-                  via Improv.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StepStateBadge
-                  done={hasActiveDevice}
-                  pendingLabel="Pending USB setup"
-                />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Step 2: Configure Layout
-                </CardTitle>
-                <CardDescription>
-                  Compose pages, add widgets, and preview the exact OTA layout.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StepStateBadge
-                  done={pageCount > 0}
-                  pendingLabel="Add your first page"
-                />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Step 3: OTA Update</CardTitle>
-                <CardDescription>
-                  Build from the current page set and push it to the active
-                  device.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StepStateBadge
-                  done={false}
-                  pendingLabel={
-                    hasActiveDevice ? "Ready for OTA" : "Needs active device"
-                  }
-                />
-              </CardContent>
-            </Card>
-          </section> */}
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <Card className="border-zinc-950 bg-white">
+            <CardHeader className="border-b border-zinc-950/10 bg-zinc-100 h-18 flex justify-center">
+              <CardTitle>Device</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="min-w-0 flex-1">
+                  <span className="sr-only">Device</span>
+                  <select
+                    className={selectClassName}
+                    value={activeDeviceId}
+                    onChange={(event) => setActiveDeviceId(event.target.value)}
+                  >
+                    <option value="">Select device</option>
+                    {validSavedDevices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.name} ({device.ip})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  type="button"
+                  variant={showUsbSetup ? "secondary" : "outline"}
+                  onClick={() => setShowUsbSetup((current) => !current)}
+                >
+                  <Usb className="mr-2 h-4 w-4" />
+                  {showUsbSetup ? "Hide USB" : "New"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDeleteActiveDevice}
+                  disabled={!activeDevice}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Usb className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">
-                1. USB Setup & Initial Flash
-              </h2>
-            </div>
-            <UsbFlashCard
-              buildConfig={buildConfig}
-              onSaveActiveDevice={handleSaveActiveDevice}
-            />
-          </section>
+          <HomeAssistantCard
+            value={homeAssistant}
+            onChange={setHomeAssistant}
+            boundEntityCount={boundEntityCount}
+          />
+        </section>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">
-                Home Assistant Connection
-              </h2>
-            </div>
-            <HomeAssistantCard
-              value={homeAssistant}
-              onChange={setHomeAssistant}
-              boundEntityCount={boundEntityCount}
-            />
-          </section>
+        {showUsbOnboarding ? (
+          <UsbFlashCard onSaveActiveDevice={handleSaveActiveDevice} />
+        ) : null}
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Palette className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">
-                2. Active Device + Interactive Layout
-              </h2>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Layout Builder</CardTitle>
-                  <CardDescription>
-                    Add pages, stack widgets in order, and set the full-refresh
-                    cadence. Widget partial refresh stays in firmware logic.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-3">
+        {activeDevice ? (
+          <>
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+              <div className="space-y-4">
+                <Card className="border-zinc-950 bg-white">
+                  <CardContent className="grid gap-3 pt-6 md:grid-cols-[180px_220px_minmax(0,1fr)]">
                     <div className="space-y-2">
-                      <Label htmlFor="fontSelect">Font Profile</Label>
+                      <Label htmlFor="fontSelect">Font</Label>
                       <select
                         id="fontSelect"
-                        className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
+                        className={selectClassName}
                         value={selectedFont}
                         onChange={(event) =>
                           setSelectedFont(event.target.value as FontName)
@@ -1356,15 +1313,10 @@ export default function Home() {
                           </option>
                         ))}
                       </select>
-                      <p className="text-xs text-zinc-500">
-                        The selected profile now affects both the browser
-                        preview and the on-device text rendering.
-                      </p>
                     </div>
+
                     <div className="space-y-2">
-                      <Label htmlFor="fullRefreshEvery">
-                        Full refresh interval (seconds)
-                      </Label>
+                      <Label htmlFor="fullRefreshEvery">Refresh (s)</Label>
                       <Input
                         id="fullRefreshEvery"
                         type="number"
@@ -1375,211 +1327,184 @@ export default function Home() {
                           setFullRefreshEvery(Number(event.target.value) || 60)
                         }
                       />
-                      <p className="text-xs text-zinc-500">
-                        Widgets keep their own partial update cadence between
-                        full refreshes.
-                      </p>
                     </div>
-                    <div className="flex flex-col space-y-2">
-                      <Label htmlFor="preview-theme">Preview Theme</Label>
-                      <div className="rounded-md border border-zinc-800 px-3 py-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="theme">Theme</Label>
+
+                      <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-2">
                         <Switch
-                          id="preview-theme"
-                          label={`Preview theme: ${darkMode ? "Dark" : "Light"}`}
+                          id="theme"
+                          label={`${darkMode ? "Dark" : "Light"}`}
                           checked={darkMode}
                           onCheckedChange={setDarkMode}
                         />
                       </div>
-                      <p className="flex items-center gap-2 text-xs text-zinc-500">
-                        {darkMode ? (
-                          <Moon className="h-3.5 w-3.5" />
-                        ) : (
-                          <Sun className="h-3.5 w-3.5" />
-                        )}
-                        Live preview is currently in{" "}
-                        {darkMode ? "dark" : "light"} mode.
-                      </p>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-zinc-100">
-                          Pages
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                          {pageCount} page{pageCount === 1 ? "" : "s"} and{" "}
-                          {widgetCount} widget{widgetCount === 1 ? "" : "s"} in
-                          this layout. Drag the page chips to reorder them.
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => addPage("standard")}
-                        disabled={buildConfig.pages.length >= MAX_PAGES}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Page
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addPage("overview")}
-                        disabled={buildConfig.pages.length >= MAX_PAGES}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Overview Page
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addPage("weather-focus")}
-                        disabled={buildConfig.pages.length >= MAX_PAGES}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Weather Page
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addPage("media-player")}
-                        disabled={buildConfig.pages.length >= MAX_PAGES}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Media Page
-                      </Button>
-                    </div>
+                <Card className="overflow-hidden border-zinc-950 bg-white">
+                  <CardHeader className="border-b border-zinc-950/10 bg-zinc-100">
+                    <CardTitle>Pages & Widgets</CardTitle>
+                  </CardHeader>
 
-                    <Reorder.Group
-                      axis="x"
-                      values={buildConfig.pages.map((page) => page.id)}
-                      onReorder={reorderPages}
-                      className="mt-4 flex flex-wrap gap-2"
-                    >
-                      {buildConfig.pages.map((page, index) => (
-                        <EditablePageTab
-                          key={page.id}
-                          page={page}
-                          index={index}
-                          selected={page.id === editorPage?.id}
-                          onSelect={() => setEditorPageId(page.id)}
-                        />
-                      ))}
-                    </Reorder.Group>
-                  </div>
-
-                  {editorPage ? (
-                    <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <Label htmlFor="page-name">Page Name</Label>
-                          <Input
-                            id="page-name"
-                            value={editorPage.name}
-                            onChange={(event) =>
-                              updateCurrentPage((page) => ({
-                                ...page,
-                                name: event.target.value || "Untitled Page",
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="w-full max-w-xs space-y-2">
-                          <Label htmlFor="page-type">Page Type</Label>
-                          <select
-                            id="page-type"
-                            className="h-10 w-full rounded-md border border-zinc-600 bg-zinc-950 px-3 text-sm"
-                            value={editorPage.type}
-                            onChange={(event) =>
-                              updateCurrentPage((page) => {
-                                const nextType =
-                                  event.target.value === "overview"
-                                    ? "overview"
-                                    : event.target.value === "weather-focus"
-                                      ? "weather-focus"
-                                      : event.target.value === "media-player"
-                                        ? "media-player"
-                                        : "standard";
-                                if (
-                                  nextType === "weather-focus" ||
-                                  nextType === "media-player"
-                                ) {
-                                  return {
-                                    ...page,
-                                    type: nextType,
-                                    homeAssistant: pageSupportsHomeAssistant(
-                                      nextType,
-                                    )
-                                      ? page.homeAssistant
-                                      : undefined,
-                                    widgets: [],
-                                  };
-                                }
-                                return {
-                                  ...page,
-                                  type: nextType,
-                                  homeAssistant: undefined,
-                                  widgets:
-                                    page.widgets.length > 0 &&
-                                    nextType !== "overview"
-                                      ? page.widgets.map((widget) =>
-                                          widget.type === "button"
-                                            ? {
-                                                ...widget,
-                                                type: "switch",
-                                                icon: undefined,
-                                              }
-                                            : widget,
-                                        )
-                                      : nextType === "overview"
-                                        ? [
-                                            createWidget("clock"),
-                                            createWidget("text"),
-                                          ]
-                                        : [
-                                            createWidget("clock"),
-                                            createWidget("weather"),
-                                          ],
-                                };
-                              })
-                            }
-                          >
-                            {PAGE_TYPE_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-zinc-500">
-                            Overview, Weather Focus and Media Player pages use
-                            dedicated device render paths instead of the normal
-                            widget stack.
-                          </p>
-                        </div>
+                  <CardContent className="space-y-4 pt-6">
+                    <div className="space-y-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+                      <div className="flex flex-wrap gap-2">
                         <Button
-                          variant="outline"
                           size="sm"
-                          onClick={() => removePage(editorPage.id)}
-                          disabled={buildConfig.pages.length <= 1}
-                          className="mt-7"
+                          onClick={() => addPage("standard")}
+                          disabled={buildConfig.pages.length >= MAX_PAGES}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remove Page
+                          <Plus className="mr-2 h-4 w-4" />
+                          Standard
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addPage("overview")}
+                          disabled={buildConfig.pages.length >= MAX_PAGES}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Overview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addPage("weather-focus")}
+                          disabled={buildConfig.pages.length >= MAX_PAGES}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Weather
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addPage("media-player")}
+                          disabled={buildConfig.pages.length >= MAX_PAGES}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Media
                         </Button>
                       </div>
 
-                      {editorPage.type === "weather-focus" ? (
-                        <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
-                          <p className="font-medium text-zinc-100">
-                            Dedicated weather page
-                          </p>
-                          <p className="mt-2 text-zinc-400">
-                            This page renders a large weather composition on the
-                            device instead of normal widgets. It is now
-                            optimized for a crisp 1-bit render path.
-                          </p>
+                      <Reorder.Group
+                        axis="x"
+                        values={buildConfig.pages.map((page) => page.id)}
+                        onReorder={reorderPages}
+                        className="flex flex-wrap gap-2"
+                      >
+                        {buildConfig.pages.map((page, index) => (
+                          <EditablePageTab
+                            key={page.id}
+                            page={page}
+                            index={index}
+                            selected={page.id === editorPage?.id}
+                            onSelect={() => setEditorPageId(page.id)}
+                          />
+                        ))}
+                      </Reorder.Group>
+                    </div>
+
+                    {editorPage ? (
+                      <div className="space-y-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+                          <div className="space-y-2">
+                            <Label htmlFor="page-name">Page</Label>
+                            <Input
+                              id="page-name"
+                              value={editorPage.name}
+                              onChange={(event) =>
+                                updateCurrentPage((page) => ({
+                                  ...page,
+                                  name: event.target.value || "Untitled Page",
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="page-type">Type</Label>
+                            <select
+                              id="page-type"
+                              className={selectClassName}
+                              value={editorPage.type}
+                              onChange={(event) =>
+                                updateCurrentPage((page) => {
+                                  const nextType =
+                                    event.target.value === "overview"
+                                      ? "overview"
+                                      : event.target.value === "weather-focus"
+                                        ? "weather-focus"
+                                        : event.target.value === "media-player"
+                                          ? "media-player"
+                                          : "standard";
+                                  if (
+                                    nextType === "weather-focus" ||
+                                    nextType === "media-player"
+                                  ) {
+                                    return {
+                                      ...page,
+                                      type: nextType,
+                                      homeAssistant: pageSupportsHomeAssistant(
+                                        nextType,
+                                      )
+                                        ? page.homeAssistant
+                                        : undefined,
+                                      widgets: [],
+                                    };
+                                  }
+                                  return {
+                                    ...page,
+                                    type: nextType,
+                                    homeAssistant: undefined,
+                                    widgets:
+                                      page.widgets.length > 0 &&
+                                      nextType !== "overview"
+                                        ? page.widgets.map((widget) =>
+                                            widget.type === "button"
+                                              ? {
+                                                  ...widget,
+                                                  type: "switch",
+                                                  icon: undefined,
+                                                }
+                                              : widget,
+                                          )
+                                        : nextType === "overview"
+                                          ? [
+                                              createWidget("clock"),
+                                              createWidget("text"),
+                                            ]
+                                          : [
+                                              createWidget("clock"),
+                                              createWidget("weather"),
+                                            ],
+                                  };
+                                })
+                              }
+                            >
+                              {PAGE_TYPE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removePage(editorPage.id)}
+                              disabled={buildConfig.pages.length <= 1}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+
+                        {editorPage.type === "weather-focus" ? (
                           <HomeAssistantEntityPicker
                             homeAssistant={homeAssistant}
                             supportedDomains={getCompatibleDomainsForPage(
@@ -1593,17 +1518,7 @@ export default function Home() {
                               }))
                             }
                           />
-                        </div>
-                      ) : editorPage.type === "media-player" ? (
-                        <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
-                          <p className="font-medium text-zinc-100">
-                            Dedicated media player page
-                          </p>
-                          <p className="mt-2 text-zinc-400">
-                            This page renders a centered grayscale album view
-                            with cover art, runtime progress and playtime. It
-                            does not use the normal widget stack.
-                          </p>
+                        ) : editorPage.type === "media-player" ? (
                           <HomeAssistantEntityPicker
                             homeAssistant={homeAssistant}
                             supportedDomains={getCompatibleDomainsForPage(
@@ -1617,28 +1532,8 @@ export default function Home() {
                               }))
                             }
                           />
-                        </div>
-                      ) : (
-                        <>
-                          {editorPage.type === "overview" ? (
-                            <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-300">
-                              <p className="font-medium text-zinc-100">
-                                Dedicated overview page
-                              </p>
-                              <p className="mt-2 text-zinc-400">
-                                This page renders a large clock with centered
-                                text and up to six icon-only Home Assistant
-                                buttons, including cover entities. Reorder text
-                                widgets above or below the clock to control
-                                their placement.
-                              </p>
-                            </div>
-                          ) : null}
-
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-zinc-100">
-                              Add Widget
-                            </p>
+                        ) : (
+                          <>
                             <div className="flex flex-wrap gap-2">
                               {(editorPage.type === "overview"
                                 ? WIDGET_OPTIONS.filter(
@@ -1678,112 +1573,108 @@ export default function Home() {
                                 </Button>
                               ))}
                             </div>
-                            <p className="text-xs text-zinc-500">
-                              Up to {MAX_WIDGETS_PER_PAGE} widgets per page.
-                              Widget order maps directly to the device layout.
-                            </p>
-                          </div>
 
-                          <Reorder.Group
-                            axis="y"
-                            values={editorPage.widgets.map(
-                              (widget) => widget.id,
-                            )}
-                            onReorder={reorderWidgets}
-                            className="space-y-3"
-                          >
-                            <AnimatePresence initial={false}>
-                              {editorPage.widgets.map((widget, widgetIndex) => (
-                                <EditableWidgetCard
-                                  key={widget.id}
-                                  widget={widget}
-                                  widgetIndex={widgetIndex}
-                                  widgetsCount={editorPage.widgets.length}
-                                  homeAssistant={homeAssistant}
-                                  textWidgetMqttValidation={
-                                    widget.type === "text" &&
-                                    widget.mqttExpose === true
-                                      ? {
-                                          ...(textWidgetMqttValidationById[
-                                            widget.id
-                                          ] ?? { entityId: "" }),
-                                          existsInHomeAssistant: Boolean(
-                                            existingHomeAssistantTextEntityIds[
-                                              (
-                                                textWidgetMqttValidationById[
-                                                  widget.id
-                                                ]?.entityId ?? ""
-                                              ).toLowerCase()
-                                            ],
-                                          ),
-                                          checking:
-                                            textWidgetValidationPending &&
-                                            Boolean(
-                                              textWidgetMqttValidationById[
+                            <Reorder.Group
+                              axis="y"
+                              values={editorPage.widgets.map(
+                                (widget) => widget.id,
+                              )}
+                              onReorder={reorderWidgets}
+                              className="space-y-3"
+                            >
+                              <AnimatePresence initial={false}>
+                                {editorPage.widgets.map(
+                                  (widget, widgetIndex) => (
+                                    <EditableWidgetCard
+                                      key={widget.id}
+                                      widget={widget}
+                                      widgetIndex={widgetIndex}
+                                      homeAssistant={homeAssistant}
+                                      textWidgetMqttValidation={
+                                        widget.type === "text" &&
+                                        widget.mqttExpose === true
+                                          ? {
+                                              ...(textWidgetMqttValidationById[
                                                 widget.id
-                                              ]?.entityId,
-                                            ) &&
-                                            !textWidgetMqttValidationById[
-                                              widget.id
-                                            ]?.invalidReason &&
-                                            !textWidgetMqttValidationById[
-                                              widget.id
-                                            ]?.duplicateInLayout,
-                                          lookupError:
-                                            textWidgetValidationError ||
-                                            undefined,
-                                        }
-                                      : undefined
-                                  }
-                                  onRemove={removeWidget}
-                                  onUpdate={updateWidget}
-                                />
-                              ))}
-                            </AnimatePresence>
-                          </Reorder.Group>
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Live Preview</CardTitle>
-                    <CardDescription>
-                      {editorPage?.name ?? "Preview"} · {buildConfig.fontName} ·{" "}
-                      {buildConfig.darkMode ? "Dark Mode" : "Light Mode"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <DevicePreview
-                      darkMode={buildConfig.darkMode}
-                      fontClass={fontClass}
-                      pages={buildConfig.pages}
-                      homeAssistantConfig={buildConfig.homeAssistant}
-                      homeAssistantStates={homeAssistantStates}
-                      activePageIndex={editorPageIndex}
-                      onPageChange={(pageIndex) =>
-                        setEditorPageId(
-                          buildConfig.pages[pageIndex]?.id ?? editorPageId,
-                        )
-                      }
-                    />
+                                              ] ?? { entityId: "" }),
+                                              existsInHomeAssistant: Boolean(
+                                                existingHomeAssistantTextEntityIds[
+                                                  (
+                                                    textWidgetMqttValidationById[
+                                                      widget.id
+                                                    ]?.entityId ?? ""
+                                                  ).toLowerCase()
+                                                ],
+                                              ),
+                                              checking:
+                                                textWidgetValidationPending &&
+                                                Boolean(
+                                                  textWidgetMqttValidationById[
+                                                    widget.id
+                                                  ]?.entityId,
+                                                ) &&
+                                                !textWidgetMqttValidationById[
+                                                  widget.id
+                                                ]?.invalidReason &&
+                                                !textWidgetMqttValidationById[
+                                                  widget.id
+                                                ]?.duplicateInLayout,
+                                              lookupError:
+                                                textWidgetValidationError ||
+                                                undefined,
+                                            }
+                                          : undefined
+                                      }
+                                      onRemove={removeWidget}
+                                      onUpdate={updateWidget}
+                                    />
+                                  ),
+                                )}
+                              </AnimatePresence>
+                            </Reorder.Group>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
-                <OtaFlashCard
-                  buildConfig={buildConfig}
-                  devices={validSavedDevices}
-                  activeDeviceId={activeDeviceId}
-                  onActiveDeviceChange={setActiveDeviceId}
-                />
               </div>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
+
+              <div className="h-fit xl:sticky xl:top-4">
+                <Card className="overflow-hidden border-zinc-950 bg-white">
+                  <CardHeader className="border-b border-zinc-950/10 bg-zinc-100">
+                    <CardTitle>Live Preview</CardTitle>
+                  </CardHeader>
+
+                  <CardContent className="pt-6">
+                    <div className="rounded-[32px] border border-zinc-950/15 bg-zinc-100 p-4">
+                      <DevicePreview
+                        darkMode={buildConfig.darkMode}
+                        fontClass={fontClass}
+                        clockFontClass={clockFontClass}
+                        pages={buildConfig.pages}
+                        homeAssistantConfig={buildConfig.homeAssistant}
+                        homeAssistantStates={homeAssistantStates}
+                        activePageIndex={editorPageIndex}
+                        onPageChange={(pageIndex) =>
+                          setEditorPageId(
+                            buildConfig.pages[pageIndex]?.id ?? editorPageId,
+                          )
+                        }
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            <OtaFlashCard
+              buildConfig={buildConfig}
+              activeDevice={activeDevice}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
   );
 }

@@ -2025,6 +2025,26 @@ static const MdiMonoIconAsset *getSliderIconAssetByName(const char *iconName)
   return &MDI_ICON_ASSET_WIDGET_LIGHTBULB;
 }
 
+static const MdiMonoIconAsset *getOverviewIconAssetByName(const char *iconName)
+{
+#if UI_MDI_ICONS_AVAILABLE
+  if (iconName == nullptr || iconName[0] == '\0')
+  {
+    return &MDI_ICON_ASSET_OVERVIEW_LIGHTBULB;
+  }
+  for (size_t index = 0; index < MDI_OVERVIEW_ICON_ASSET_COUNT; index++)
+  {
+    if (strcmp(iconName, MDI_OVERVIEW_ICON_ASSETS[index].name) == 0)
+    {
+      return MDI_OVERVIEW_ICON_ASSETS[index].asset;
+    }
+  }
+#else
+  (void)iconName;
+#endif
+  return &MDI_ICON_ASSET_OVERVIEW_LIGHTBULB;
+}
+
 static void drawChevronButton(const BB_RECT &rect, bool left)
 {
 #if UI_MDI_ICONS_AVAILABLE

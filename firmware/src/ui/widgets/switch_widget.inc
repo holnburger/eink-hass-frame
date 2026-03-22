@@ -16,7 +16,7 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
     const int centerY = state.cardRect.y + (state.cardRect.h / 2);
     const uint16_t fillColor = state.enabled ? uiMonoInk() : uiMonoPaper();
     const uint16_t iconColor = state.enabled ? uiMonoPaper() : uiMonoInk();
-    const MdiMonoIconAsset *icon = getSliderIconAssetByName(widget.icon);
+    const MdiMonoIconAsset *icon = getOverviewIconAssetByName(widget.icon);
     display.fillCircle(centerX, centerY, radius, fillColor);
     if (!state.enabled)
     {

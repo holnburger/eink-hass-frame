@@ -1,16 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Link2, Shield, Wifi } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Wifi } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,6 +18,14 @@ type HomeAssistantCardProps = {
   boundEntityCount: number;
 };
 
+function summarizeUrl(rawUrl: string) {
+  try {
+    return new URL(rawUrl).host;
+  } catch {
+    return rawUrl;
+  }
+}
+
 export function HomeAssistantCard({
   value,
   onChange,
@@ -31,19 +33,28 @@ export function HomeAssistantCard({
 }: HomeAssistantCardProps) {
   const [status, setStatus] = useState("");
   const [isTesting, setIsTesting] = useState(false);
-  const isConfigured = useMemo(
-    () => isHomeAssistantConfigured(value),
-    [value],
-  );
+  const isConfigured = useMemo(() => isHomeAssistantConfigured(value), [value]);
+  const [collapsed, setCollapsed] = useState(isConfigured);
+  const wasConfigured = useRef(isConfigured);
+
+  useEffect(() => {
+    if (!isConfigured) {
+      setCollapsed(false);
+    } else if (!wasConfigured.current && isConfigured) {
+      setCollapsed(true);
+    }
+
+    wasConfigured.current = isConfigured;
+  }, [isConfigured]);
 
   async function testConnection() {
     if (!isConfigured) {
-      setStatus("Enter a URL and long-lived access token first.");
+      setStatus("Enter URL and token.");
       return;
     }
 
     setIsTesting(true);
-    setStatus("Testing Home Assistant connection...");
+    setStatus("Testing…");
 
     try {
       const response = await fetch("/api/home-assistant/entities", {
@@ -58,7 +69,6 @@ export function HomeAssistantCard({
       const payload = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
-        total?: number;
       };
 
       if (!response.ok || payload.ok === false) {
@@ -66,13 +76,8 @@ export function HomeAssistantCard({
         return;
       }
 
-      setStatus(
-        `Connected to Home Assistant. ${
-          typeof payload.total === "number"
-            ? `${payload.total} entities available.`
-            : ""
-        }`,
-      );
+      setStatus("Connected.");
+      setCollapsed(true);
     } catch {
       setStatus("Connection failed.");
     } finally {
@@ -81,79 +86,92 @@ export function HomeAssistantCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Home Assistant</CardTitle>
-        <CardDescription>
-          Search entities in the configurator and embed the same connection in
-          the firmware for live device updates.
-        </CardDescription>
+    <Card className="border-zinc-950 bg-white">
+      <CardHeader className="border-b border-zinc-950/10 bg-zinc-100 h-18">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Home Assistant</CardTitle>
+          <div className="flex items-center gap-2">
+            {boundEntityCount > 0 ? (
+              <div className="rounded-full border border-zinc-950/70 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700">
+                {boundEntityCount} bound
+              </div>
+            ) : null}
+            {isConfigured ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8"
+                size="sm"
+                onClick={() => setCollapsed((current) => !current)}
+              >
+                <ChevronDown
+                  className={`mr-2 h-4 w-4 transition ${
+                    collapsed ? "" : "rotate-180"
+                  }`}
+                />
+                {collapsed ? "Edit" : "Done"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-          <div className="space-y-2">
-            <Label htmlFor="home-assistant-url">Home Assistant URL</Label>
-            <Input
-              id="home-assistant-url"
-              value={value.url}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  url: event.target.value,
-                })
-              }
-              placeholder="https://homeassistant.local:8123"
-            />
+
+      <CardContent className="pt-6">
+        {collapsed && isConfigured ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-700">
+            <span>{summarizeUrl(value.url)}</span>
+            {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+              <div className="space-y-2">
+                <Label htmlFor="home-assistant-url">URL</Label>
+                <Input
+                  id="home-assistant-url"
+                  value={value.url}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      url: event.target.value,
+                    })
+                  }
+                  placeholder="https://homeassistant.local:8123"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="home-assistant-token">
-              Long-Lived Access Token
-            </Label>
-            <Input
-              id="home-assistant-token"
-              type="password"
-              value={value.token}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  token: event.target.value,
-                })
-              }
-              placeholder="Paste your token"
-            />
+              <div className="space-y-2">
+                <Label htmlFor="home-assistant-token">Token</Label>
+                <Input
+                  id="home-assistant-token"
+                  type="password"
+                  value={value.token}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      token: event.target.value,
+                    })
+                  }
+                  placeholder="Paste token"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                onClick={testConnection}
+                disabled={isTesting}
+              >
+                <Wifi className="mr-2 h-4 w-4" />
+                {isTesting ? "Testing..." : "Test"}
+              </Button>
+              {status ? (
+                <p className="text-sm text-zinc-700">{status}</p>
+              ) : null}
+            </div>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={testConnection}
-            disabled={isTesting}
-          >
-            <Wifi className="mr-2 h-4 w-4" />
-            {isTesting ? "Testing..." : "Test Connection"}
-          </Button>
-
-          <div className="rounded-full border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-xs text-zinc-400">
-            <Link2 className="mr-1 inline h-3.5 w-3.5" />
-            {boundEntityCount} bound entit{boundEntityCount === 1 ? "y" : "ies"}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-xs text-zinc-400">
-          <p className="flex items-start gap-2">
-            <Shield className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              These values stay in your local browser storage, and when you
-              build firmware they are compiled into the device so it can talk to
-              Home Assistant directly.
-            </span>
-          </p>
-        </div>
-
-        {status ? <p className="text-sm text-zinc-300">{status}</p> : null}
+        )}
       </CardContent>
     </Card>
   );

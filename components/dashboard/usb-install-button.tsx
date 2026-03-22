@@ -98,10 +98,10 @@ export function UsbInstallButton({
       >
         Flash & Configure via USB
       </Button>
-      <span slot="unsupported" className="text-xs text-zinc-500">
+      <span slot="unsupported" className="text-xs text-zinc-600">
         WebSerial requires Chrome or Edge.
       </span>
-      <span slot="not-allowed" className="text-xs text-zinc-500">
+      <span slot="not-allowed" className="text-xs text-zinc-600">
         Open this app on `https://` or `localhost` to use USB flashing.
       </span>
     </esp-web-install-button>

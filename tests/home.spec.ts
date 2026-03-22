@@ -1,26 +1,58 @@
 import { expect, test } from "@playwright/test";
 
-test("renders dashboard sections", async ({ page }) => {
+test("renders the minimal onboarding state", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "E-Ink Home Assistant Manager" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "1. USB Setup & Initial Flash" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "2. Active Device + Interactive Layout" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "3. OTA Update To Active Device" })).toBeVisible();
-  await expect(page.getByText("M5PaperS3 Preview")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "E-Ink Frame Configurator" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Flash Device" }),
+  ).toBeVisible();
 });
 
-test("supports dark/light UI toggle", async ({ page }) => {
+test("renders the configurator for an active device", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "hass.savedDevices",
+      JSON.stringify([
+        {
+          id: "192.168.1.10",
+          name: "Kitchen Display",
+          ip: "192.168.1.10",
+          lastSeen: "2026-03-21T10:00:00.000Z",
+        },
+      ]),
+    );
+    window.localStorage.setItem("hass.activeDeviceId", "192.168.1.10");
+  });
+
   await page.goto("/");
-  const toggle = page.getByRole("button", { name: /UI$/ });
-  await expect(toggle).toBeVisible();
 
-  const initialLabel = await toggle.textContent();
+  await expect(page.getByRole("combobox").first()).toHaveValue("192.168.1.10");
+  await expect(
+    page.getByRole("heading", { name: "Pages & Widgets" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Live Preview" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Build & Update" }),
+  ).toBeVisible();
+
+  const fontSelect = page.locator("#fontSelect");
+  await fontSelect.selectOption("7 Segment");
+  await expect(fontSelect).toHaveValue("7 Segment");
+  await expect(page.getByLabel("Preview clock time")).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByLabel("Preview clock time")
+        .evaluate((node) => window.getComputedStyle(node).fontFamily),
+    )
+    .toContain("Seven Segment");
+
+  const toggle = page.getByRole("switch", { name: "Preview mode: Light" });
   await toggle.click();
-
-  if (initialLabel?.includes("Dark")) {
-    await expect(page.getByRole("button", { name: /Light UI/ })).toBeVisible();
-  } else {
-    await expect(page.getByRole("button", { name: /Dark UI/ })).toBeVisible();
-  }
+  await expect(page.getByRole("switch", { name: "Preview mode: Dark" })).toBeVisible();
 });

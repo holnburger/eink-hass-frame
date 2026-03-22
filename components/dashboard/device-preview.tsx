@@ -1,6 +1,4 @@
 "use client";
-
-import Image from "next/image";
 import { icons as weatherIcons } from "@iconify-json/wi";
 import { getIconData, iconToSVG, replaceIDs } from "@iconify/utils";
 import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
@@ -25,6 +23,7 @@ import type { PageConfig, WidgetConfig } from "@/lib/layout-config";
 type DevicePreviewProps = {
   darkMode: boolean;
   fontClass: string;
+  clockFontClass: string;
   pages: PageConfig[];
   homeAssistantConfig: HomeAssistantConfig;
   homeAssistantStates: Record<string, HomeAssistantEntityState>;
@@ -210,6 +209,10 @@ function formatClock(date: Date | null, showSeconds: boolean) {
     minute: "2-digit",
     ...(showSeconds ? { second: "2-digit" } : {}),
   });
+}
+
+function isSegmentFontClass(fontClass: string) {
+  return fontClass.includes("font-segment");
 }
 
 function formatPreviewWeatherDate(date: Date | null) {
@@ -1294,7 +1297,7 @@ function PreviewMediaPlayerPage({
       }`}
     >
       <div className="flex w-full max-w-88 flex-col items-center justify-center px-4 py-6 text-center">
-        <div className="h-80 w-[20rem] overflow-hidden rounded-[2.35rem] border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
+        <div className="h-64 w-64 overflow-hidden rounded-xl border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
           {hasContent ? (
             media.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1304,13 +1307,19 @@ function PreviewMediaPlayerPage({
                 className="h-full w-full object-cover grayscale"
               />
             ) : (
-              <Image
-                src={MEDIA_MOCK.coverUrl}
-                alt={`${media.title} album cover`}
-                width={320}
-                height={320}
-                className="h-full w-full object-cover grayscale"
-              />
+              <div
+                className={`flex h-full w-full items-center justify-center ${
+                  darkMode
+                    ? "bg-[linear-gradient(180deg,rgba(88,88,88,0.44)_0%,rgba(44,44,44,0.72)_100%)]"
+                    : "bg-[linear-gradient(180deg,rgba(212,212,212,0.9)_0%,rgba(178,178,178,0.98)_100%)]"
+                }`}
+              >
+                <MdiIcon
+                  icon="music-note"
+                  size={132}
+                  className={darkMode ? "text-zinc-500" : "text-zinc-600"}
+                />
+              </div>
             )
           ) : (
             <div
@@ -1404,19 +1413,38 @@ function PreviewDigitalClock({
   widget,
   now,
   darkMode,
+  clockFontClass,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
+  clockFontClass: string;
 }) {
+  const showSeconds = widget.showSeconds !== false;
+  const segmentClock = isSegmentFontClass(clockFontClass);
+
   return (
     <div
-      className={`rounded-[1.6rem] px-5 py-6 text-center ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+      className={`rounded-[1.6rem] px-4 py-2 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
     >
-      <p className="text-xs uppercase tracking-[0.22em] opacity-55">Clock</p>
-      <p className="mt-3 text-[2.2rem] font-semibold tracking-[0.12em] tabular-nums">
-        {formatClock(now, widget.showSeconds !== false)}
-      </p>
+      <p className="text-xs tracking-[0.22em] opacity-55">Clock</p>
+      <div className="text-center py-8">
+        <time
+          aria-label="Preview clock time"
+          dateTime={now ? now.toISOString() : undefined}
+          className={`${clockFontClass} tabular-nums leading-none ${
+            segmentClock
+              ? showSeconds
+                ? "text-[2.05rem] tracking-[0.04em]"
+                : "text-[2.45rem] tracking-[0.03em]"
+              : showSeconds
+                ? "text-[2.2rem] font-semibold tracking-[0.12em]"
+                : "text-[2.6rem] font-semibold tracking-[0.1em]"
+          }`}
+        >
+          {formatClock(now, showSeconds)}
+        </time>
+      </div>
     </div>
   );
 }
@@ -1529,15 +1557,24 @@ function PreviewClock({
   widget,
   now,
   darkMode,
+  clockFontClass,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
+  clockFontClass: string;
 }) {
   if (widget.clockStyle === "analog") {
     return <PreviewAnalogClock widget={widget} now={now} darkMode={darkMode} />;
   }
-  return <PreviewDigitalClock widget={widget} now={now} darkMode={darkMode} />;
+  return (
+    <PreviewDigitalClock
+      widget={widget}
+      now={now}
+      darkMode={darkMode}
+      clockFontClass={clockFontClass}
+    />
+  );
 }
 
 function PreviewOverviewPage({
@@ -1545,11 +1582,13 @@ function PreviewOverviewPage({
   homeAssistantStates,
   now,
   darkMode,
+  clockFontClass,
 }: {
   page: PageConfig;
   homeAssistantStates: Record<string, HomeAssistantEntityState>;
   now: Date | null;
   darkMode: boolean;
+  clockFontClass: string;
 }) {
   const clockWidget = page.widgets.find(
     (widget) => widget.type === "clock",
@@ -1585,6 +1624,7 @@ function PreviewOverviewPage({
   const minuteAngle = (minutes + seconds / 60) * 6;
   const secondAngle = seconds * 6;
   const showSeconds = clockWidget.showSeconds !== false;
+  const segmentClock = isSegmentFontClass(clockFontClass);
   const renderTextBlock = (widgets: WidgetConfig[]) => (
     <div className="w-full space-y-3 text-center">
       {widgets.map((widget) => (
@@ -1683,13 +1723,13 @@ function PreviewOverviewPage({
               <circle cx="110" cy="110" r="6" fill="currentColor" />
             </svg>
           ) : (
-            <p
-              className={`font-semibold tracking-[0.09em] tabular-nums leading-none ${
-                showSeconds ? "text-[3.75rem]" : "text-[4.7rem]"
-              }`}
+            <time
+              aria-label="Preview clock time"
+              dateTime={now ? now.toISOString() : undefined}
+              className="font-segment tabular-nums leading-none text-7xl tracking-tight"
             >
               {formatClock(now, showSeconds)}
-            </p>
+            </time>
           )}
         </div>
 
@@ -1738,6 +1778,7 @@ function PreviewOverviewPage({
 export function DevicePreview({
   darkMode,
   fontClass,
+  clockFontClass,
   pages,
   homeAssistantConfig,
   homeAssistantStates,
@@ -1779,7 +1820,7 @@ export function DevicePreview({
     () =>
       darkMode
         ? "border-zinc-700 bg-[linear-gradient(180deg,#161616_0%,#070707_100%)] text-zinc-100"
-        : "border-zinc-300 bg-[linear-gradient(180deg,#fbfbf9_0%,#eceae4_100%)] text-zinc-900",
+        : "border-zinc-300 bg-[linear-gradient(180deg,#ffffff_0%,#ececeb_100%)] text-zinc-900",
     [darkMode],
   );
 
@@ -1791,20 +1832,10 @@ export function DevicePreview({
     <div
       className={`mx-auto aspect-9/16 w-full max-w-xs rounded-4xl border p-4 shadow-2xl ${shellClasses} ${fontClass}`}
     >
-      <div className="flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-current/10 bg-white/5 p-3">
+      <div className="flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-current/10 bg-white/5 p-2">
         {showPageHeader ? (
-          <div className="flex items-start justify-between gap-3 border-b border-current/10 pb-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] opacity-55">
-                M5PaperS3
-              </p>
-              <p className="mt-1 text-[1.02rem] font-medium tracking-[-0.01em]">
-                {activePage.name}
-              </p>
-            </div>
-            <div className="rounded-full border border-current/15 px-2 py-1 text-[10px] uppercase tracking-[0.18em] opacity-70">
-              {fontClass.replace("font-", "")}
-            </div>
+          <div className="flex items-center justify-center pb-3">
+            {activePage.name}
           </div>
         ) : null}
 
@@ -1817,6 +1848,7 @@ export function DevicePreview({
               homeAssistantStates={homeAssistantStates}
               now={now}
               darkMode={darkMode}
+              clockFontClass={clockFontClass}
             />
           ) : activePage.type === "weather-focus" ? (
             <PreviewWeatherFocusPage
@@ -1855,6 +1887,7 @@ export function DevicePreview({
                         widget={widget}
                         now={now}
                         darkMode={darkMode}
+                        clockFontClass={clockFontClass}
                       />
                     );
                   case "weather":
@@ -1924,7 +1957,7 @@ export function DevicePreview({
         </div>
 
         {showNavigation ? (
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-current/10 pt-3">
+          <div className="mt-3 flex items-center justify-between gap-3 pt-3">
             <button
               type="button"
               onClick={() =>
@@ -1932,7 +1965,7 @@ export function DevicePreview({
               }
               className="flex h-8 w-8 items-center justify-center rounded-full text-current/80 transition hover:bg-current/10"
             >
-              <ChevronLeft className="h-5 w-5 stroke-[2.6]" />
+              <ChevronLeft className="h-4 w-4 stroke-[2.6]" />
             </button>
 
             <div className="flex items-center gap-2">
@@ -1942,10 +1975,10 @@ export function DevicePreview({
                   type="button"
                   onClick={() => onPageChange(index)}
                   aria-label={`Open ${page.name}`}
-                  className={`h-2.5 rounded-full transition ${
+                  className={`h-2 rounded-full transition ${
                     index === safePageIndex
-                      ? "w-6 bg-current"
-                      : "w-2.5 bg-current/25"
+                      ? "w-2 bg-current"
+                      : "w-2 bg-current/25"
                   }`}
                 />
               ))}
@@ -1956,7 +1989,7 @@ export function DevicePreview({
               onClick={() => onPageChange((safePageIndex + 1) % pages.length)}
               className="flex h-8 w-8 items-center justify-center rounded-full text-current/80 transition hover:bg-current/10"
             >
-              <ChevronRight className="h-5 w-5 stroke-[2.6]" />
+              <ChevronRight className="h-4 w-4 stroke-[2.6]" />
             </button>
           </div>
         ) : null}
