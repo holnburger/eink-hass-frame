@@ -1363,14 +1363,12 @@ function PreviewMediaPlayerPage({
 
   return (
     <div
-      className={`flex h-full items-center justify-center overflow-hidden rounded-[1.8rem] ${
-        darkMode
-          ? "border border-white/12 bg-black text-zinc-100"
-          : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(241,239,234,0.98)_100%)] text-zinc-900"
+      className={`flex h-full items-center justify-center overflow-hidden rounded-2xl ${
+        darkMode ? "bg-black text-zinc-100" : "text-zinc-900"
       }`}
     >
       <div className="flex w-full max-w-88 flex-col items-center justify-center px-4 py-6 text-center">
-        <div className="h-64 w-64 overflow-hidden rounded-xl border border-current/12 shadow-[0_26px_58px_rgba(0,0,0,0.16)]">
+        <div className="h-52 w-52 overflow-hidden rounded-xl border border-current/12 ">
           {hasContent ? (
             media.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1447,7 +1445,7 @@ function PreviewMediaPlayerPage({
             </div>
           </>
         ) : (
-          <p className="mt-6 text-[0.95rem] uppercase tracking-[0.2em] opacity-40">
+          <p className="mt-6 text-[0.95rem] tracking-[0.2em] opacity-40">
             Nothing Playing
           </p>
         )}

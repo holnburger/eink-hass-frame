@@ -86,10 +86,8 @@ type SavedDevice = {
 const textareaClassName =
   "min-h-24 w-full rounded-2xl border border-border-strong bg-input px-4 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-border-strong";
 // Reused surface tokens keep the configurator styling consistent across sections.
-const mutedPanelClass =
-  "rounded-3xl border border-border bg-panel-subtle";
-const raisedPanelClass =
-  "rounded-3xl border border-border bg-panel";
+const mutedPanelClass = "rounded-3xl border border-border bg-panel-subtle";
+const raisedPanelClass = "rounded-3xl border border-border bg-panel";
 const compactMutedPanelClass =
   "rounded-2xl border border-border bg-panel-subtle";
 
@@ -764,9 +762,7 @@ function EditableWidgetCard({
                 </p>
               ) : null}
               {textWidgetMqttValidation?.checking ? (
-                <p className="text-xs text-muted-foreground">
-                  Checking…
-                </p>
+                <p className="text-xs text-muted-foreground">Checking…</p>
               ) : textWidgetMqttValidation?.lookupError ? (
                 <p className="text-xs text-amber-700">
                   {textWidgetMqttValidation.lookupError}
@@ -863,7 +859,14 @@ export default function Home() {
         homeAssistant,
         pages,
       }),
-    [darkMode, fullRefreshEvery, hideWidgetBorders, homeAssistant, pages, selectedFont],
+    [
+      darkMode,
+      fullRefreshEvery,
+      hideWidgetBorders,
+      homeAssistant,
+      pages,
+      selectedFont,
+    ],
   );
   const fontClass = useMemo(() => getFontClass(selectedFont), [selectedFont]);
   const clockFontClass = useMemo(
@@ -1318,7 +1321,7 @@ export default function Home() {
                 Site theme
               </Label>
               <Select
-                value={themeModeReady ? theme ?? "system" : "system"}
+                value={themeModeReady ? (theme ?? "system") : "system"}
                 onValueChange={(value) =>
                   setTheme(value as "light" | "dark" | "system")
                 }
@@ -1680,46 +1683,6 @@ export default function Home() {
                           />
                         ) : (
                           <>
-                            <div className="flex flex-wrap gap-2">
-                              {(editorPage.type === "overview"
-                                ? WIDGET_OPTIONS.filter(
-                                    (widgetOption) =>
-                                      widgetOption.type === "clock" ||
-                                      widgetOption.type === "button" ||
-                                      widgetOption.type === "text",
-                                  )
-                                : WIDGET_OPTIONS.filter(
-                                    (widgetOption) =>
-                                      widgetOption.type !== "button",
-                                  )
-                              ).map((widgetOption) => (
-                                <Button
-                                  key={widgetOption.type}
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => addWidget(widgetOption.type)}
-                                  disabled={
-                                    editorPage.widgets.length >=
-                                      MAX_WIDGETS_PER_PAGE ||
-                                    (editorPage.type === "overview" &&
-                                      ((widgetOption.type === "clock" &&
-                                        editorPage.widgets.some(
-                                          (widget) => widget.type === "clock",
-                                        )) ||
-                                        (widgetOption.type === "button" &&
-                                          editorPage.widgets.filter(
-                                            (widget) =>
-                                              widget.type === "button",
-                                          ).length >= 6)))
-                                  }
-                                >
-                                  <Plus className="mr-2 h-4 w-4" />
-                                  {widgetOption.label}
-                                </Button>
-                              ))}
-                            </div>
-
                             <Reorder.Group
                               axis="y"
                               values={editorPage.widgets.map(
@@ -1778,6 +1741,45 @@ export default function Home() {
                                 )}
                               </AnimatePresence>
                             </Reorder.Group>
+                            <div className="flex flex-wrap gap-2">
+                              {(editorPage.type === "overview"
+                                ? WIDGET_OPTIONS.filter(
+                                    (widgetOption) =>
+                                      widgetOption.type === "clock" ||
+                                      widgetOption.type === "button" ||
+                                      widgetOption.type === "text",
+                                  )
+                                : WIDGET_OPTIONS.filter(
+                                    (widgetOption) =>
+                                      widgetOption.type !== "button",
+                                  )
+                              ).map((widgetOption) => (
+                                <Button
+                                  key={widgetOption.type}
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => addWidget(widgetOption.type)}
+                                  disabled={
+                                    editorPage.widgets.length >=
+                                      MAX_WIDGETS_PER_PAGE ||
+                                    (editorPage.type === "overview" &&
+                                      ((widgetOption.type === "clock" &&
+                                        editorPage.widgets.some(
+                                          (widget) => widget.type === "clock",
+                                        )) ||
+                                        (widgetOption.type === "button" &&
+                                          editorPage.widgets.filter(
+                                            (widget) =>
+                                              widget.type === "button",
+                                          ).length >= 6)))
+                                  }
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  {widgetOption.label}
+                                </Button>
+                              ))}
+                            </div>
                           </>
                         )}
                       </div>
