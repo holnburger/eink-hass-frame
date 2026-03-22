@@ -69,6 +69,11 @@ const selectClassName =
   "h-11 w-full rounded-2xl border border-zinc-700 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
 const textareaClassName =
   "min-h-24 w-full rounded-2xl border border-zinc-700 bg-white px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-900/10";
+// Reused surface tokens keep the configurator styling consistent across sections.
+const mutedPanelClass = "rounded-3xl border border-zinc-950/15 bg-zinc-50";
+const raisedPanelClass = "rounded-3xl border border-zinc-950/15 bg-white";
+const compactMutedPanelClass =
+  "rounded-2xl border border-zinc-950/15 bg-zinc-50";
 
 function isSavedDevice(value: unknown): value is SavedDevice {
   if (!value || typeof value !== "object") {
@@ -189,7 +194,7 @@ function SliderIconPickerDialog({
           onClick={onClose}
         >
           <div
-            className="w-full max-w-lg rounded-[30px] border border-zinc-950/80 bg-white p-5 shadow-2xl"
+            className="w-full max-w-lg rounded-4xl border border-zinc-950/80 bg-white p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -227,7 +232,7 @@ function SliderIconPickerDialog({
             </div>
 
             {showCustomSelection ? (
-              <div className="mt-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-3">
+              <div className={`mt-4 p-3 ${mutedPanelClass}`}>
                 <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                   Selected icon
                 </p>
@@ -237,7 +242,7 @@ function SliderIconPickerDialog({
                     onSelect(selectedIcon);
                     onClose();
                   }}
-                  className="mt-2 flex w-full items-center gap-3 rounded-[20px] border border-zinc-700 bg-white p-3 text-left text-zinc-950 transition hover:border-zinc-950"
+                  className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-zinc-700 bg-white p-3 text-left text-zinc-950 transition hover:border-zinc-950"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-100">
                     <MdiIcon
@@ -275,7 +280,7 @@ function SliderIconPickerDialog({
                       onSelect(option.value);
                       onClose();
                     }}
-                    className={`rounded-[20px] border p-3 text-left transition ${
+                    className={`rounded-2xl border p-3 text-left transition ${
                       isSelected
                         ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
                         : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
@@ -328,7 +333,7 @@ function SliderIconPickerDialog({
                             onSelect(result.iconName);
                             onClose();
                           }}
-                          className={`rounded-[20px] border p-3 text-left transition ${
+                          className={`rounded-2xl border p-3 text-left transition ${
                             isSelected
                               ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
                               : "border-zinc-700 bg-white text-zinc-950 hover:border-zinc-950"
@@ -389,29 +394,33 @@ function EditablePageTab({
       dragListener={false}
       dragControls={dragControls}
       layout
-      className="list-none"
+      className="list-none shrink-0"
     >
       <div
-        className={`flex items-center rounded-full border transition ${
+        className={`group flex min-w-36 items-center rounded-full border transition ${
           selected
             ? "border-zinc-950 bg-zinc-950 text-[#f7f7f5]"
-            : "border-zinc-700 bg-white text-zinc-700"
+            : "border-zinc-950/15 bg-white text-zinc-700 hover:border-zinc-950/35 hover:bg-zinc-50"
         }`}
       >
         <button
           type="button"
           onPointerDown={(event) => dragControls.start(event)}
-          className={`flex h-10 w-10 items-center justify-center rounded-l-full border-r transition ${
+          className={`flex h-10 w-9 items-center justify-center rounded-l-full border-r transition ${
             selected
-              ? "border-zinc-300/80 text-zinc-300 hover:text-[#f7f7f5]"
-              : "border-zinc-700 text-zinc-500 hover:text-zinc-950"
+              ? "border-zinc-200/20 text-zinc-300 hover:text-[#f7f7f5]"
+              : "border-zinc-950/10 text-zinc-400 group-hover:text-zinc-950"
           }`}
           aria-label={`Reorder ${page.name}`}
           title="Drag to reorder page"
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <button type="button" onClick={onSelect} className="px-4 py-2 text-sm">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="min-w-0 flex-1 truncate px-3.5 py-2 text-left text-sm font-medium"
+        >
           {index + 1}. {page.name}
         </button>
       </div>
@@ -454,7 +463,7 @@ function EditableWidgetCard({
         boxShadow: "0 24px 60px rgba(0, 0, 0, 0.28)",
       }}
       transition={{ type: "spring", stiffness: 360, damping: 28 }}
-      className="rounded-[24px] border border-zinc-950/15 bg-white p-4"
+      className={`${raisedPanelClass} p-4`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -483,7 +492,9 @@ function EditableWidgetCard({
         </button>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div
+        className={`mt-4 grid gap-4 items-end ${widget.type === "text" ? "md:grid-cols-1" : "md:grid-cols-3"}`}
+      >
         <div className="space-y-2">
           <Label htmlFor={`${widget.id}-label`}>
             {widget.type === "text" ? "Text" : "Label"}
@@ -515,77 +526,6 @@ function EditableWidgetCard({
           )}
         </div>
 
-        {widget.type === "text" ? (
-          <div className="space-y-3">
-            <Label htmlFor={`${widget.id}-mqtt-expose`} className="sr-only">
-              Expose text widget via MQTT
-            </Label>
-            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
-              <Switch
-                id={`${widget.id}-mqtt-expose`}
-                label="MQTT input"
-                checked={widget.mqttExpose === true}
-                onCheckedChange={(checked) =>
-                  onUpdate(widget.id, (current) => ({
-                    ...current,
-                    mqttExpose: checked,
-                    mqttName:
-                      checked &&
-                      normalizeTextWidgetMqttName(current.mqttName).length === 0
-                        ? normalizeTextWidgetMqttName(current.label) ||
-                          `text_${widgetIndex + 1}`
-                        : normalizeTextWidgetMqttName(current.mqttName),
-                  }))
-                }
-              />
-            </div>
-
-            {widget.mqttExpose === true ? (
-              <div className="space-y-2">
-                <Label htmlFor={`${widget.id}-mqtt-name`}>MQTT Name</Label>
-                <Input
-                  id={`${widget.id}-mqtt-name`}
-                  value={widget.mqttName ?? ""}
-                  maxLength={48}
-                  placeholder="welcome_home"
-                  onChange={(event) =>
-                    onUpdate(widget.id, (current) => ({
-                      ...current,
-                      mqttName: normalizeTextWidgetMqttName(event.target.value),
-                    }))
-                  }
-                />
-                {textWidgetEntityId ? (
-                  <p className="text-xs text-zinc-600 font-mono">
-                    {textWidgetEntityId}
-                  </p>
-                ) : null}
-                {textWidgetMqttValidation?.invalidReason ? (
-                  <p className="text-xs text-red-700">
-                    {textWidgetMqttValidation.invalidReason}
-                  </p>
-                ) : null}
-                {textWidgetMqttValidation?.duplicateInLayout ? (
-                  <p className="text-xs text-red-700">
-                    Name already used in this layout.
-                  </p>
-                ) : null}
-                {textWidgetMqttValidation?.checking ? (
-                  <p className="text-xs text-zinc-600">Checking…</p>
-                ) : textWidgetMqttValidation?.lookupError ? (
-                  <p className="text-xs text-amber-700">
-                    {textWidgetMqttValidation.lookupError}
-                  </p>
-                ) : textWidgetMqttValidation?.existsInHomeAssistant ? (
-                  <p className="text-xs text-red-700">
-                    Home Assistant already has this entity.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
         {(widget.type === "slider" || widget.type === "button") && (
           <div className="space-y-2">
             <Label>Icon</Label>
@@ -613,7 +553,7 @@ function EditableWidgetCard({
             <Label htmlFor={`${widget.id}-history-graph`} className="sr-only">
               Show temperature history graph
             </Label>
-            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
+            <div className={`${compactMutedPanelClass} px-2 py-2.5`}>
               <Switch
                 id={`${widget.id}-history-graph`}
                 label="History graph"
@@ -630,14 +570,14 @@ function EditableWidgetCard({
         )}
 
         {widget.type === "progress" && (
-          <div className="space-y-2">
+          <div className="space-y-2 col-span-2">
             <Label
               htmlFor={`${widget.id}-hide-when-unavailable`}
               className="sr-only"
             >
               Hide when entity is unavailable
             </Label>
-            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
+            <div className={`${compactMutedPanelClass} p-2.5`}>
               <Switch
                 id={`${widget.id}-hide-when-unavailable`}
                 label="Hide if unavailable"
@@ -680,7 +620,7 @@ function EditableWidgetCard({
               <Label htmlFor={`${widget.id}-seconds`} className="sr-only">
                 Show Seconds
               </Label>
-              <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3">
+              <div className={`${compactMutedPanelClass} px-4 py-2.5`}>
                 <Switch
                   id={`${widget.id}-seconds`}
                   label="Seconds"
@@ -711,6 +651,78 @@ function EditableWidgetCard({
               }))
             }
           />
+        </div>
+      ) : null}
+      {widget.type === "text" ? (
+        <div className="space-y-3">
+          <Label htmlFor={`${widget.id}-mqtt-expose`} className="sr-only">
+            Expose text widget via MQTT
+          </Label>
+          <div className={`${compactMutedPanelClass} px-4 py-3`}>
+            <Switch
+              id={`${widget.id}-mqtt-expose`}
+              label="MQTT input"
+              checked={widget.mqttExpose === true}
+              onCheckedChange={(checked) =>
+                onUpdate(widget.id, (current) => ({
+                  ...current,
+                  mqttExpose: checked,
+                  mqttName:
+                    checked &&
+                    normalizeTextWidgetMqttName(current.mqttName).length === 0
+                      ? normalizeTextWidgetMqttName(current.label) ||
+                        `text_${widgetIndex + 1}`
+                      : normalizeTextWidgetMqttName(current.mqttName),
+                }))
+              }
+            />
+          </div>
+
+          {widget.mqttExpose === true ? (
+            <div className="space-y-2">
+              <Label className="col-span-1" htmlFor={`${widget.id}-mqtt-name`}>
+                MQTT Name
+              </Label>
+              <Input
+                id={`${widget.id}-mqtt-name`}
+                value={widget.mqttName ?? ""}
+                maxLength={48}
+                placeholder="welcome_home"
+                onChange={(event) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    mqttName: normalizeTextWidgetMqttName(event.target.value),
+                  }))
+                }
+              />
+              {textWidgetEntityId ? (
+                <p className="text-xs text-zinc-600 font-mono">
+                  {textWidgetEntityId}
+                </p>
+              ) : null}
+              {textWidgetMqttValidation?.invalidReason ? (
+                <p className="text-xs text-red-700">
+                  {textWidgetMqttValidation.invalidReason}
+                </p>
+              ) : null}
+              {textWidgetMqttValidation?.duplicateInLayout ? (
+                <p className="text-xs text-red-700">
+                  Name already used in this layout.
+                </p>
+              ) : null}
+              {textWidgetMqttValidation?.checking ? (
+                <p className="text-xs text-zinc-600">Checking…</p>
+              ) : textWidgetMqttValidation?.lookupError ? (
+                <p className="text-xs text-amber-700">
+                  {textWidgetMqttValidation.lookupError}
+                </p>
+              ) : textWidgetMqttValidation?.existsInHomeAssistant ? (
+                <p className="text-xs text-red-700">
+                  Home Assistant already has this entity.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -791,10 +803,7 @@ export default function Home() {
       }),
     [darkMode, fullRefreshEvery, homeAssistant, pages, selectedFont],
   );
-  const fontClass = useMemo(
-    () => getFontClass(selectedFont),
-    [selectedFont],
-  );
+  const fontClass = useMemo(() => getFontClass(selectedFont), [selectedFont]);
   const clockFontClass = useMemo(
     () => getClockFontClass(selectedFont),
     [selectedFont],
@@ -1230,8 +1239,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen text-zinc-950">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="rounded-[28px] border border-zinc-950/80 bg-white px-5 py-4">
+      <div className="mx-auto flex w-full max-w-350 flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <header className="rounded-4xl border border-zinc-950/80 bg-white px-5 py-4">
           <h1 className="text-xl font-semibold tracking-tight text-zinc-950 sm:text-2xl">
             E-Ink Frame Configurator
           </h1>
@@ -1335,6 +1344,9 @@ export default function Home() {
                         <Switch
                           id="theme"
                           label={`${darkMode ? "Dark" : "Light"}`}
+                          ariaLabel={`Preview mode: ${
+                            darkMode ? "Dark" : "Light"
+                          }`}
                           checked={darkMode}
                           onCheckedChange={setDarkMode}
                         />
@@ -1349,7 +1361,7 @@ export default function Home() {
                   </CardHeader>
 
                   <CardContent className="space-y-4 pt-6">
-                    <div className="space-y-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+                    <div className={`space-y-4 p-4 ${mutedPanelClass}`}>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
@@ -1388,26 +1400,30 @@ export default function Home() {
                         </Button>
                       </div>
 
-                      <Reorder.Group
-                        axis="x"
-                        values={buildConfig.pages.map((page) => page.id)}
-                        onReorder={reorderPages}
-                        className="flex flex-wrap gap-2"
-                      >
-                        {buildConfig.pages.map((page, index) => (
-                          <EditablePageTab
-                            key={page.id}
-                            page={page}
-                            index={index}
-                            selected={page.id === editorPage?.id}
-                            onSelect={() => setEditorPageId(page.id)}
-                          />
-                        ))}
-                      </Reorder.Group>
+                      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+                        {/* Keep page tabs on one line so horizontal drag ordering
+                            stays reliable even when many pages exist. */}
+                        <Reorder.Group
+                          axis="x"
+                          values={buildConfig.pages.map((page) => page.id)}
+                          onReorder={reorderPages}
+                          className="flex min-w-max gap-2"
+                        >
+                          {buildConfig.pages.map((page, index) => (
+                            <EditablePageTab
+                              key={page.id}
+                              page={page}
+                              index={index}
+                              selected={page.id === editorPage?.id}
+                              onSelect={() => setEditorPageId(page.id)}
+                            />
+                          ))}
+                        </Reorder.Group>
+                      </div>
                     </div>
 
                     {editorPage ? (
-                      <div className="space-y-4 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+                      <div className={`space-y-4 p-4 ${mutedPanelClass}`}>
                         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
                           <div className="space-y-2">
                             <Label htmlFor="page-name">Page</Label>
@@ -1493,13 +1509,11 @@ export default function Home() {
 
                           <div className="flex items-end">
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="destructive"
                               onClick={() => removePage(editorPage.id)}
                               disabled={buildConfig.pages.length <= 1}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -1647,7 +1661,7 @@ export default function Home() {
                   </CardHeader>
 
                   <CardContent className="pt-6">
-                    <div className="rounded-[32px] border border-zinc-950/15 bg-zinc-100 p-4">
+                    <div className="rounded-4xl border border-zinc-950/15 bg-zinc-100 p-4">
                       <DevicePreview
                         darkMode={buildConfig.darkMode}
                         fontClass={fontClass}

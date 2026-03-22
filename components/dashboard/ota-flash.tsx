@@ -139,7 +139,7 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-xs flex-col items-end gap-2">
       {status ? (
-        <div className="pointer-events-auto rounded-[22px] border border-zinc-950/80 bg-white px-4 py-3 text-sm text-zinc-700 shadow-[0_12px_30px_rgba(17,17,17,0.12)]">
+        <div className="pointer-events-auto rounded-2xl border border-zinc-950/80 bg-white px-4 py-3 text-sm text-zinc-700 shadow-[0_12px_30px_rgba(17,17,17,0.12)]">
           {status}
         </div>
       ) : null}

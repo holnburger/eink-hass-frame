@@ -110,11 +110,11 @@ export function HomeAssistantEntityPicker({
   const compatibleDomains = supportedDomains.join(", ");
 
   return (
-    <div className="space-y-3 rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+    <div className="space-y-3 rounded-3xl border border-zinc-950/15 bg-zinc-50 p-4">
       <p className="text-sm font-medium text-zinc-950">{compatibleDomains}</p>
 
       {value ? (
-        <div className="flex items-start justify-between gap-3 rounded-[20px] border border-zinc-950/15 bg-white px-4 py-3">
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-zinc-950/15 bg-white px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-zinc-950">
               {value.friendlyName ?? value.entityId}
@@ -160,7 +160,7 @@ export function HomeAssistantEntityPicker({
                       friendlyName: entity.friendlyName,
                     })
                   }
-                  className="w-full rounded-[20px] border border-zinc-950/15 bg-white px-4 py-3 text-left transition hover:border-zinc-950/35"
+                  className="w-full rounded-2xl border border-zinc-950/15 bg-white px-4 py-3 text-left transition hover:border-zinc-950/35"
                 >
                   <p className="truncate text-sm font-medium text-zinc-950">
                     {entity.friendlyName}
@@ -180,7 +180,7 @@ export function HomeAssistantEntityPicker({
           {status ? <p className="text-xs text-zinc-600">{status}</p> : null}
         </>
       ) : (
-        <div className="flex items-start gap-3 rounded-[20px] border border-dashed border-zinc-700 bg-white px-4 py-4 text-xs text-zinc-600">
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-zinc-700 bg-white px-4 py-4 text-xs text-zinc-600">
           <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
           <p>Add URL and token first.</p>
         </div>

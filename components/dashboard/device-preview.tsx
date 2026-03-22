@@ -1,7 +1,13 @@
 "use client";
 import { icons as weatherIcons } from "@iconify-json/wi";
 import { getIconData, iconToSVG, replaceIDs } from "@iconify/utils";
-import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Lightbulb,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MdiIcon } from "@/components/dashboard/mdi-icon";
@@ -41,6 +47,10 @@ function previewCardClasses(darkMode: boolean, extra = "") {
     ? `border border-white/12 bg-black ${extra}`.trim()
     : `border border-current/15 bg-white/55 ${extra}`.trim();
 }
+
+// The preview keeps a few custom radii so the mock device shell stays visually
+// close to the physical e-ink frame. The editor UI uses canonical Tailwind
+// radius classes everywhere else.
 
 const WEATHER_STATES = [
   { temperature: 7, condition: "Cloudy" },
@@ -249,22 +259,19 @@ function PreviewSwitch({
 
   return (
     <div
-      className={`rounded-[1.25rem] px-4 py-3 text-left ${previewCardClasses(darkMode)}`}
+      className={`rounded-2xl px-2 py-2 text-left ${previewCardClasses(darkMode)}`}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
-            Switch
-          </p>
-          <p className="mt-0.5 text-base font-semibold">{widget.label}</p>
+          <p className="text-xs  opacity-55">{widget.label}</p>
         </div>
         <span
-          className={`relative h-8 w-14 rounded-full p-0.5 transition ${
+          className={`relative h-5 w-12 rounded-full p-0.5 transition ${
             enabled ? "bg-zinc-700/80" : "bg-zinc-400/40"
           }`}
         >
           <span
-            className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${
               enabled ? "left-7" : "left-1"
             }`}
           />
@@ -305,15 +312,10 @@ function PreviewProgress({
     : Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
 
   return (
-    <div
-      className={`rounded-[1.25rem] px-4 py-3 ${previewCardClasses(darkMode)}`}
-    >
+    <div className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode)}`}>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
-            Progress
-          </p>
-          <p className="mt-0.5 text-base font-semibold">{widget.label}</p>
+          <p className="text-xs opacity-55">{widget.label}</p>
         </div>
         {value !== null ? (
           <p className="text-sm font-medium tabular-nums opacity-70">
@@ -322,10 +324,10 @@ function PreviewProgress({
         ) : null}
       </div>
       <div
-        className={`mt-3 h-3 rounded-full p-0.5 ${darkMode ? "bg-white/10" : "bg-zinc-400/25"}`}
+        className={`mt-1 h-3 rounded-full p-0.5 ${darkMode ? "bg-white/10" : "bg-zinc-400/25"}`}
       >
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,#111827_0%,#6b7280_100%)]"
+          className={`h-full rounded-full ${darkMode ? "bg-white/80" : "bg-black"} `}
           style={{ width: `${value ?? 0}%` }}
         />
       </div>
@@ -350,18 +352,14 @@ function PreviewSlider({
   const fillWidth = value > 0 ? `calc(25px + ${ratio} * (100% - 66px))` : "0px";
 
   return (
-    <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
+    <div className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode)}`}>
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
-            Slider
-          </p>
-          <p className="mt-1 text-lg font-semibold">{widget.label}</p>
-        </div>
-        <p className="text-sm font-medium tabular-nums opacity-70">{value}%</p>
+        <p className="text-xs opacity-55">{widget.label}</p>
+
+        <p className="text-xs font-medium tabular-nums opacity-70">{value}%</p>
       </div>
-      <div className="mt-4">
-        <div className="relative h-11 touch-none select-none">
+      <div className="mt-1">
+        <div className="relative h-8 touch-none select-none">
           <div
             className={`absolute inset-0 rounded-full border ${darkMode ? "border-white/70 bg-black" : "border-zinc-900 bg-white"}`}
           />
@@ -370,7 +368,7 @@ function PreviewSlider({
             style={{ width: fillWidth }}
           />
           <div
-            className={`absolute left-0 top-0 flex h-11 w-11 items-center justify-center rounded-full border ${
+            className={`absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full border ${
               value > 0
                 ? darkMode
                   ? "border-white bg-white text-zinc-900"
@@ -392,7 +390,7 @@ function PreviewSlider({
           </div>
           {value > 0 ? (
             <div
-              className={`absolute top-0 h-11 w-11 -translate-x-1/2 rounded-full ${
+              className={`absolute top-0 h-8 w-8 -translate-x-14 rounded-full ${
                 darkMode ? "bg-white" : "bg-zinc-900"
               }`}
               style={{ left: knobPosition }}
@@ -467,20 +465,21 @@ function PreviewThermostat({
 
   return (
     <div
-      className={`rounded-[1.45rem] px-4 pt-5.5 ${
+      className={`rounded-2xl px-2 py-1 ${
         darkMode
           ? "border border-white/12 bg-black"
-          : "border border-current/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(238,238,234,0.92)_100%)]"
-      } ${widget.showHistoryGraph ? "pb-5" : "pb-5.5"}`}
+          : "border border-current/15 "
+      }`}
     >
-      <p className="text-[10px] uppercase tracking-[0.22em] opacity-55">
-        Thermostat
-      </p>
-      <div className="mt-3 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="truncate text-lg">{widget.label}</p>
+      <div className="flex flex-row justify-between">
+        <p className="text-xs opacity-55">{widget.label}</p>
+        <p className="text-xs opacity-45">Current / Target</p>
+      </div>
+
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col items-end">
           {thermostatControls.length > 0 ? (
-            <div className="mt-3 flex items-center gap-2.5">
+            <div className="flex items-end justify-end gap-2.5 pb-4">
               {thermostatControls.map((control) => (
                 <PreviewThermostatModeButton
                   key={control.key}
@@ -490,42 +489,41 @@ function PreviewThermostat({
                 />
               ))}
             </div>
-          ) : null}
+          ) : (
+            <div className="w-10 h-10"></div>
+          )}
         </div>
 
-        <div className="mr-6 flex items-start gap-4">
-          <div className="w-40 shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-[0.16em] opacity-45">
-              Current / Target
-            </p>
+        <div className="flex items-center gap-0.5">
+          <div className="shrink-0 text-right">
             <div className="mt-1.5 flex items-end justify-end gap-3">
               <div className="flex items-end">
-                <p className="text-[1.9rem] font-black tabular-nums leading-none">
+                <p className="text-2xl font-black tabular-nums leading-none">
                   {currentText}
                 </p>
-                <span className="ml-1 translate-y-px text-[0.72rem] opacity-60">
+                <span className="ml-1 text-[0.72rem] opacity-60">
                   {temperatureUnit}
                 </span>
               </div>
               <span className="translate-y-px text-sm opacity-40">/</span>
               <div className="flex items-end">
-                <p className="text-[1.45rem] font-medium tabular-nums leading-none">
+                <p className="text-xl font-medium tabular-nums leading-none">
                   {targetText}
                 </p>
-                <span className="ml-1 translate-y-px text-[0.68rem] opacity-55">
+                <span className="ml-1 text-[0.68rem] opacity-55">
                   {temperatureUnit}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center pl-2 pr-0 py-2">
-            <div className="ml-2 flex flex-col items-center gap-1">
+          <div className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
               <div className="flex h-6 w-6 items-center justify-center rounded-full text-current/80">
-                <ChevronRight className="h-4.5 w-4.5 -rotate-90 stroke-[3.2]" />
+                <ChevronUp className="h-3 w-3" />
               </div>
               <div className="flex h-6 w-6 items-center justify-center rounded-full text-current/80">
-                <ChevronRight className="h-4.5 w-4.5 rotate-90 stroke-[3.2]" />
+                <ChevronDown className="h-3 w-3" />
               </div>
             </div>
           </div>
@@ -533,7 +531,7 @@ function PreviewThermostat({
       </div>
 
       {widget.showHistoryGraph ? (
-        <div className="mt-5.5">
+        <div className="mt-1">
           <PreviewThermostatHistoryChart
             entries={history}
             darkMode={darkMode}
@@ -555,7 +553,7 @@ function PreviewThermostatModeButton({
 }) {
   return (
     <div
-      className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+      className={`flex h-4 w-4 items-center justify-center rounded-full border ${
         active
           ? darkMode
             ? "border-white/18 bg-zinc-100 text-zinc-950"
@@ -590,24 +588,17 @@ function PreviewWeather({
     "temperatureUnit" in weather ? weather.temperatureUnit : "°C";
 
   return (
-    <div className={`rounded-[1.35rem] p-4 ${previewCardClasses(darkMode)}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] opacity-55">
-            Weather
-          </p>
-          <p className="mt-1 text-lg font-semibold">{widget.label}</p>
-          <p className="mt-3 text-3xl font-semibold tabular-nums">
+    <div className={`rounded-2xl p-2 ${previewCardClasses(darkMode)}`}>
+      <p className="text-xs opacity-55">{widget.label}</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col">
+          <p className="mt-3 text-3xl font-bold tabular-nums">
             {temperature}
             {temperatureUnit}
           </p>
           <p className="text-sm opacity-70">{weather.condition}</p>
         </div>
-        <div
-          className={`mt-0.5 flex h-32 w-32 items-center justify-center rounded-[1.35rem] ${darkMode ? "bg-white/6" : "bg-zinc-400/6"}`}
-        >
-          <WeatherIcon condition={weather.condition} className="h-28 w-28" />
-        </div>
+        <WeatherIcon condition={weather.condition} className="h-16 w-16" />
       </div>
     </div>
   );
@@ -914,12 +905,12 @@ function PreviewWeatherMetric({
   darkMode: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center px-2 py-2 text-center">
+    <div className="flex flex-col items-center justify-center p-1 py-0 text-center">
       <WeatherGlyph
         iconName={icon}
-        className={`h-[1.95rem] w-[1.95rem] ${darkMode ? "text-zinc-100" : "text-zinc-900"}`}
+        className={`h-4 w-4 ${darkMode ? "text-zinc-100" : "text-zinc-900"}`}
       />
-      <p className="mt-2 text-[0.68rem] font-medium tabular-nums">{value}</p>
+      <p className="text-[0.68rem] font-medium tabular-nums">{value}</p>
     </div>
   );
 }
@@ -1008,7 +999,7 @@ function PreviewWeatherHourlyChart({
         d={path}
         fill="none"
         stroke={chartColor}
-        strokeWidth="3.8"
+        strokeWidth="1"
         strokeLinejoin="round"
         strokeLinecap="round"
       />
@@ -1130,50 +1121,40 @@ function PreviewWeatherFocusPage({
   ];
 
   return (
-    <div
-      className={`relative h-full overflow-hidden rounded-[1.8rem] ${
-        darkMode
-          ? "border border-white/12 bg-[linear-gradient(180deg,#121212_0%,#040404_100%)] text-zinc-100"
-          : "border border-current/15 bg-[linear-gradient(180deg,rgba(247,247,244,0.96)_0%,rgba(232,230,224,0.98)_100%)] text-zinc-900"
-      }`}
-    >
-      <div className="relative z-10 flex h-full flex-col px-4 pb-4 pt-4">
+    <>
+      <div className="relative z-10 flex h-full flex-col p-1">
         <div
-          className={`rounded-[1.9rem] px-4 pb-5 pt-4 ${
-            darkMode ? "bg-white/4" : "bg-white/70"
+          className={`rounded-2xl p-2 border ${
+            darkMode ? "bg-white/4 border-white/40" : "bg-white/70 border-black"
           }`}
         >
-          <p className="text-center text-[9px] uppercase tracking-[0.18em] opacity-45">
+          <p className="text-center text-[9px] uppercase  opacity-45">
             {formatPreviewWeatherDate(now)}
           </p>
-          <div className="mt-5 flex items-center justify-between gap-4">
-            <div className="flex h-50 w-50 items-center justify-center">
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <div className="flex h-28 w-28 items-center justify-center">
               <WeatherIcon
                 condition={current.condition}
-                className="h-[12.2rem] w-[12.2rem]"
+                className="h-28 w-28"
               />
             </div>
             <div className="flex-1 text-right">
-              <div className="mt-4 flex items-start justify-end gap-1">
-                <p className="text-[4.9rem] font-semibold leading-[0.84] tabular-nums">
+              <div className="mt-4 flex items-end justify-end gap-1">
+                <p className="text-6xl font-semibold leading-[0.84] tabular-nums">
                   {currentTemperature}
                 </p>
                 <p className="pt-3 text-[1.35rem] font-medium opacity-75">
                   {temperatureUnit}
                 </p>
               </div>
-              <p className="mt-1 text-[0.72rem] opacity-52">
-                Feels like {feelsLike}
-              </p>
-              <p className="mt-1 text-[0.86rem] uppercase tracking-[0.14em] opacity-55">
-                {current.condition}
-              </p>
+              <p className="mt-1 text-xs opacity-52">Feels like {feelsLike}</p>
+              <p className="mt-1 text-sm opacity-55">{current.condition}</p>
             </div>
           </div>
         </div>
 
         <div
-          className={`mt-3 grid grid-cols-3 divide-x rounded-[1.35rem] px-1 py-1 ${
+          className={`mt-2 grid grid-cols-3 divide-x rounded-2xl p-1 border ${
             darkMode
               ? "divide-white/10 bg-white/4"
               : "divide-black/10 bg-white/72"
@@ -1190,19 +1171,19 @@ function PreviewWeatherFocusPage({
         </div>
 
         <div
-          className={`mt-3 rounded-[1.45rem] px-3 py-3 ${
+          className={`mt-2 rounded-2xl p-1 border ${
             darkMode ? "bg-white/4" : "bg-white/72"
           }`}
         >
           <div className="flex items-center gap-2">
             <MdiIcon
               icon="thermometer"
-              size={24}
+              size={12}
               className={darkMode ? "text-zinc-100" : "text-zinc-900"}
             />
             <MdiIcon
               icon="weather-pouring"
-              size={24}
+              size={12}
               className={darkMode ? "text-zinc-100" : "text-zinc-900"}
             />
           </div>
@@ -1212,7 +1193,7 @@ function PreviewWeatherFocusPage({
         </div>
 
         <div
-          className={`mt-3 grid grid-cols-3 divide-x rounded-[1.45rem] px-1 py-2 ${
+          className={`mt-2 grid grid-cols-3 border divide-x rounded-2xl px-1 py-2 ${
             darkMode
               ? "divide-white/10 bg-white/4"
               : "divide-black/10 bg-white/72"
@@ -1235,13 +1216,13 @@ function PreviewWeatherFocusPage({
                 key={`${entry.label}-${entry.condition}-${index}`}
                 className="px-1 py-1 text-center"
               >
-                <p className="text-[8px] uppercase tracking-[0.14em] opacity-45">
+                <p className="text-[8px] tracking-[0.14em] opacity-45">
                   {entry.label}
                 </p>
-                <div className="flex min-h-[4.8rem] items-center justify-center">
+                <div className="flex min-h-8 items-center justify-center">
                   <WeatherIcon
                     condition={entry.condition}
-                    className="h-[4.35rem] w-[4.35rem]"
+                    className="h-6 w-6"
                   />
                 </div>
                 <p className="mt-1 text-[0.6rem] font-medium tabular-nums">
@@ -1264,7 +1245,7 @@ function PreviewWeatherFocusPage({
           })}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1340,7 +1321,7 @@ function PreviewMediaPlayerPage({
         {hasContent ? (
           <>
             {media.artist ? (
-              <p className="mt-4 text-[0.92rem] uppercase tracking-[0.18em] opacity-35">
+              <p className="mt-4 text-[0.92rem] uppercase  opacity-35">
                 {media.artist}
               </p>
             ) : null}
@@ -1413,34 +1394,23 @@ function PreviewDigitalClock({
   widget,
   now,
   darkMode,
-  clockFontClass,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
-  clockFontClass: string;
 }) {
   const showSeconds = widget.showSeconds !== false;
-  const segmentClock = isSegmentFontClass(clockFontClass);
 
   return (
     <div
-      className={`rounded-[1.6rem] px-4 py-2 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
     >
-      <p className="text-xs tracking-[0.22em] opacity-55">Clock</p>
-      <div className="text-center py-8">
+      <p className="text-xs opacity-55">{widget.label}</p>
+      <div className="text-center py-2">
         <time
           aria-label="Preview clock time"
           dateTime={now ? now.toISOString() : undefined}
-          className={`${clockFontClass} tabular-nums leading-none ${
-            segmentClock
-              ? showSeconds
-                ? "text-[2.05rem] tracking-[0.04em]"
-                : "text-[2.45rem] tracking-[0.03em]"
-              : showSeconds
-                ? "text-[2.2rem] font-semibold tracking-[0.12em]"
-                : "text-[2.6rem] font-semibold tracking-[0.1em]"
-          }`}
+          className="tabular-nums font-segment text-7xl"
         >
           {formatClock(now, showSeconds)}
         </time>
@@ -1468,23 +1438,20 @@ function PreviewAnalogClock({
 
   return (
     <div
-      className={`rounded-[1.6rem] px-5 py-5 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.22em] opacity-55">Clock</p>
-        <p className="text-xs uppercase tracking-[0.18em] opacity-55">
-          {showSeconds ? "Seconds" : "Minutes"}
-        </p>
+      <div className="flex items-start justify-between">
+        <p className="text-xs opacity-55">{widget.label}</p>
       </div>
-      <div className="mt-3 flex justify-center">
-        <svg viewBox="0 0 160 160" className="h-36 w-36">
+      <div className="mt-1 flex justify-center">
+        <svg viewBox="0 0 160 160" className="h-28 w-28">
           <circle
             cx="80"
             cy="80"
             r="70"
             fill={darkMode ? "rgba(8,8,8,0.98)" : "rgba(255,255,255,0.82)"}
             stroke="currentColor"
-            strokeWidth="4"
+            strokeWidth="1"
           />
           <circle
             cx="80"
@@ -1557,24 +1524,15 @@ function PreviewClock({
   widget,
   now,
   darkMode,
-  clockFontClass,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
-  clockFontClass: string;
 }) {
   if (widget.clockStyle === "analog") {
     return <PreviewAnalogClock widget={widget} now={now} darkMode={darkMode} />;
   }
-  return (
-    <PreviewDigitalClock
-      widget={widget}
-      now={now}
-      darkMode={darkMode}
-      clockFontClass={clockFontClass}
-    />
-  );
+  return <PreviewDigitalClock widget={widget} now={now} darkMode={darkMode} />;
 }
 
 function PreviewOverviewPage({
@@ -1582,13 +1540,11 @@ function PreviewOverviewPage({
   homeAssistantStates,
   now,
   darkMode,
-  clockFontClass,
 }: {
   page: PageConfig;
   homeAssistantStates: Record<string, HomeAssistantEntityState>;
   now: Date | null;
   darkMode: boolean;
-  clockFontClass: string;
 }) {
   const clockWidget = page.widgets.find(
     (widget) => widget.type === "clock",
@@ -1624,7 +1580,6 @@ function PreviewOverviewPage({
   const minuteAngle = (minutes + seconds / 60) * 6;
   const secondAngle = seconds * 6;
   const showSeconds = clockWidget.showSeconds !== false;
-  const segmentClock = isSegmentFontClass(clockFontClass);
   const renderTextBlock = (widgets: WidgetConfig[]) => (
     <div className="w-full space-y-3 text-center">
       {widgets.map((widget) => (
@@ -1778,7 +1733,6 @@ function PreviewOverviewPage({
 export function DevicePreview({
   darkMode,
   fontClass,
-  clockFontClass,
   pages,
   homeAssistantConfig,
   homeAssistantStates,
@@ -1834,7 +1788,7 @@ export function DevicePreview({
     >
       <div className="flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-current/10 bg-white/5 p-2">
         {showPageHeader ? (
-          <div className="flex items-center justify-center pb-3">
+          <div className="flex items-center justify-center text-sm">
             {activePage.name}
           </div>
         ) : null}
@@ -1848,7 +1802,6 @@ export function DevicePreview({
               homeAssistantStates={homeAssistantStates}
               now={now}
               darkMode={darkMode}
-              clockFontClass={clockFontClass}
             />
           ) : activePage.type === "weather-focus" ? (
             <PreviewWeatherFocusPage
@@ -1876,7 +1829,7 @@ export function DevicePreview({
               fontClass={fontClass}
             />
           ) : (
-            <div className="space-y-3 overflow-hidden">
+            <div className="space-y-2 overflow-hidden">
               {activePage.widgets.map((widget, index) => {
                 const entity = getBoundEntityState(widget, homeAssistantStates);
                 switch (widget.type) {
@@ -1887,7 +1840,6 @@ export function DevicePreview({
                         widget={widget}
                         now={now}
                         darkMode={darkMode}
-                        clockFontClass={clockFontClass}
                       />
                     );
                   case "weather":
@@ -1957,7 +1909,7 @@ export function DevicePreview({
         </div>
 
         {showNavigation ? (
-          <div className="mt-3 flex items-center justify-between gap-3 pt-3">
+          <div className="mt-1 flex items-center justify-between gap-2 pt-1">
             <button
               type="button"
               onClick={() =>

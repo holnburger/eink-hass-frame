@@ -113,7 +113,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
       </CardHeader>
 
       <CardContent className="grid gap-4 p-6 lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-[24px] border border-zinc-950/15 bg-zinc-50 p-4">
+        <div className="rounded-3xl border border-zinc-950/15 bg-zinc-50 p-4">
           {checkingBinaries ? (
             <p className="text-sm text-zinc-600">Checking firmware…</p>
           ) : artifactsReady ? (
@@ -137,7 +137,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
 
         <div
           id="finalize-setup"
-          className="rounded-[24px] border border-zinc-950/15 bg-white p-4"
+          className="rounded-3xl border border-zinc-950/15 bg-white p-4"
         >
           <div className="space-y-4">
             <div className="space-y-2">
@@ -164,7 +164,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
               Save Device
             </Button>
 
-            <div className="rounded-[20px] border border-zinc-950/15 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+            <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
               {deviceSaveStatus || "IP appears here after Wi-Fi setup."}
             </div>
           </div>

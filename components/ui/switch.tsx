@@ -5,9 +5,16 @@ type SwitchProps = {
   onCheckedChange: (checked: boolean) => void;
   label: string;
   id?: string;
+  ariaLabel?: string;
 };
 
-export function Switch({ checked, onCheckedChange, label, id }: SwitchProps) {
+export function Switch({
+  checked,
+  onCheckedChange,
+  label,
+  id,
+  ariaLabel,
+}: SwitchProps) {
   return (
     <label
       htmlFor={id}
@@ -19,6 +26,7 @@ export function Switch({ checked, onCheckedChange, label, id }: SwitchProps) {
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={ariaLabel}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
           "relative h-6 w-11 rounded-full border border-zinc-900 transition",
@@ -27,8 +35,10 @@ export function Switch({ checked, onCheckedChange, label, id }: SwitchProps) {
       >
         <span
           className={cn(
-            "absolute left-1 top-1 block h-4 w-4 rounded-full transition",
-            checked ? "translate-x-5 bg-[#f7f7f5]" : "translate-x-0 bg-zinc-950",
+            "absolute left-1 top-[0.2rem] block h-4 w-4 rounded-full transition",
+            checked
+              ? "translate-x-5 bg-[#f7f7f5]"
+              : "translate-x-0 bg-zinc-950",
           )}
         />
       </button>
