@@ -37,7 +37,10 @@ static void drawSwitchWidget(int widgetIndex, bool pushPartial)
   }
 
   drawWidgetCardBase(state.cardRect);
-  drawWidgetMetaTextAtTop(widget.label, state.cardRect.x + 18, state.cardRect.y + 18);
+  drawWidgetMetaTextCenteredVertically(
+      widget.label,
+      state.cardRect.x + 18,
+      state.controlRect.y + (state.controlRect.h / 2));
 
   const uint8_t trackShade = state.enabled ? 3 : 1;
   fillDitherRoundRect(

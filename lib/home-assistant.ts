@@ -505,6 +505,29 @@ export function resolveHomeAssistantEnabled(
   return lowered === "on" || lowered === "open" || lowered === "playing";
 }
 
+export function applyWidgetLogicInversionToEnabled(
+  enabled: boolean | undefined,
+  inverted?: boolean,
+) {
+  if (enabled === undefined) {
+    return undefined;
+  }
+
+  return inverted ? !enabled : enabled;
+}
+
+export function applyWidgetLogicInversionToPercent(
+  value: number | undefined,
+  inverted?: boolean,
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = normalizePercent(value);
+  return inverted ? 100 - normalized : normalized;
+}
+
 export function resolveHomeAssistantNumericValue(
   entity: HomeAssistantEntityState | undefined,
   widgetType: Exclude<

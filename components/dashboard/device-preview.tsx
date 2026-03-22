@@ -15,6 +15,8 @@ import {
   THERMOSTAT_HISTORY_POINT_COUNT,
   WEATHER_HOURLY_FORECAST_POINT_COUNT,
   isHomeAssistantEntityUnavailable,
+  applyWidgetLogicInversionToEnabled,
+  applyWidgetLogicInversionToPercent,
   resolveHomeAssistantMediaPlayer,
   resolveHomeAssistantEnabled,
   resolveHomeAssistantNumericValue,
@@ -28,6 +30,7 @@ import type { PageConfig, WidgetConfig } from "@/lib/layout-config";
 
 type DevicePreviewProps = {
   darkMode: boolean;
+  hideWidgetBorders: boolean;
   fontClass: string;
   clockFontClass: string;
   pages: PageConfig[];
@@ -42,7 +45,14 @@ type PreviewThermostatHistoryEntry = {
   temperature: number | null;
 };
 
-function previewCardClasses(darkMode: boolean, extra = "") {
+function previewCardClasses(
+  darkMode: boolean,
+  hideWidgetBorders: boolean,
+  extra = "",
+) {
+  if (hideWidgetBorders) {
+    return extra.trim();
+  }
   return darkMode
     ? `border border-white/12 bg-black ${extra}`.trim()
     : `border border-current/15 bg-white/55 ${extra}`.trim();
@@ -245,21 +255,76 @@ function getBoundEntityState(
   return entityId ? homeAssistantStates[entityId] : undefined;
 }
 
+function getPreviewButtonEnabled(
+  widget: WidgetConfig,
+  entity: HomeAssistantEntityState | undefined,
+) {
+  const liveEnabled =
+    entity?.domain === "cover"
+      ? (() => {
+          const coverState = entity.state.toLowerCase();
+          if (coverState === "closed") {
+            return false;
+          }
+          if (
+            coverState === "open" ||
+            coverState === "opening" ||
+            coverState === "closing"
+          ) {
+            return true;
+          }
+          const livePercent = resolveHomeAssistantNumericValue(
+            entity,
+            "slider",
+          );
+          return livePercent !== undefined ? livePercent > 0 : undefined;
+        })()
+      : resolveHomeAssistantEnabled(entity);
+  return (
+    applyWidgetLogicInversionToEnabled(liveEnabled, widget.invert) ??
+    applyWidgetLogicInversionToEnabled(
+      Boolean(widget.enabled),
+      widget.invert,
+    ) ??
+    Boolean(widget.enabled)
+  );
+}
+
+function getPreviewSliderValue(
+  widget: WidgetConfig,
+  entity: HomeAssistantEntityState | undefined,
+) {
+  const liveValue = resolveHomeAssistantNumericValue(entity, "slider");
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      applyWidgetLogicInversionToPercent(liveValue, widget.invert) ??
+        applyWidgetLogicInversionToPercent(widget.value ?? 0, widget.invert) ??
+        0,
+    ),
+  );
+}
+
 function PreviewSwitch({
   widget,
   entity,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const enabled =
-    resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
+    widget.type === "button"
+      ? getPreviewButtonEnabled(widget, entity)
+      : (resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled));
 
   return (
     <div
-      className={`rounded-2xl px-2 py-2 text-left ${previewCardClasses(darkMode)}`}
+      className={`rounded-2xl px-2 py-2 text-left ${previewCardClasses(darkMode, hideWidgetBorders)}`}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -291,14 +356,26 @@ function PreviewText({ widget }: { widget: WidgetConfig }) {
   );
 }
 
+function PreviewTitleSeparator({ widget }: { widget: WidgetConfig }) {
+  return (
+    <div className="flex items-center gap-3 px-1 py-2.5">
+      <div className="h-px flex-1 bg-current/30" />
+      <p className="text-sm">{widget.label}</p>
+      <div className="h-px flex-1 bg-current/30" />
+    </div>
+  );
+}
+
 function PreviewProgress({
   widget,
   entity,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const entityUnavailable = isHomeAssistantEntityUnavailable(entity);
   if (widget.hideWhenUnavailable && entityUnavailable) {
@@ -312,7 +389,9 @@ function PreviewProgress({
     : Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
 
   return (
-    <div className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode)}`}>
+    <div
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, hideWidgetBorders)}`}
+    >
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs opacity-55">{widget.label}</p>
@@ -339,20 +418,23 @@ function PreviewSlider({
   widget,
   entity,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
-  const liveValue = resolveHomeAssistantNumericValue(entity, "slider");
-  const value = Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
+  const value = getPreviewSliderValue(widget, entity);
 
   const ratio = (value / 100).toFixed(3);
   const knobPosition = `calc(44px + ${ratio} * (100% - 66px))`;
   const fillWidth = value > 0 ? `calc(25px + ${ratio} * (100% - 66px))` : "0px";
 
   return (
-    <div className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode)}`}>
+    <div
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, hideWidgetBorders)}`}
+    >
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs opacity-55">{widget.label}</p>
 
@@ -407,11 +489,13 @@ function PreviewThermostat({
   entity,
   now,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
   now: Date | null;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const hasHomeAssistantBinding = Boolean(widget.homeAssistant?.entityId);
   const liveThermostat = resolveHomeAssistantThermostat(entity, {
@@ -465,11 +549,7 @@ function PreviewThermostat({
 
   return (
     <div
-      className={`rounded-2xl px-2 py-1 ${
-        darkMode
-          ? "border border-white/12 bg-black"
-          : "border border-current/15 "
-      }`}
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, hideWidgetBorders)}`}
     >
       <div className="flex flex-row justify-between">
         <p className="text-xs opacity-55">{widget.label}</p>
@@ -573,11 +653,13 @@ function PreviewWeather({
   entity,
   index,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   entity?: HomeAssistantEntityState;
   index: number;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const weather =
     resolveHomeAssistantWeather(entity) ??
@@ -588,7 +670,9 @@ function PreviewWeather({
     "temperatureUnit" in weather ? weather.temperatureUnit : "°C";
 
   return (
-    <div className={`rounded-2xl p-2 ${previewCardClasses(darkMode)}`}>
+    <div
+      className={`rounded-2xl p-2 ${previewCardClasses(darkMode, hideWidgetBorders)}`}
+    >
       <p className="text-xs opacity-55">{widget.label}</p>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col">
@@ -1057,12 +1141,14 @@ function PreviewWeatherFocusPage({
   homeAssistantStates,
   now,
   darkMode,
+  hideWidgetBorders,
 }: {
   pageIndex: number;
   entity?: HomeAssistantEntityState;
   homeAssistantStates: Record<string, HomeAssistantEntityState>;
   now: Date | null;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const weatherPage = now
     ? resolveHomeAssistantWeatherPage(entity, {
@@ -1124,8 +1210,14 @@ function PreviewWeatherFocusPage({
     <>
       <div className="relative z-10 flex h-full flex-col p-1">
         <div
-          className={`rounded-2xl p-2 border ${
-            darkMode ? "bg-white/4 border-white/40" : "bg-white/70 border-black"
+          className={`rounded-2xl p-2 ${
+            hideWidgetBorders
+              ? darkMode
+                ? "bg-white/4"
+                : "bg-white/70"
+              : darkMode
+                ? "border border-white/40 bg-white/4"
+                : "border border-black bg-white/70"
           }`}
         >
           <p className="text-center text-[9px] uppercase  opacity-45">
@@ -1154,10 +1246,14 @@ function PreviewWeatherFocusPage({
         </div>
 
         <div
-          className={`mt-2 grid grid-cols-3 divide-x rounded-2xl p-1 border ${
-            darkMode
-              ? "divide-white/10 bg-white/4"
-              : "divide-black/10 bg-white/72"
+          className={`mt-2 grid grid-cols-3 rounded-2xl p-1 ${
+            hideWidgetBorders
+              ? darkMode
+                ? "bg-white/4"
+                : "bg-white/72"
+              : darkMode
+                ? "divide-x divide-white/10 border border-white/40 bg-white/4"
+                : "divide-x divide-black/10 border border-black bg-white/72"
           }`}
         >
           {stats.map((stat) => (
@@ -1171,32 +1267,28 @@ function PreviewWeatherFocusPage({
         </div>
 
         <div
-          className={`mt-2 rounded-2xl p-1 border ${
-            darkMode ? "bg-white/4" : "bg-white/72"
+          className={`mt-2 rounded-2xl p-1 ${
+            hideWidgetBorders
+              ? darkMode
+                ? "bg-white/4"
+                : "bg-white/72"
+              : darkMode
+                ? "border border-white/40 bg-white/4"
+                : "border border-black bg-white/72"
           }`}
         >
-          <div className="flex items-center gap-2">
-            <MdiIcon
-              icon="thermometer"
-              size={12}
-              className={darkMode ? "text-zinc-100" : "text-zinc-900"}
-            />
-            <MdiIcon
-              icon="weather-pouring"
-              size={12}
-              className={darkMode ? "text-zinc-100" : "text-zinc-900"}
-            />
-          </div>
-          <div className="mt-1">
-            <PreviewWeatherHourlyChart entries={hourly} darkMode={darkMode} />
-          </div>
+          <PreviewWeatherHourlyChart entries={hourly} darkMode={darkMode} />
         </div>
 
         <div
-          className={`mt-2 grid grid-cols-3 border divide-x rounded-2xl px-1 py-2 ${
-            darkMode
-              ? "divide-white/10 bg-white/4"
-              : "divide-black/10 bg-white/72"
+          className={`mt-2 grid grid-cols-3 rounded-2xl px-1 py-2 ${
+            hideWidgetBorders
+              ? darkMode
+                ? "bg-white/4"
+                : "bg-white/72"
+              : darkMode
+                ? "border border-white/40 divide-x divide-white/10 bg-white/4"
+                : "border border-black divide-x divide-black/10 bg-white/72"
           }`}
         >
           {upcoming.map((entry, index) => {
@@ -1394,16 +1486,22 @@ function PreviewDigitalClock({
   widget,
   now,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const showSeconds = widget.showSeconds !== false;
 
   return (
     <div
-      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(
+        darkMode,
+        hideWidgetBorders,
+        !hideWidgetBorders && !darkMode ? "bg-white/60" : "",
+      )}`}
     >
       <p className="text-xs opacity-55">{widget.label}</p>
       <div className="text-center py-2">
@@ -1423,10 +1521,12 @@ function PreviewAnalogClock({
   widget,
   now,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   const hours = now ? now.getHours() % 12 : 10;
   const minutes = now ? now.getMinutes() : 10;
@@ -1438,7 +1538,11 @@ function PreviewAnalogClock({
 
   return (
     <div
-      className={`rounded-2xl px-2 py-1 ${previewCardClasses(darkMode, darkMode ? "" : "bg-white/60")}`}
+      className={`rounded-2xl px-2 py-1 ${previewCardClasses(
+        darkMode,
+        hideWidgetBorders,
+        !hideWidgetBorders && !darkMode ? "bg-white/60" : "",
+      )}`}
     >
       <div className="flex items-start justify-between">
         <p className="text-xs opacity-55">{widget.label}</p>
@@ -1524,15 +1628,31 @@ function PreviewClock({
   widget,
   now,
   darkMode,
+  hideWidgetBorders,
 }: {
   widget: WidgetConfig;
   now: Date | null;
   darkMode: boolean;
+  hideWidgetBorders: boolean;
 }) {
   if (widget.clockStyle === "analog") {
-    return <PreviewAnalogClock widget={widget} now={now} darkMode={darkMode} />;
+    return (
+      <PreviewAnalogClock
+        widget={widget}
+        now={now}
+        darkMode={darkMode}
+        hideWidgetBorders={hideWidgetBorders}
+      />
+    );
   }
-  return <PreviewDigitalClock widget={widget} now={now} darkMode={darkMode} />;
+  return (
+    <PreviewDigitalClock
+      widget={widget}
+      now={now}
+      darkMode={darkMode}
+      hideWidgetBorders={hideWidgetBorders}
+    />
+  );
 }
 
 function PreviewOverviewPage({
@@ -1698,8 +1818,7 @@ function PreviewOverviewPage({
           <div className="grid max-w-62 grid-cols-3 gap-x-5 gap-y-4">
             {buttonWidgets.map((widget) => {
               const entity = getBoundEntityState(widget, homeAssistantStates);
-              const enabled =
-                resolveHomeAssistantEnabled(entity) ?? Boolean(widget.enabled);
+              const enabled = getPreviewButtonEnabled(widget, entity);
               const filled = darkMode ? !enabled : enabled;
               const offStateClasses = darkMode
                 ? "border border-zinc-100 bg-black text-zinc-100"
@@ -1732,6 +1851,7 @@ function PreviewOverviewPage({
 
 export function DevicePreview({
   darkMode,
+  hideWidgetBorders,
   fontClass,
   pages,
   homeAssistantConfig,
@@ -1810,6 +1930,7 @@ export function DevicePreview({
               homeAssistantStates={homeAssistantStates}
               now={now}
               darkMode={darkMode}
+              hideWidgetBorders={hideWidgetBorders}
             />
           ) : activePage.type === "media-player" ? (
             <PreviewMediaPlayerPage
@@ -1840,6 +1961,7 @@ export function DevicePreview({
                         widget={widget}
                         now={now}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "weather":
@@ -1850,6 +1972,7 @@ export function DevicePreview({
                         entity={entity}
                         index={index}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "progress":
@@ -1859,6 +1982,7 @@ export function DevicePreview({
                         widget={widget}
                         entity={entity}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "switch":
@@ -1868,6 +1992,7 @@ export function DevicePreview({
                         widget={widget}
                         entity={entity}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "button":
@@ -1877,6 +2002,7 @@ export function DevicePreview({
                         widget={widget}
                         entity={entity}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "slider":
@@ -1886,6 +2012,7 @@ export function DevicePreview({
                         widget={widget}
                         entity={entity}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "thermostat":
@@ -1896,10 +2023,15 @@ export function DevicePreview({
                         entity={entity}
                         now={now}
                         darkMode={darkMode}
+                        hideWidgetBorders={hideWidgetBorders}
                       />
                     );
                   case "text":
                     return <PreviewText key={widget.id} widget={widget} />;
+                  case "title":
+                    return (
+                      <PreviewTitleSeparator key={widget.id} widget={widget} />
+                    );
                   default:
                     return null;
                 }

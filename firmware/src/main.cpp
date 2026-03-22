@@ -8,6 +8,9 @@
 #include <PubSubClient.h>
 #include <WebServer.h>
 #include <WebSocketsClient.h>
+#if __has_include(<esp_system.h>)
+#include <esp_system.h>
+#endif
 #if __has_include(<esp_heap_caps.h>)
 #include <esp_heap_caps.h>
 #endif
@@ -236,6 +239,10 @@
 #define UI_BUILD_ID "dev-local"
 #endif
 
+#ifndef UI_HIDE_WIDGET_BORDERS
+#define UI_HIDE_WIDGET_BORDERS 0
+#endif
+
 #ifndef WIFI_SSID_PIO
 #define WIFI_SSID_PIO ""
 #endif
@@ -262,6 +269,11 @@
 #define TOUCH_INT 48
 #define TOUCH_RST -1
 #endif
+
+// The default ESP32 Arduino loop task stack is 8 KB. Our HA sync path now
+// carries more layout and JSON state than that leaves comfortable headroom for,
+// so increase it to avoid reset loops during startup and websocket updates.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
 static const char *FIRMWARE_VERSION_NAME = "0.1.0";
@@ -443,6 +455,11 @@ static constexpr int UI_MEDIA_PLAYBACK_REFRESH_INTERVAL_SECONDS = 5;
 static inline bool uiThemeDark()
 {
   return currentDarkModeEnabled;
+}
+
+static inline bool uiHideWidgetBorders()
+{
+  return UI_HIDE_WIDGET_BORDERS != 0;
 }
 
 static inline uint16_t uiMonoInk()
@@ -1205,6 +1222,16 @@ static int widgetMetaBaselineForTop(const char *text, int topY)
   return topY - bounds.y;
 }
 
+static int widgetMetaBaselineForCenterY(const char *text, int centerY)
+{
+  display.setCursor(0, 0);
+  selectWidgetMetaFont();
+  BB_RECT bounds;
+  getDisplayStringBox(text, &bounds);
+  display.setItalic(false);
+  return centerY - (bounds.y + (bounds.h / 2));
+}
+
 static int customFontTextWidth(const void *font, const char *text)
 {
   display.setItalic(false);
@@ -1323,6 +1350,21 @@ static void drawWidgetMetaText(const char *text, int x, int y)
 static void drawWidgetMetaTextAtTop(const char *text, int x, int topY)
 {
   drawWidgetMetaText(text, x, widgetMetaBaselineForTop(text, topY));
+}
+
+static void drawWidgetMetaTextCenteredVertically(const char *text, int x, int centerY)
+{
+  drawWidgetMetaText(text, x, widgetMetaBaselineForCenterY(text, centerY));
+}
+
+static void drawWidgetMetaTextAtBottom(const char *text, int x, int bottomY)
+{
+  display.setCursor(0, 0);
+  selectWidgetMetaFont();
+  BB_RECT bounds;
+  getDisplayStringBox(text, &bounds);
+  display.setItalic(false);
+  drawWidgetMetaText(text, x, bottomY - bounds.y - bounds.h);
 }
 
 static void drawBoldLine(int x1, int y1, int x2, int y2, int thickness)
@@ -1690,6 +1732,8 @@ static int widgetWeight(const UiWidgetConfig &widget)
     return 9;
   case UI_WIDGET_TEXT:
     return 8;
+  case UI_WIDGET_TITLE:
+    return 3;
   default:
     return 8;
   }
@@ -2097,6 +2141,11 @@ static void drawPageDots()
 
 static void drawWidgetCardBase(const BB_RECT &rect)
 {
+  if (uiHideWidgetBorders())
+  {
+    display.fillRect(rect.x, rect.y, rect.w, rect.h, uiMonoPaper());
+    return;
+  }
   if (uiThemeDark())
   {
     display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiMonoPaper());
@@ -2446,6 +2495,7 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
 #include "ui/widgets/switch_widget.inc"
 #include "ui/widgets/thermostat_widget.inc"
 #include "ui/widgets/text_widget.inc"
+#include "ui/widgets/title_widget.inc"
 #include "ui/widgets/widget_dispatch.inc"
 
 static void renderActivePage(bool pageTransition)
@@ -2748,6 +2798,71 @@ static String getEntityDomainString(const char *entityId)
   String domain = entityId;
   const int separator = domain.indexOf('.');
   return separator > 0 ? domain.substring(0, separator) : "";
+}
+
+static bool entityIdHasDomain(const char *entityId, const char *domain)
+{
+  if (entityId == nullptr || domain == nullptr)
+  {
+    return false;
+  }
+
+  const size_t domainLength = strlen(domain);
+  return strncmp(entityId, domain, domainLength) == 0 &&
+         entityId[domainLength] == '.';
+}
+
+static bool widgetUsesCoverDomain(const UiWidgetConfig &widget)
+{
+  return entityIdHasDomain(widget.entityId, "cover");
+}
+
+static bool widgetUsesInvertedLogic(const UiWidgetConfig &widget)
+{
+  return (widget.type == UI_WIDGET_BUTTON || widget.type == UI_WIDGET_SLIDER) &&
+         widget.invertLogic != 0;
+}
+
+static int invertPercentValue(int value)
+{
+  return 100 - clampInt(value, 0, 100);
+}
+
+static int widgetDisplayPercentValue(const UiWidgetConfig &widget, int actualValue)
+{
+  return widgetUsesInvertedLogic(widget)
+             ? invertPercentValue(actualValue)
+             : clampInt(actualValue, 0, 100);
+}
+
+static int widgetActualPercentValue(const UiWidgetConfig &widget, int displayValue)
+{
+  return widgetUsesInvertedLogic(widget)
+             ? invertPercentValue(displayValue)
+             : clampInt(displayValue, 0, 100);
+}
+
+static bool widgetDisplayEnabled(const UiWidgetConfig &widget, bool actualEnabled)
+{
+  return widgetUsesInvertedLogic(widget) ? !actualEnabled : actualEnabled;
+}
+
+static bool widgetActualEnabled(const UiWidgetConfig &widget, bool displayEnabled)
+{
+  return widgetUsesInvertedLogic(widget) ? !displayEnabled : displayEnabled;
+}
+
+static bool coverStateIsClosed(const char *rawState)
+{
+  return rawState != nullptr && strcmp(rawState, "closed") == 0;
+}
+
+static bool coverStateIsOpenLike(const char *rawState)
+{
+  return rawState != nullptr &&
+         (strcmp(rawState, "open") == 0 ||
+          strcmp(rawState, "opening") == 0 ||
+          strcmp(rawState, "closing") == 0);
 }
 
 static bool parseHomeAssistantUrl(const char *rawUrl, ParsedUrl &parsed)
@@ -3699,6 +3814,11 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
   WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
   JsonObjectConst attributes = stateObject["attributes"].as<JsonObjectConst>();
   const char *rawState = stateObject["state"] | "";
+  const bool isCover = entityIdHasDomain(widget.entityId, "cover");
+  const bool isLight = entityIdHasDomain(widget.entityId, "light");
+  const bool isMediaPlayer = entityIdHasDomain(widget.entityId, "media_player");
+  const bool isFan = entityIdHasDomain(widget.entityId, "fan");
+  const bool isHumidifier = entityIdHasDomain(widget.entityId, "humidifier");
   const bool entityAvailable =
       rawState[0] == '\0' ||
       (strcmp(rawState, "unavailable") != 0 &&
@@ -3709,10 +3829,51 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
 
   if (widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON)
   {
-    const bool nextEnabled =
-        strcmp(rawState, "on") == 0 ||
-        strcmp(rawState, "open") == 0 ||
-        strcmp(rawState, "playing") == 0;
+    bool nextActualEnabled = widgetActualEnabled(widget, state.enabled);
+    if (isCover)
+    {
+      if (widget.type == UI_WIDGET_BUTTON)
+      {
+        if (coverStateIsClosed(rawState))
+        {
+          nextActualEnabled = false;
+        }
+        else if (coverStateIsOpenLike(rawState))
+        {
+          nextActualEnabled = true;
+        }
+        else if (state.lastHomeAssistantUpdateMs == 0)
+        {
+          float currentPosition = 0.0f;
+          if (jsonVariantToFloat(attributes["current_position"], currentPosition))
+          {
+            nextActualEnabled = clampPercentFromFloat(currentPosition) > 0;
+          }
+        }
+      }
+      else
+      {
+        float currentPosition = 0.0f;
+        if (jsonVariantToFloat(attributes["current_position"], currentPosition))
+        {
+          nextActualEnabled = clampPercentFromFloat(currentPosition) >= 50;
+        }
+        else if (state.lastHomeAssistantUpdateMs == 0)
+        {
+          nextActualEnabled =
+              strcmp(rawState, "open") == 0 ||
+              strcmp(rawState, "opening") == 0;
+        }
+      }
+    }
+    else
+    {
+      nextActualEnabled =
+          strcmp(rawState, "on") == 0 ||
+          strcmp(rawState, "open") == 0 ||
+          strcmp(rawState, "playing") == 0;
+    }
+    const bool nextEnabled = widgetDisplayEnabled(widget, nextActualEnabled);
     changed = state.enabled != nextEnabled;
     state.enabled = nextEnabled;
   }
@@ -3736,34 +3897,34 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
   else if (widget.type == UI_WIDGET_SLIDER)
   {
     float numericValue = 0.0f;
-    int nextValue = state.value;
-    const String domain = getEntityDomainString(widget.entityId);
-    if (domain == "light")
+    int nextActualValue = widgetActualPercentValue(widget, state.value);
+    if (isLight)
     {
       if (jsonVariantToFloat(attributes["brightness"], numericValue))
       {
-        nextValue = clampPercentFromFloat((numericValue / 255.0f) * 100.0f);
+        nextActualValue = clampPercentFromFloat((numericValue / 255.0f) * 100.0f);
       }
       else
       {
-        nextValue = strcmp(rawState, "on") == 0 ? 100 : 0;
+        nextActualValue = strcmp(rawState, "on") == 0 ? 100 : 0;
       }
     }
-    else if (domain == "cover" && jsonVariantToFloat(attributes["current_position"], numericValue))
+    else if (isCover && jsonVariantToFloat(attributes["current_position"], numericValue))
     {
-      nextValue = clampPercentFromFloat(numericValue);
+      nextActualValue = clampPercentFromFloat(numericValue);
     }
-    else if (domain == "media_player" && jsonVariantToFloat(attributes["volume_level"], numericValue))
+    else if (isMediaPlayer && jsonVariantToFloat(attributes["volume_level"], numericValue))
     {
-      nextValue = clampPercentFromFloat(numericValue * 100.0f);
+      nextActualValue = clampPercentFromFloat(numericValue * 100.0f);
     }
-    else if ((domain == "fan" && jsonVariantToFloat(attributes["percentage"], numericValue)) ||
-             (domain == "humidifier" && jsonVariantToFloat(attributes["humidity"], numericValue)) ||
+    else if ((isFan && jsonVariantToFloat(attributes["percentage"], numericValue)) ||
+             (isHumidifier && jsonVariantToFloat(attributes["humidity"], numericValue)) ||
              jsonVariantToFloat(attributes["percentage"], numericValue) ||
              jsonVariantToFloat(stateObject["state"], numericValue))
     {
-      nextValue = clampPercentFromFloat(numericValue);
+      nextActualValue = clampPercentFromFloat(numericValue);
     }
+    const int nextValue = widgetDisplayPercentValue(widget, nextActualValue);
     changed = state.value != nextValue;
     state.value = nextValue;
   }
@@ -5234,17 +5395,19 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
   String serviceDomain = domain;
   String service;
   String payload = String("{\"entity_id\":\"") + widget.entityId + "\"";
+  const int actualSliderValue = widgetActualPercentValue(widget, state.value);
+  const bool actualEnabled = widgetActualEnabled(widget, state.enabled);
 
   if (widget.type == UI_WIDGET_SWITCH)
   {
-    service = state.enabled ? "turn_on" : "turn_off";
+    service = actualEnabled ? "turn_on" : "turn_off";
   }
   else if (widget.type == UI_WIDGET_BUTTON)
   {
     if (domain == "cover")
     {
       serviceDomain = "cover";
-      service = "toggle";
+      service = actualEnabled ? "close_cover" : "open_cover";
     }
     else
     {
@@ -5256,7 +5419,7 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
   {
     if (domain == "light")
     {
-      if (state.value <= 0)
+      if (actualSliderValue <= 0)
       {
         service = "turn_off";
       }
@@ -5264,38 +5427,38 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
       {
         service = "turn_on";
         payload += ",\"brightness_pct\":";
-        payload += state.value;
+        payload += actualSliderValue;
       }
     }
     else if (domain == "cover")
     {
       service = "set_cover_position";
       payload += ",\"position\":";
-      payload += state.value;
+      payload += actualSliderValue;
     }
     else if (domain == "media_player")
     {
       service = "volume_set";
       payload += ",\"volume_level\":";
-      payload += String(state.value / 100.0f, 2);
+      payload += String(actualSliderValue / 100.0f, 2);
     }
     else if (domain == "fan")
     {
       service = "set_percentage";
       payload += ",\"percentage\":";
-      payload += state.value;
+      payload += actualSliderValue;
     }
     else if (domain == "input_number" || domain == "number")
     {
       service = "set_value";
       payload += ",\"value\":";
-      payload += state.value;
+      payload += actualSliderValue;
     }
     else if (domain == "humidifier")
     {
       service = "set_humidity";
       payload += ",\"humidity\":";
-      payload += state.value;
+      payload += actualSliderValue;
     }
   }
   else if (widget.type == UI_WIDGET_THERMOSTAT && domain == "climate")
@@ -5378,7 +5541,10 @@ static bool callHomeAssistantToggleForSliderWidget(int pageIndex, int widgetInde
   else if (domain == "cover")
   {
     serviceDomain = "cover";
-    service = getWidgetState(pageIndex, widgetIndex).value > 0 ? "close_cover" : "open_cover";
+    const int currentDisplayValue = getWidgetState(pageIndex, widgetIndex).value;
+    const int nextDisplayValue = currentDisplayValue > 0 ? 0 : 100;
+    const int nextActualValue = widgetActualPercentValue(widget, nextDisplayValue);
+    service = nextActualValue > 0 ? "open_cover" : "close_cover";
   }
   else
   {
@@ -5721,8 +5887,14 @@ static void pollTouchInput()
         if ((widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON) && isPointInRectExpanded(tx, ty, state.cardRect, 10))
         {
           lastTouchActionMs = now;
-          state.enabled = !state.enabled;
-          drawSwitchWidget(widgetIndex, true);
+          const bool shouldOptimisticallyToggle =
+              widget.type == UI_WIDGET_SWITCH ||
+              !widgetUsesCoverDomain(widget);
+          if (shouldOptimisticallyToggle)
+          {
+            state.enabled = !state.enabled;
+            drawSwitchWidget(widgetIndex, true);
+          }
           callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
           Serial.printf(
               "SWITCH_TOUCH VALUE=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -8765,6 +8937,7 @@ static void handleSerialProvisioning()
 void setup()
 {
   Serial.begin(115200);
+  Serial.printf("RESET_REASON=%d\n", static_cast<int>(esp_reset_reason()));
   setupPowerMonitoring();
   int totalWidgets = 0;
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)

@@ -6,7 +6,7 @@ import {
   type HomeAssistantConfig,
 } from "@/lib/home-assistant";
 
-export const MAX_PAGES = 5;
+export const MAX_PAGES = 8;
 export const MAX_WIDGETS_PER_PAGE = 8;
 
 export const FONT_OPTIONS = [
@@ -73,7 +73,8 @@ export type WidgetType =
   | "button"
   | "slider"
   | "thermostat"
-  | "text";
+  | "text"
+  | "title";
 
 export type WidgetConfig = {
   id: string;
@@ -86,6 +87,7 @@ export type WidgetConfig = {
   showHistoryGraph?: boolean;
   hideWhenUnavailable?: boolean;
   icon?: SliderIconName;
+  invert?: boolean;
   value?: number;
   currentValue?: number;
   max?: number;
@@ -103,6 +105,7 @@ export type PageConfig = {
 
 export type BuildConfig = {
   darkMode: boolean;
+  hideWidgetBorders: boolean;
   fontName: FontName;
   partialRefreshMs: number;
   fullRefreshEvery: number;
@@ -119,6 +122,7 @@ export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
   { type: "slider", label: "Slider" },
   { type: "thermostat", label: "Thermostat" },
   { type: "text", label: "Text" },
+  { type: "title", label: "Title Separator" },
 ];
 
 export const TEXT_WIDGET_MQTT_NAME_PATTERN = /^[a-z0-9_]+$/;
@@ -225,6 +229,8 @@ export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
       return count > 1 ? `Thermostat ${count}` : "Thermostat";
     case "text":
       return count > 1 ? `Text ${count}` : "Text";
+    case "title":
+      return count > 1 ? `Section ${count}` : "Section";
     default:
       return "Widget";
   }
@@ -255,7 +261,9 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       value: 40,
       max: 100,
       ...(type === "progress" ? { hideWhenUnavailable: false } : {}),
-      ...(type === "slider" ? { icon: SLIDER_ICON_OPTIONS[0].value } : {}),
+      ...(type === "slider"
+        ? { icon: SLIDER_ICON_OPTIONS[0].value, invert: false }
+        : {}),
     };
   }
 
@@ -271,6 +279,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       ...base,
       enabled: false,
       icon: SLIDER_ICON_OPTIONS[0].value,
+      invert: false,
     };
   }
 
@@ -290,6 +299,13 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       label: "Welcome home",
       mqttExpose: false,
       mqttName: "",
+    };
+  }
+
+  if (type === "title") {
+    return {
+      ...base,
+      label: getDefaultWidgetLabel(type, index),
     };
   }
 
@@ -339,6 +355,7 @@ export function createPageOfType(index = 0, type: PageType = "standard"): PageCo
 
 export const DEFAULT_BUILD_CONFIG: BuildConfig = {
   darkMode: false,
+  hideWidgetBorders: false,
   fontName: FONT_OPTIONS[0].name,
   partialRefreshMs: 30000,
   fullRefreshEvery: 60,
@@ -390,7 +407,8 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     type !== "button" &&
     type !== "slider" &&
     type !== "thermostat" &&
-    type !== "text"
+    type !== "text" &&
+    type !== "title"
   ) {
     return null;
   }
@@ -419,6 +437,7 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     }
     if (type === "slider") {
       normalized.icon = normalizeSliderIcon(candidate.icon);
+      normalized.invert = Boolean(candidate.invert);
     }
   }
 
@@ -438,6 +457,7 @@ function normalizeWidget(raw: unknown, widgetIndex: number): WidgetConfig | null
     normalized.enabled = Boolean(candidate.enabled);
     if (type === "button") {
       normalized.icon = normalizeSliderIcon(candidate.icon);
+      normalized.invert = Boolean(candidate.invert);
     }
   }
 
@@ -567,6 +587,7 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
 
   return {
     darkMode: Boolean(candidate.darkMode),
+    hideWidgetBorders: Boolean(candidate.hideWidgetBorders),
     fontName: isFontName(candidate.fontName) ? candidate.fontName : DEFAULT_BUILD_CONFIG.fontName,
     partialRefreshMs: toPositiveInt(candidate.partialRefreshMs, DEFAULT_BUILD_CONFIG.partialRefreshMs),
     fullRefreshEvery: toPositiveInt(candidate.fullRefreshEvery, DEFAULT_BUILD_CONFIG.fullRefreshEvery),

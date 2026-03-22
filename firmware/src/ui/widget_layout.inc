@@ -453,11 +453,13 @@ static void layoutCurrentPage()
     int cardHeight = (visibleWidgetIndex == visibleWidgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
     const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
                                                                : widget.type == UI_WIDGET_BUTTON   ? 56
+                                                               : widget.type == UI_WIDGET_TITLE    ? 34
                                                                : widget.type == UI_WIDGET_TEXT       ? 148
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 182 : 100)
                                                                                                      : 88;
     const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
                                                                : widget.type == UI_WIDGET_BUTTON   ? 92
+                                                               : widget.type == UI_WIDGET_TITLE    ? 54
                                                                : widget.type == UI_WIDGET_TEXT       ? 244
                                                                : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 224 : 132)
                                                                                                      : 340;

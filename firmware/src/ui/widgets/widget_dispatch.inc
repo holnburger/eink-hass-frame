@@ -30,6 +30,9 @@ static void drawWidgetByType(int widgetIndex, bool pushPartial)
   case UI_WIDGET_TEXT:
     drawTextWidget(widgetIndex, pushPartial);
     break;
+  case UI_WIDGET_TITLE:
+    drawTitleSeparatorWidget(widgetIndex, pushPartial);
+    break;
   default:
     break;
   }

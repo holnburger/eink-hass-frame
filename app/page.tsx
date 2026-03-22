@@ -493,11 +493,19 @@ function EditableWidgetCard({
       </div>
 
       <div
-        className={`mt-4 grid gap-4 items-end ${widget.type === "text" ? "md:grid-cols-1" : "md:grid-cols-3"}`}
+        className={`mt-4 grid gap-4 items-end ${
+          widget.type === "text" || widget.type === "title"
+            ? "md:grid-cols-1"
+            : "md:grid-cols-3"
+        }`}
       >
         <div className="space-y-2">
           <Label htmlFor={`${widget.id}-label`}>
-            {widget.type === "text" ? "Text" : "Label"}
+            {widget.type === "text"
+              ? "Text"
+              : widget.type === "title"
+                ? "Title"
+                : "Label"}
           </Label>
           {widget.type === "text" ? (
             <textarea
@@ -545,6 +553,27 @@ function EditableWidgetCard({
                 <span>{sliderIconLabel}</span>
               </span>
             </button>
+          </div>
+        )}
+
+        {(widget.type === "slider" || widget.type === "button") && (
+          <div className="space-y-2">
+            <Label htmlFor={`${widget.id}-invert-logic`} className="sr-only">
+              Invert logic
+            </Label>
+            <div className={`${compactMutedPanelClass} px-4 py-2.5`}>
+              <Switch
+                id={`${widget.id}-invert-logic`}
+                label="Invert logic"
+                checked={widget.invert === true}
+                onCheckedChange={(checked) =>
+                  onUpdate(widget.id, (current) => ({
+                    ...current,
+                    invert: checked,
+                  }))
+                }
+              />
+            </div>
           </div>
         )}
 
@@ -754,6 +783,10 @@ export default function Home() {
     "hass.darkMode",
     DEFAULT_BUILD_CONFIG.darkMode,
   );
+  const [hideWidgetBorders, setHideWidgetBorders] = useLocalStorage(
+    "hass.layout.hideWidgetBorders",
+    DEFAULT_BUILD_CONFIG.hideWidgetBorders,
+  );
   const [selectedFont, setSelectedFont] = useLocalStorage<FontName>(
     "hass.layout.font",
     DEFAULT_BUILD_CONFIG.fontName,
@@ -795,13 +828,14 @@ export default function Home() {
     () =>
       normalizeBuildConfig({
         darkMode,
+        hideWidgetBorders,
         fontName: getFirmwareFontName(selectedFont),
         partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
         fullRefreshEvery,
         homeAssistant,
         pages,
       }),
-    [darkMode, fullRefreshEvery, homeAssistant, pages, selectedFont],
+    [darkMode, fullRefreshEvery, hideWidgetBorders, homeAssistant, pages, selectedFont],
   );
   const fontClass = useMemo(() => getFontClass(selectedFont), [selectedFont]);
   const clockFontClass = useMemo(
@@ -1111,6 +1145,7 @@ export default function Home() {
       (current) =>
         normalizeBuildConfig({
           darkMode,
+          hideWidgetBorders,
           fontName: selectedFont,
           partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
           fullRefreshEvery,
@@ -1118,6 +1153,7 @@ export default function Home() {
           pages: updater(
             normalizeBuildConfig({
               darkMode,
+              hideWidgetBorders,
               fontName: selectedFont,
               partialRefreshMs: DEFAULT_BUILD_CONFIG.partialRefreshMs,
               fullRefreshEvery,
@@ -1305,7 +1341,7 @@ export default function Home() {
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
               <div className="space-y-4">
                 <Card className="border-zinc-950 bg-white">
-                  <CardContent className="grid gap-3 pt-6 md:grid-cols-[180px_220px_minmax(0,1fr)]">
+                  <CardContent className="grid gap-3 pt-6 md:grid-cols-2 xl:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="fontSelect">Font</Label>
                       <select
@@ -1349,6 +1385,21 @@ export default function Home() {
                           }`}
                           checked={darkMode}
                           onCheckedChange={setDarkMode}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="widgetBorders">Widget Borders</Label>
+
+                      <div className="rounded-2xl border border-zinc-950/15 bg-zinc-50 px-4 py-2">
+                        <Switch
+                          id="widgetBorders"
+                          label={`${hideWidgetBorders ? "Hidden" : "Shown"}`}
+                          ariaLabel={`Widget borders: ${
+                            hideWidgetBorders ? "Hidden" : "Shown"
+                          }`}
+                          checked={hideWidgetBorders}
+                          onCheckedChange={setHideWidgetBorders}
                         />
                       </div>
                     </div>
@@ -1664,6 +1715,7 @@ export default function Home() {
                     <div className="rounded-4xl border border-zinc-950/15 bg-zinc-100 p-4">
                       <DevicePreview
                         darkMode={buildConfig.darkMode}
+                        hideWidgetBorders={buildConfig.hideWidgetBorders}
                         fontClass={fontClass}
                         clockFontClass={clockFontClass}
                         pages={buildConfig.pages}

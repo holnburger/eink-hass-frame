@@ -145,7 +145,7 @@ static void fillFallbackWeatherHourlyForecastItem(int index, int currentTemperat
 
 static void drawWeatherFocusStatStripItem(const BB_RECT &rect, const WeatherIconAsset *icon, const char *value, bool available, bool drawDivider)
 {
-  if (drawDivider)
+  if (drawDivider && !uiHideWidgetBorders())
   {
     display.drawLine(rect.x, rect.y + 10, rect.x, rect.y + rect.h - 10, uiGrayValue(3));
   }
@@ -164,7 +164,10 @@ static void drawWeatherFocusStatStripItem(const BB_RECT &rect, const WeatherIcon
 static void drawWeatherFocusChartCard(const BB_RECT &rect)
 {
   display.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayPaper());
-  display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayInk());
+  if (!uiHideWidgetBorders())
+  {
+    display.drawRoundRect(rect.x, rect.y, rect.w, rect.h, 22, uiGrayInk());
+  }
 }
 
 static float weatherFocusCatmullRom(float p0, float p1, float p2, float p3, float t)
@@ -220,20 +223,6 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
 {
   drawWeatherFocusChartCard(rect);
   const void *metaFont = getUiTextFont(UI_TEXT_META);
-  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 12, rect.y + 8, 28, 28},
-#if UI_MDI_ICONS_AVAILABLE
-                             &MDI_ICON_ASSET_SLIDER_THERMOMETER
-#else
-                             nullptr
-#endif
-  );
-  drawWeatherFocusMetricIcon(BB_RECT{rect.x + 50, rect.y + 8, 28, 28},
-#if UI_MDI_ICONS_AVAILABLE
-                             &MDI_ICON_ASSET_WEATHER_RAIN_CHANCE
-#else
-                             nullptr
-#endif
-  );
 
   if (forecastCount <= 0)
   {
@@ -277,7 +266,7 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
 
   const int plotLeft = rect.x + 18;
   const int plotRight = rect.x + rect.w - 18;
-  const int plotTop = rect.y + 42;
+  const int plotTop = rect.y + 18;
   const int plotBottom = rect.y + rect.h - 54;
   const int plotHeight = plotBottom - plotTop;
   const int plotWidth = plotRight - plotLeft;
@@ -392,7 +381,7 @@ static void drawWeatherFocusHourlyGraph(const BB_RECT &rect, const WeatherHourly
 
 static void drawWeatherFocusForecastStripItem(const BB_RECT &rect, const WeatherForecastRuntime &forecast, bool drawDivider)
 {
-  if (drawDivider)
+  if (drawDivider && !uiHideWidgetBorders())
   {
     display.drawLine(rect.x, rect.y + 12, rect.x, rect.y + rect.h - 12, uiGrayValue(3));
   }
@@ -474,13 +463,16 @@ static void drawWeatherFocusBody()
       weatherFocusHeroRect.h,
       34,
       uiGrayPaper());
-  display.drawRoundRect(
-      weatherFocusHeroRect.x,
-      weatherFocusHeroRect.y,
-      weatherFocusHeroRect.w,
-      weatherFocusHeroRect.h,
-      34,
-      uiGrayInk());
+  if (!uiHideWidgetBorders())
+  {
+    display.drawRoundRect(
+        weatherFocusHeroRect.x,
+        weatherFocusHeroRect.y,
+        weatherFocusHeroRect.w,
+        weatherFocusHeroRect.h,
+        34,
+        uiGrayInk());
+  }
 
   char dateLabel[40];
   fillCurrentWeatherDateLabel(dateLabel, sizeof(dateLabel));
@@ -554,13 +546,16 @@ static void drawWeatherFocusBody()
       weatherFocusStatsRect.h,
       22,
       uiGrayPaper());
-  display.drawRoundRect(
-      weatherFocusStatsRect.x,
-      weatherFocusStatsRect.y,
-      weatherFocusStatsRect.w,
-      weatherFocusStatsRect.h,
-      22,
-      uiGrayInk());
+  if (!uiHideWidgetBorders())
+  {
+    display.drawRoundRect(
+        weatherFocusStatsRect.x,
+        weatherFocusStatsRect.y,
+        weatherFocusStatsRect.w,
+        weatherFocusStatsRect.h,
+        22,
+        uiGrayInk());
+  }
 
   const int statCardWidth = weatherFocusStatsRect.w / 3;
   const BB_RECT statItems[3] = {
@@ -616,13 +611,16 @@ static void drawWeatherFocusBody()
       weatherFocusTimelineRect.h,
       24,
       uiGrayPaper());
-  display.drawRoundRect(
-      weatherFocusTimelineRect.x,
-      weatherFocusTimelineRect.y,
-      weatherFocusTimelineRect.w,
-      weatherFocusTimelineRect.h,
-      24,
-      uiGrayInk());
+  if (!uiHideWidgetBorders())
+  {
+    display.drawRoundRect(
+        weatherFocusTimelineRect.x,
+        weatherFocusTimelineRect.y,
+        weatherFocusTimelineRect.w,
+        weatherFocusTimelineRect.h,
+        24,
+        uiGrayInk());
+  }
 
   for (int index = 0; index < WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
   {

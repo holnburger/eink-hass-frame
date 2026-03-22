@@ -55,4 +55,42 @@ test("renders the configurator for an active device", async ({ page }) => {
   const toggle = page.getByRole("switch", { name: "Preview mode: Light" });
   await toggle.click();
   await expect(page.getByRole("switch", { name: "Preview mode: Dark" })).toBeVisible();
+
+  const bordersToggle = page.getByRole("switch", {
+    name: "Widget borders: Shown",
+  });
+  await bordersToggle.click();
+  await expect(
+    page.getByRole("switch", { name: "Widget borders: Hidden" }),
+  ).toBeVisible();
+});
+
+test("supports title separators and caps layouts at eight pages", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "hass.savedDevices",
+      JSON.stringify([
+        {
+          id: "192.168.1.10",
+          name: "Kitchen Display",
+          ip: "192.168.1.10",
+          lastSeen: "2026-03-21T10:00:00.000Z",
+        },
+      ]),
+    );
+    window.localStorage.setItem("hass.activeDeviceId", "192.168.1.10");
+  });
+
+  await page.goto("/");
+
+  const addStandardPageButton = page.getByRole("button", { name: "Standard" });
+  for (let index = 0; index < 7; index++) {
+    await addStandardPageButton.click();
+  }
+  await expect(addStandardPageButton).toBeDisabled();
+
+  await page.getByRole("button", { name: "Title Separator" }).click();
+  await expect(page.getByLabel("Title").last()).toHaveValue("Section");
 });

@@ -91,19 +91,31 @@ export function UsbInstallButton({
   }, [onDetectedDeviceUrl]);
 
   return (
-    <esp-web-install-button manifest={manifest}>
-      <Button
-        slot="activate"
-        type="button"
-      >
-        Flash & Configure via USB
-      </Button>
-      <span slot="unsupported" className="text-xs text-zinc-600">
-        WebSerial requires Chrome or Edge.
-      </span>
-      <span slot="not-allowed" className="text-xs text-zinc-600">
-        Open this app on `https://` or `localhost` to use USB flashing.
-      </span>
-    </esp-web-install-button>
+    <div className="flex flex-col space-y-2 items-center justify-center h-full px-6">
+      <div className="text-center text-base text-zinc-600">
+        <p>
+          Currently only the <span className="font-bold">M5PaperS3</span> is
+          supported.
+        </p>
+        <p>Connect it via USB and flash your device.</p>
+        <p>Save it to your device with the devices IP.</p>
+        <p>Afterwards you can configure it with Over-The-Air updates.</p>
+        <p className="text-sm mt-2">
+          Optional: Visit the device and connect it to Home Assistant via MQTT.
+        </p>
+      </div>
+
+      <esp-web-install-button manifest={manifest}>
+        <Button slot="activate" type="button">
+          Flash & Configure via USB
+        </Button>
+        <span slot="unsupported" className="text-xs text-zinc-600">
+          WebSerial requires Chrome or Edge.
+        </span>
+        <span slot="not-allowed" className="text-xs text-zinc-600">
+          Open this app on `https://` or `localhost` to use USB flashing.
+        </span>
+      </esp-web-install-button>
+    </div>
   );
 }
