@@ -21,7 +21,5 @@ ports_description:
   8099/tcp: "Direct web UI (optional)"
 options: {}
 schema:
-  firmware_wifi_ssid: "str"
-  firmware_wifi_password: "password"
   device_home_assistant_url: "url"
   device_home_assistant_token: "password"

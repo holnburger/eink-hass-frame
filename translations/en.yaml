@@ -1,12 +1,6 @@
 configuration:
-  firmware_wifi_ssid:
-    name: Firmware Wi-Fi SSID
-    description: Required Wi-Fi SSID embedded into firmware builds.
-  firmware_wifi_password:
-    name: Firmware Wi-Fi Password
-    description: Required Wi-Fi password embedded into firmware builds.
   device_home_assistant_url:
-    name: Device Home Assistant URL
+    name: Home Assistant URL
     description: Required Home Assistant URL embedded into firmware for device-side API access.
   device_home_assistant_token:
     name: Device Home Assistant Token

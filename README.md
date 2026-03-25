@@ -24,8 +24,6 @@ The repository can now also be used as a Home Assistant app folder for local ins
 - Theme controls (font profile + dark/light UI)
 - Partial refresh policy controls
 - One-click firmware build from web UI (`Build Firmware`)
-- Wi-Fi credentials embedded at build time for first-boot auto-connect
-- Wi-Fi credential injection via server env vars (`FIRMWARE_WIFI_SSID`, `FIRMWARE_WIFI_PASSWORD`)
 - USB first-flash from browser (Web Serial via `esp-web-tools`)
 - Automatic device IP detection from serial logs after Wi-Fi connect
 - OTA update trigger form for subsequent firmware upgrades
@@ -55,18 +53,16 @@ This is now the live development setup:
 
 You only need `docker compose up --build` again when dependencies or the Docker image itself changed.
 
-To keep Wi-Fi credentials out of the browser UI/localStorage, set them as env vars before starting:
+To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
 
 ```bash
-export FIRMWARE_WIFI_SSID="YourSSID"
-export FIRMWARE_WIFI_PASSWORD="YourPassword"
 export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
 export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
 docker compose up
 ```
 
-The web build validates that Wi-Fi credentials and device Home Assistant
-credentials are present before compiling firmware.
+The web build validates that device Home Assistant credentials are present
+before compiling firmware. Wi-Fi is provisioned during the USB flashing flow.
 
 For a production-style container build, use the `prod` profile:
 
@@ -91,7 +87,8 @@ To install it as a local add-on:
 In app mode:
 
 - dashboard entity search and preview use the Supervisor Home Assistant proxy automatically
-- firmware builds require Wi-Fi plus device-facing Home Assistant URL/token values from app options
+- firmware builds require device-facing Home Assistant URL/token values from app options
+- Wi-Fi is provisioned during the USB flashing flow instead of being managed by the app
 - firmware artifacts are stored under `/data/eink-hass-frame`
 - the app uses internal port `8099` instead of the usual local dev port `3000`
 
@@ -106,9 +103,9 @@ bun run test:e2e
 
 See [`firmware/README.md`](./firmware/README.md) for FastEPD + PlatformIO setup.
 
-### Local `pio run` with Wi-Fi credentials
+### Local `pio run`
 
-If you build firmware directly with PlatformIO (outside the web UI), credentials can be loaded from `firmware/.env`.
+If you build firmware directly with PlatformIO (outside the web UI), you can still load optional fallback Wi-Fi credentials from `firmware/.env`.
 
 ```bash
 cp firmware/.env.example firmware/.env

@@ -21,10 +21,6 @@ M5PaperS3 e-ink dashboard project in this repository.
 
 Required options:
 
-- `firmware_wifi_ssid`
-  Wi-Fi SSID embedded into firmware builds so the device can join your network
-- `firmware_wifi_password`
-  Wi-Fi password paired with `firmware_wifi_ssid`
 - `device_home_assistant_url`
   Home Assistant URL embedded into firmware for device-side API access
 - `device_home_assistant_token`
@@ -36,8 +32,10 @@ Required options:
   Home Assistant connection automatically.
 - The required `device_*` settings are only used for firmware builds, because
   the device itself cannot use the Supervisor proxy.
-- Firmware builds fail validation if the required Wi-Fi or device Home
-  Assistant settings are missing.
+- Wi-Fi is provisioned during the USB flashing flow and then stored on the
+  device, so the add-on does not need Wi-Fi settings.
+- Firmware builds fail validation if the required device Home Assistant
+  settings are missing.
 - Port `8099` is disabled by default. You can enable it if you want to open the
   UI directly instead of through ingress.
 - This add-on currently targets `amd64` and `aarch64`.

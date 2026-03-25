@@ -26,19 +26,12 @@ type BuildPayload = {
   partialRefreshMs?: number;
   fullRefreshEvery?: number;
   pages?: unknown[];
-  wifiSsid?: string;
-  wifiPassword?: string;
   pageName?: string;
   showClock?: boolean;
   showWeather?: boolean;
   showProgress?: boolean;
   showSwitch?: boolean;
   progressValue?: number;
-};
-
-type ResolvedWifiConfig = {
-  ssid: string;
-  password: string;
 };
 
 function sanitizeCString(input: string): string {
@@ -166,25 +159,10 @@ async function runCommand(command: string, args: string[], cwd: string) {
   });
 }
 
-function resolveFirmwareWifiConfig(payload: BuildPayload): ResolvedWifiConfig {
-  const payloadSsid = (payload.wifiSsid ?? "").trim();
-  const payloadPassword = (payload.wifiPassword ?? "").trim();
-  const envSsid = (process.env.FIRMWARE_WIFI_SSID ?? "").trim();
-  const envPassword = (process.env.FIRMWARE_WIFI_PASSWORD ?? "").trim();
-
-  return {
-    ssid: payloadSsid || envSsid,
-    password: payloadPassword || envPassword,
-  };
-}
-
 function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const config = normalizeBuildConfig(payload);
   const fontName = sanitizeCString(config.fontName);
   const escapedBuildId = sanitizeCString(buildId);
-  const wifiConfig = resolveFirmwareWifiConfig(payload);
-  const wifiSsid = sanitizeCString(wifiConfig.ssid);
-  const wifiPassword = sanitizeCString(wifiConfig.password);
   const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
     config.homeAssistant,
   );
@@ -257,8 +235,8 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
 #define UI_BUILD_ID "${escapedBuildId}"
 #define PARTIAL_REFRESH_MS_OVERRIDE ${partialRefreshMs}
 #define FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE ${fullRefreshEvery}
-#define WIFI_SSID_BUILD "${wifiSsid}"
-#define WIFI_PASSWORD_BUILD "${wifiPassword}"
+#define WIFI_SSID_BUILD ""
+#define WIFI_PASSWORD_BUILD ""
 #define HOME_ASSISTANT_URL_BUILD "${homeAssistantUrl}"
 #define HOME_ASSISTANT_TOKEN_BUILD "${homeAssistantToken}"
 #define HOME_ASSISTANT_ENABLED_BUILD ${homeAssistantEnabled ? 1 : 0}
@@ -333,18 +311,11 @@ export async function POST(request: Request) {
   const normalizedConfig = normalizeBuildConfig(payload);
   const buildId = new Date().toISOString();
   const exposedTextWidgets = collectExposedTextWidgets(payload);
-  const wifiConfig = resolveFirmwareWifiConfig(payload);
   const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
     normalizedConfig.homeAssistant,
   );
 
   const missingRequirements: string[] = [];
-  if (!wifiConfig.ssid) {
-    missingRequirements.push("Wi-Fi SSID");
-  }
-  if (!wifiConfig.password) {
-    missingRequirements.push("Wi-Fi password");
-  }
   if (!deviceHomeAssistantConfig.url) {
     missingRequirements.push("device Home Assistant URL");
   }
