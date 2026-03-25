@@ -8,7 +8,6 @@ import {
   Search,
   Sun,
   Trash2,
-  Usb,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -75,6 +74,10 @@ import {
   type WidgetType,
   WIDGET_OPTIONS,
 } from "@/lib/layout-config";
+import {
+  DEFAULT_APP_RUNTIME_INFO,
+  type AppRuntimeInfo,
+} from "@/lib/runtime-info";
 
 type SavedDevice = {
   id: string;
@@ -108,6 +111,9 @@ type EditableWidgetCardProps = {
   widget: WidgetConfig;
   widgetIndex: number;
   homeAssistant: HomeAssistantConfig;
+  homeAssistantRequestConfig: HomeAssistantConfig;
+  homeAssistantConnectionReady: boolean;
+  homeAssistantManagedByAddon?: boolean;
   textWidgetMqttValidation?: {
     entityId: string;
     invalidReason?: string;
@@ -452,6 +458,9 @@ function EditableWidgetCard({
   widget,
   widgetIndex,
   homeAssistant,
+  homeAssistantRequestConfig,
+  homeAssistantConnectionReady,
+  homeAssistantManagedByAddon = false,
   textWidgetMqttValidation,
   onRemove,
   onUpdate,
@@ -693,6 +702,9 @@ function EditableWidgetCard({
         <div className="mt-4">
           <HomeAssistantEntityPicker
             homeAssistant={homeAssistant}
+            requestHomeAssistant={homeAssistantRequestConfig}
+            connectionReady={homeAssistantConnectionReady}
+            managedByAddon={homeAssistantManagedByAddon}
             supportedDomains={getCompatibleDomainsForWidget(widget.type)}
             value={widget.homeAssistant}
             onChange={(homeAssistantBinding) =>
@@ -847,6 +859,8 @@ export default function Home() {
     useState(false);
   const [textWidgetValidationError, setTextWidgetValidationError] =
     useState("");
+  const [runtimeInfo, setRuntimeInfo] =
+    useState<AppRuntimeInfo>(DEFAULT_APP_RUNTIME_INFO);
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -895,6 +909,23 @@ export default function Home() {
   const boundEntityCount = useMemo(
     () => boundEntityIds.length,
     [boundEntityIds],
+  );
+  const homeAssistantConnectionReady = useMemo(
+    () =>
+      isHomeAssistantConfigured(buildConfig.homeAssistant) ||
+      (runtimeInfo.addonMode && runtimeInfo.supervisorConnected),
+    [buildConfig.homeAssistant, runtimeInfo.addonMode, runtimeInfo.supervisorConnected],
+  );
+  const homeAssistantRequestConfig = useMemo(
+    () =>
+      runtimeInfo.addonMode && runtimeInfo.supervisorConnected
+        ? DEFAULT_HOME_ASSISTANT_CONFIG
+        : buildConfig.homeAssistant,
+    [
+      buildConfig.homeAssistant,
+      runtimeInfo.addonMode,
+      runtimeInfo.supervisorConnected,
+    ],
   );
   const textWidgetMqttValidationById = useMemo(() => {
     const nameCounts = new Map<string, number>();
@@ -969,6 +1000,41 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadRuntimeInfo() {
+      try {
+        const response = await fetch("/api/runtime-info", {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          runtime?: AppRuntimeInfo;
+        };
+
+        if (
+          !cancelled &&
+          response.ok &&
+          payload.ok !== false &&
+          payload.runtime
+        ) {
+          setRuntimeInfo(payload.runtime);
+        }
+      } catch {
+        if (!cancelled) {
+          setRuntimeInfo(DEFAULT_APP_RUNTIME_INFO);
+        }
+      }
+    }
+
+    void loadRuntimeInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (buildConfig.pages.length === 0) {
       return;
     }
@@ -1029,8 +1095,7 @@ export default function Home() {
 
   useEffect(() => {
     if (
-      !isHomeAssistantConfigured(buildConfig.homeAssistant) ||
-      boundEntityIds.length === 0
+      !homeAssistantConnectionReady || boundEntityIds.length === 0
     ) {
       setHomeAssistantStates({});
       return;
@@ -1044,8 +1109,8 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: buildConfig.homeAssistant.url,
-            token: buildConfig.homeAssistant.token,
+            url: homeAssistantRequestConfig.url,
+            token: homeAssistantRequestConfig.token,
             entityIds: boundEntityIds,
             thermostatHistoryEntityIds,
           }),
@@ -1073,11 +1138,17 @@ export default function Home() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [boundEntityIds, buildConfig.homeAssistant, thermostatHistoryEntityIds]);
+  }, [
+    boundEntityIds,
+    buildConfig.homeAssistant,
+    homeAssistantRequestConfig,
+    homeAssistantConnectionReady,
+    thermostatHistoryEntityIds,
+  ]);
 
   useEffect(() => {
     if (
-      !isHomeAssistantConfigured(buildConfig.homeAssistant) ||
+      !homeAssistantConnectionReady ||
       textWidgetEntityIdsToValidate.length === 0
     ) {
       setExistingHomeAssistantTextEntityIds({});
@@ -1096,8 +1167,8 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: buildConfig.homeAssistant.url,
-            token: buildConfig.homeAssistant.token,
+            url: homeAssistantRequestConfig.url,
+            token: homeAssistantRequestConfig.token,
             entityIds: textWidgetEntityIdsToValidate,
           }),
         });
@@ -1145,7 +1216,12 @@ export default function Home() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [buildConfig.homeAssistant, textWidgetEntityIdsToValidate]);
+  }, [
+    buildConfig.homeAssistant,
+    homeAssistantRequestConfig,
+    homeAssistantConnectionReady,
+    textWidgetEntityIdsToValidate,
+  ]);
 
   function handleSaveActiveDevice(device: SavedDevice) {
     setSavedDevices((prev) => {
@@ -1405,6 +1481,11 @@ export default function Home() {
             value={homeAssistant}
             onChange={setHomeAssistant}
             boundEntityCount={boundEntityCount}
+            addonMode={runtimeInfo.addonMode}
+            supervisorConnected={runtimeInfo.supervisorConnected}
+            hasDeviceHomeAssistantDefaults={
+              runtimeInfo.hasDeviceHomeAssistantDefaults
+            }
           />
         </section>
 
@@ -1657,6 +1738,9 @@ export default function Home() {
                         {editorPage.type === "weather-focus" ? (
                           <HomeAssistantEntityPicker
                             homeAssistant={homeAssistant}
+                            requestHomeAssistant={homeAssistantRequestConfig}
+                            connectionReady={homeAssistantConnectionReady}
+                            managedByAddon={runtimeInfo.addonMode}
                             supportedDomains={getCompatibleDomainsForPage(
                               "weather-focus",
                             )}
@@ -1671,6 +1755,9 @@ export default function Home() {
                         ) : editorPage.type === "media-player" ? (
                           <HomeAssistantEntityPicker
                             homeAssistant={homeAssistant}
+                            requestHomeAssistant={homeAssistantRequestConfig}
+                            connectionReady={homeAssistantConnectionReady}
+                            managedByAddon={runtimeInfo.addonMode}
                             supportedDomains={getCompatibleDomainsForPage(
                               "media-player",
                             )}
@@ -1700,6 +1787,15 @@ export default function Home() {
                                       widget={widget}
                                       widgetIndex={widgetIndex}
                                       homeAssistant={homeAssistant}
+                                      homeAssistantRequestConfig={
+                                        homeAssistantRequestConfig
+                                      }
+                                      homeAssistantConnectionReady={
+                                        homeAssistantConnectionReady
+                                      }
+                                      homeAssistantManagedByAddon={
+                                        runtimeInfo.addonMode
+                                      }
                                       textWidgetMqttValidation={
                                         widget.type === "text" &&
                                         widget.mqttExpose === true

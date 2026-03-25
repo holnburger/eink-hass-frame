@@ -5,6 +5,7 @@ import {
   type HomeAssistantWidgetType,
 } from "@/lib/home-assistant";
 import { searchHomeAssistantEntities } from "@/lib/server/home-assistant";
+import { resolveServerHomeAssistantConnection } from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,21 +23,15 @@ export async function POST(request: Request) {
   const payload = ((await request.json().catch(() => ({}))) ??
     {}) as RequestPayload;
 
-  if (!payload.url?.trim() || !payload.token?.trim()) {
-    return NextResponse.json(
-      { ok: false, error: "Home Assistant URL and token are required." },
-      { status: 400 },
-    );
-  }
-
   try {
+    const connection = resolveServerHomeAssistantConnection(payload);
     let widgetType: HomeAssistantWidgetType | undefined;
     if (widgetSupportsHomeAssistant(payload.widgetType ?? "")) {
       widgetType = payload.widgetType as HomeAssistantWidgetType;
     }
     const result = await searchHomeAssistantEntities({
-      url: payload.url,
-      token: payload.token,
+      url: connection.url,
+      token: connection.token,
       query: payload.query,
       widgetType,
       domains: Array.isArray(payload.domains)

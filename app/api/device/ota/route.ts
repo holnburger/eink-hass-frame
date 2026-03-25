@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 
 type OtaProxyPayload = {
   deviceIp?: string;
-  firmwareUrl?: string;
   dryRun?: boolean;
 };
 
@@ -27,33 +26,19 @@ function isAllowedHost(host: string) {
   return /^([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+$/.test(host) || /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
 }
 
-function stripTrailingSlash(value: string) {
-  return value.replace(/\/+$/, "");
-}
-
 function isLoopbackHost(host: string) {
   const normalized = host.toLowerCase();
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
-function resolveFirmwareUrl(request: Request, providedUrl?: string) {
-  const explicit = (providedUrl ?? "").trim();
-  if (explicit) {
-    return { ok: true as const, url: explicit };
-  }
-
-  const envBase = stripTrailingSlash((process.env.FIRMWARE_PUBLIC_BASE_URL ?? "").trim());
-  if (envBase) {
-    return { ok: true as const, url: `${envBase}/api/firmware/artifacts/firmware.bin` };
-  }
-
+function resolveFirmwareUrl(request: Request) {
   const rawHost = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim();
   const proto = (request.headers.get("x-forwarded-proto") ?? "http").split(",")[0].trim() || "http";
   if (!rawHost) {
     return {
       ok: false as const,
       error:
-        "Unable to determine firmware URL. Set FIRMWARE_PUBLIC_BASE_URL or access the app via LAN host.",
+        "Unable to determine firmware URL for legacy OTA fallback. Access the app via a LAN host so the device can reach the generated firmware URL.",
     };
   }
 
@@ -62,7 +47,7 @@ function resolveFirmwareUrl(request: Request, providedUrl?: string) {
     return {
       ok: false as const,
       error:
-        "Current app host is localhost. Open the app via LAN IP (e.g. http://192.168.x.y:3000) or set FIRMWARE_PUBLIC_BASE_URL.",
+        "Current app host is localhost. Open the app via a LAN host/port (for example http://192.168.x.y:3000 or http://192.168.x.y:8099) so legacy OTA fallback can reach the firmware file.",
     };
   }
 
@@ -193,7 +178,7 @@ export async function POST(request: Request) {
 
   if (payload.dryRun) {
     const artifact = await readFirmwareArtifact();
-    const firmwareUrlResult = resolveFirmwareUrl(request, payload.firmwareUrl);
+    const firmwareUrlResult = resolveFirmwareUrl(request);
     return NextResponse.json({
       ok: true,
       dryRun: true,
@@ -239,7 +224,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const firmwareUrlResult = resolveFirmwareUrl(request, payload.firmwareUrl);
+  const firmwareUrlResult = resolveFirmwareUrl(request);
   if (!firmwareUrlResult.ok) {
     return NextResponse.json(
       {

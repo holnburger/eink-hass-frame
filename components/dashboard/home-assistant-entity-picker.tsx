@@ -6,7 +6,6 @@ import { Search, Unplug, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  isHomeAssistantConfigured,
   type HomeAssistantBinding,
   type HomeAssistantConfig,
   type HomeAssistantEntitySummary,
@@ -14,6 +13,9 @@ import {
 
 type HomeAssistantEntityPickerProps = {
   homeAssistant: HomeAssistantConfig;
+  requestHomeAssistant?: HomeAssistantConfig;
+  connectionReady: boolean;
+  managedByAddon?: boolean;
   supportedDomains: string[];
   value?: HomeAssistantBinding;
   onChange: (binding?: HomeAssistantBinding) => void;
@@ -21,6 +23,9 @@ type HomeAssistantEntityPickerProps = {
 
 export function HomeAssistantEntityPicker({
   homeAssistant,
+  requestHomeAssistant,
+  connectionReady,
+  managedByAddon = false,
   supportedDomains,
   value,
   onChange,
@@ -30,6 +35,7 @@ export function HomeAssistantEntityPicker({
   const [status, setStatus] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const supportedDomainsKey = supportedDomains.join(",");
+  const requestConfig = requestHomeAssistant ?? homeAssistant;
 
   useEffect(() => {
     if (!value) {
@@ -43,7 +49,7 @@ export function HomeAssistantEntityPicker({
   }, [value]);
 
   useEffect(() => {
-    if (!isHomeAssistantConfigured(homeAssistant)) {
+    if (!connectionReady) {
       setResults([]);
       setStatus("");
       return;
@@ -68,8 +74,8 @@ export function HomeAssistantEntityPicker({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: homeAssistant.url,
-            token: homeAssistant.token,
+            url: requestConfig.url,
+            token: requestConfig.token,
             query: trimmedQuery,
             domains: searchDomains,
             limit: 12,
@@ -112,7 +118,7 @@ export function HomeAssistantEntityPicker({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [homeAssistant, query, supportedDomainsKey]);
+  }, [connectionReady, query, requestConfig, supportedDomainsKey]);
 
   if (supportedDomains.length === 0) {
     return null;
@@ -149,10 +155,14 @@ export function HomeAssistantEntityPicker({
         </div>
       ) : null}
 
-      {!isHomeAssistantConfigured(homeAssistant) ? (
+      {!connectionReady ? (
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-border-strong bg-panel px-4 py-4 text-xs text-muted-foreground">
           <Unplug className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>Add URL and token first.</p>
+          <p>
+            {managedByAddon
+              ? "Waiting for the add-on Home Assistant connection."
+              : "Add URL and token first."}
+          </p>
         </div>
       ) : !value ? (
         <>

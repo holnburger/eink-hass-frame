@@ -2,6 +2,8 @@
 
 Next.js app + firmware workspace for managing M5PaperS3 e-ink devices with a minimal grayscale interface.
 
+The repository can now also be used as a Home Assistant app folder for local installation through the Supervisor app store.
+
 ## Stack
 
 - Next.js (App Router)
@@ -22,8 +24,8 @@ Next.js app + firmware workspace for managing M5PaperS3 e-ink devices with a min
 - Theme controls (font profile + dark/light UI)
 - Partial refresh policy controls
 - One-click firmware build from web UI (`Build Firmware`)
-- Optional Wi-Fi credentials embedded at build time for first-boot auto-connect
-- Optional secure Wi-Fi credential injection via server env vars (`FIRMWARE_WIFI_SSID`, `FIRMWARE_WIFI_PASSWORD`)
+- Wi-Fi credentials embedded at build time for first-boot auto-connect
+- Wi-Fi credential injection via server env vars (`FIRMWARE_WIFI_SSID`, `FIRMWARE_WIFI_PASSWORD`)
 - USB first-flash from browser (Web Serial via `esp-web-tools`)
 - Automatic device IP detection from serial logs after Wi-Fi connect
 - OTA update trigger form for subsequent firmware upgrades
@@ -58,14 +60,40 @@ To keep Wi-Fi credentials out of the browser UI/localStorage, set them as env va
 ```bash
 export FIRMWARE_WIFI_SSID="YourSSID"
 export FIRMWARE_WIFI_PASSWORD="YourPassword"
+export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
+export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
 docker compose up
 ```
+
+The web build validates that Wi-Fi credentials and device Home Assistant
+credentials are present before compiling firmware.
 
 For a production-style container build, use the `prod` profile:
 
 ```bash
 docker compose --profile prod up --build eink-hass-frame-prod
 ```
+
+## Home Assistant Add-on
+
+This repository now includes a Home Assistant app definition at the repo root:
+
+- `config.yaml` for Supervisor metadata and options
+- `DOCS.md` for app usage notes
+- `translations/en.yaml` for option labels
+
+To install it as a local add-on:
+
+1. Copy or clone this repository into `/addons/eink-hass-frame` on your Home Assistant host.
+2. Reload the local app repository or restart Home Assistant.
+3. Install `E-Ink HASS Frame` from the App Store.
+
+In app mode:
+
+- dashboard entity search and preview use the Supervisor Home Assistant proxy automatically
+- firmware builds require Wi-Fi plus device-facing Home Assistant URL/token values from app options
+- firmware artifacts are stored under `/data/eink-hass-frame`
+- the app uses internal port `8099` instead of the usual local dev port `3000`
 
 ## Playwright
 
@@ -104,22 +132,19 @@ The web app build endpoint compiles firmware with PlatformIO and stores artifact
 
 ### OTA
 
-The web app sends:
+The web app uploads the built firmware directly to `http://<device-ip>/api/ota/upload`.
 
-```json
-{
-  "firmwareUrl": "http://your-server.local/m5paper/firmware.bin"
-}
-```
-
-to `http://<device-ip>/api/ota`.
+For older devices that only support URL-based OTA, the server falls back to
+calling `http://<device-ip>/api/ota` with a firmware URL derived from the
+current app host when that host is LAN-reachable.
 
 Implement secure OTA validation before production usage.
 
 ## Home Assistant
 
-1. Enter your Home Assistant base URL and a long-lived access token in the dashboard.
-2. Search for entities directly inside widget cards and bind them to supported widget types.
-3. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
+1. In standalone Docker or local development, enter your Home Assistant base URL and a long-lived access token in the dashboard.
+2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds use the required device credentials from app options.
+3. Search for entities directly inside widget cards and bind them to supported widget types.
+4. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
 
 The browser stores the Home Assistant settings locally. Firmware builds embed the same URL and token so the device can fetch state updates and send service calls directly.

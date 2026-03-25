@@ -7,3 +7,8 @@ test-results
 npm-debug.log
 .DS_Store
 third_party
+.firmware-artifacts
+firmware/.pio
+firmware/.env
+firmware/include/generated_pio_wifi.h
+firmware/include/generated_ui_config.h

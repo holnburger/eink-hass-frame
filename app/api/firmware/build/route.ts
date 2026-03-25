@@ -14,6 +14,7 @@ import {
   getArtifactsDir,
   getBuildOutputDir,
 } from "@/lib/server/firmware-artifacts";
+import { resolveDeviceHomeAssistantConfig } from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,11 @@ type BuildPayload = {
   showProgress?: boolean;
   showSwitch?: boolean;
   progressValue?: number;
+};
+
+type ResolvedWifiConfig = {
+  ssid: string;
+  password: string;
 };
 
 function sanitizeCString(input: string): string {
@@ -160,18 +166,33 @@ async function runCommand(command: string, args: string[], cwd: string) {
   });
 }
 
-function createGeneratedConfig(payload: BuildPayload, buildId: string) {
-  const config = normalizeBuildConfig(payload);
-  const fontName = sanitizeCString(config.fontName);
-  const escapedBuildId = sanitizeCString(buildId);
+function resolveFirmwareWifiConfig(payload: BuildPayload): ResolvedWifiConfig {
   const payloadSsid = (payload.wifiSsid ?? "").trim();
   const payloadPassword = (payload.wifiPassword ?? "").trim();
   const envSsid = (process.env.FIRMWARE_WIFI_SSID ?? "").trim();
   const envPassword = (process.env.FIRMWARE_WIFI_PASSWORD ?? "").trim();
-  const wifiSsid = sanitizeCString(payloadSsid || envSsid);
-  const wifiPassword = sanitizeCString(payloadPassword || envPassword);
-  const homeAssistantUrl = sanitizeCString(config.homeAssistant.url);
-  const homeAssistantToken = sanitizeCString(config.homeAssistant.token);
+
+  return {
+    ssid: payloadSsid || envSsid,
+    password: payloadPassword || envPassword,
+  };
+}
+
+function createGeneratedConfig(payload: BuildPayload, buildId: string) {
+  const config = normalizeBuildConfig(payload);
+  const fontName = sanitizeCString(config.fontName);
+  const escapedBuildId = sanitizeCString(buildId);
+  const wifiConfig = resolveFirmwareWifiConfig(payload);
+  const wifiSsid = sanitizeCString(wifiConfig.ssid);
+  const wifiPassword = sanitizeCString(wifiConfig.password);
+  const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
+    config.homeAssistant,
+  );
+  const homeAssistantUrl = sanitizeCString(deviceHomeAssistantConfig.url);
+  const homeAssistantToken = sanitizeCString(deviceHomeAssistantConfig.token);
+  const homeAssistantEnabled =
+    deviceHomeAssistantConfig.url.length > 0 &&
+    deviceHomeAssistantConfig.token.length > 0;
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
@@ -240,7 +261,7 @@ function createGeneratedConfig(payload: BuildPayload, buildId: string) {
 #define WIFI_PASSWORD_BUILD "${wifiPassword}"
 #define HOME_ASSISTANT_URL_BUILD "${homeAssistantUrl}"
 #define HOME_ASSISTANT_TOKEN_BUILD "${homeAssistantToken}"
-#define HOME_ASSISTANT_ENABLED_BUILD ${config.homeAssistant.url && config.homeAssistant.token ? 1 : 0}
+#define HOME_ASSISTANT_ENABLED_BUILD ${homeAssistantEnabled ? 1 : 0}
 
 enum UiWidgetType : uint8_t {
   UI_WIDGET_CLOCK = 0,
@@ -312,6 +333,34 @@ export async function POST(request: Request) {
   const normalizedConfig = normalizeBuildConfig(payload);
   const buildId = new Date().toISOString();
   const exposedTextWidgets = collectExposedTextWidgets(payload);
+  const wifiConfig = resolveFirmwareWifiConfig(payload);
+  const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
+    normalizedConfig.homeAssistant,
+  );
+
+  const missingRequirements: string[] = [];
+  if (!wifiConfig.ssid) {
+    missingRequirements.push("Wi-Fi SSID");
+  }
+  if (!wifiConfig.password) {
+    missingRequirements.push("Wi-Fi password");
+  }
+  if (!deviceHomeAssistantConfig.url) {
+    missingRequirements.push("device Home Assistant URL");
+  }
+  if (!deviceHomeAssistantConfig.token) {
+    missingRequirements.push("device Home Assistant token");
+  }
+  if (missingRequirements.length > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "validation",
+        error: `Missing required build settings: ${missingRequirements.join(", ")}.`,
+      },
+      { status: 400 },
+    );
+  }
 
   const invalidTextWidgets = exposedTextWidgets.filter(
     (widget) => widget.entityId.length === 0,

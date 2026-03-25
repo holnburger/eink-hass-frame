@@ -4,12 +4,12 @@ import {
   entityMatchesWidgetType,
   getEntityDomain,
   getFriendlyEntityName,
-  normalizeHomeAssistantUrl,
   THERMOSTAT_HISTORY_POINT_COUNT,
   type HomeAssistantEntityState,
   type HomeAssistantEntitySummary,
   type HomeAssistantWidgetType,
 } from "@/lib/home-assistant";
+import { resolveServerHomeAssistantConnection } from "@/lib/server/home-assistant-runtime";
 
 type RawHomeAssistantState = {
   entity_id?: unknown;
@@ -30,6 +30,18 @@ function getHeaders(token: string) {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
+}
+
+function buildHomeAssistantApiUrl(baseUrl: string, path: string) {
+  const normalizedUrl = baseUrl.trim().replace(/\/+$/, "");
+  if (!normalizedUrl) {
+    throw new Error("Home Assistant URL and token are required.");
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return normalizedUrl.endsWith("/api")
+    ? `${normalizedUrl}${normalizedPath}`
+    : `${normalizedUrl}/api${normalizedPath}`;
 }
 
 function toEntityState(
@@ -74,13 +86,10 @@ async function fetchStates(
   url: string,
   token: string,
 ): Promise<HomeAssistantEntityState[]> {
-  const normalizedUrl = normalizeHomeAssistantUrl(url);
-  if (!normalizedUrl || !token.trim()) {
-    throw new Error("Home Assistant URL and token are required.");
-  }
+  const connection = resolveServerHomeAssistantConnection({ url, token });
 
-  const response = await fetch(`${normalizedUrl}/api/states`, {
-    headers: getHeaders(token.trim()),
+  const response = await fetch(buildHomeAssistantApiUrl(connection.url, "/states"), {
+    headers: getHeaders(connection.token),
     cache: "no-store",
     signal: AbortSignal.timeout(15000),
   });
@@ -118,12 +127,12 @@ async function fetchWeatherForecasts(input: {
     return {};
   }
 
-  const normalizedUrl = normalizeHomeAssistantUrl(input.url);
+  const connection = resolveServerHomeAssistantConnection(input);
   const response = await fetch(
-    `${normalizedUrl}/api/services/weather/get_forecasts?return_response`,
+    `${buildHomeAssistantApiUrl(connection.url, "/services/weather/get_forecasts")}?return_response`,
     {
       method: "POST",
-      headers: getHeaders(input.token.trim()),
+      headers: getHeaders(connection.token),
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
@@ -263,7 +272,7 @@ async function fetchClimateTemperatureHistories(input: {
     return {};
   }
 
-  const normalizedUrl = normalizeHomeAssistantUrl(input.url);
+  const connection = resolveServerHomeAssistantConnection(input);
   const now = new Date();
   const startTime = new Date(now.getTime());
   startTime.setMinutes(0, 0, 0);
@@ -279,13 +288,14 @@ async function fetchClimateTemperatureHistories(input: {
   await Promise.all(
     entityIds.map(async (entityId) => {
       const response = await fetch(
-        `${normalizedUrl}/api/history/period/${encodeURIComponent(
-          startTime.toISOString(),
+        `${buildHomeAssistantApiUrl(
+          connection.url,
+          `/history/period/${encodeURIComponent(startTime.toISOString())}`,
         )}?filter_entity_id=${encodeURIComponent(
           entityId,
         )}&end_time=${encodeURIComponent(endTime)}&significant_changes_only=0`,
         {
-          headers: getHeaders(input.token.trim()),
+          headers: getHeaders(connection.token),
           cache: "no-store",
           signal: AbortSignal.timeout(15000),
         },

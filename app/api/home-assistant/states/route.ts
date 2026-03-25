@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchSelectedHomeAssistantStates } from "@/lib/server/home-assistant";
+import { resolveServerHomeAssistantConnection } from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,17 +17,11 @@ export async function POST(request: Request) {
   const payload = ((await request.json().catch(() => ({}))) ??
     {}) as RequestPayload;
 
-  if (!payload.url?.trim() || !payload.token?.trim()) {
-    return NextResponse.json(
-      { ok: false, error: "Home Assistant URL and token are required." },
-      { status: 400 },
-    );
-  }
-
   try {
+    const connection = resolveServerHomeAssistantConnection(payload);
     const entities = await fetchSelectedHomeAssistantStates({
-      url: payload.url,
-      token: payload.token,
+      url: connection.url,
+      token: connection.token,
       entityIds: Array.isArray(payload.entityIds) ? payload.entityIds : [],
       thermostatHistoryEntityIds: Array.isArray(
         payload.thermostatHistoryEntityIds,

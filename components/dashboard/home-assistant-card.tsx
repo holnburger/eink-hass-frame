@@ -16,6 +16,9 @@ type HomeAssistantCardProps = {
   value: HomeAssistantConfig;
   onChange: (config: HomeAssistantConfig) => void;
   boundEntityCount: number;
+  addonMode?: boolean;
+  supervisorConnected?: boolean;
+  hasDeviceHomeAssistantDefaults?: boolean;
 };
 
 function summarizeUrl(rawUrl: string) {
@@ -30,31 +33,41 @@ export function HomeAssistantCard({
   value,
   onChange,
   boundEntityCount,
+  addonMode = false,
+  supervisorConnected = false,
+  hasDeviceHomeAssistantDefaults = false,
 }: HomeAssistantCardProps) {
   const [status, setStatus] = useState("");
   const [isTesting, setIsTesting] = useState(false);
   const isConfigured = useMemo(() => isHomeAssistantConfigured(value), [value]);
-  const [collapsed, setCollapsed] = useState(isConfigured);
-  const wasConfigured = useRef(isConfigured);
+  const hasActiveConnection = addonMode
+    ? supervisorConnected || isConfigured
+    : isConfigured;
+  const [collapsed, setCollapsed] = useState(hasActiveConnection);
+  const hadActiveConnection = useRef(hasActiveConnection);
 
   useEffect(() => {
-    if (!isConfigured) {
+    if (!hasActiveConnection) {
       setCollapsed(false);
-    } else if (!wasConfigured.current && isConfigured) {
+    } else if (!hadActiveConnection.current && hasActiveConnection) {
       setCollapsed(true);
     }
 
-    wasConfigured.current = isConfigured;
-  }, [isConfigured]);
+    hadActiveConnection.current = hasActiveConnection;
+  }, [hasActiveConnection]);
 
   async function testConnection() {
-    if (!isConfigured) {
+    if (!addonMode && !isConfigured) {
       setStatus("Enter URL and token.");
       return;
     }
 
     setIsTesting(true);
-    setStatus("Testing…");
+    setStatus(
+      addonMode && !isConfigured
+        ? "Testing add-on connection…"
+        : "Testing…",
+    );
 
     try {
       const response = await fetch("/api/home-assistant/entities", {
@@ -76,7 +89,11 @@ export function HomeAssistantCard({
         return;
       }
 
-      setStatus("Connected.");
+      setStatus(
+        addonMode && !isConfigured
+          ? "Connected through the add-on."
+          : "Connected.",
+      );
       setCollapsed(true);
     } catch {
       setStatus("Connection failed.");
@@ -96,7 +113,7 @@ export function HomeAssistantCard({
                 {boundEntityCount} bound
               </div>
             ) : null}
-            {isConfigured ? (
+            {hasActiveConnection ? (
               <Button
                 type="button"
                 variant="outline"
@@ -117,16 +134,40 @@ export function HomeAssistantCard({
       </CardHeader>
 
       <CardContent className="pt-6">
-        {collapsed && isConfigured ? (
+        {collapsed && hasActiveConnection ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
-            <span>{summarizeUrl(value.url)}</span>
+            <span>
+              {addonMode
+                ? isConfigured
+                  ? `Preview via add-on, firmware via ${summarizeUrl(value.url)}`
+                  : hasDeviceHomeAssistantDefaults
+                    ? "Preview via add-on, firmware defaults from add-on options"
+                    : "Preview via add-on"
+                : summarizeUrl(value.url)}
+            </span>
             {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
         ) : (
           <div className="space-y-4">
+            {addonMode ? (
+              <div className="rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">
+                  Home Assistant is available through the add-on.
+                </p>
+                <p className="mt-1">
+                  Search, preview, and validation use the Supervisor proxy.
+                  The fields below are used for the device firmware itself.
+                  They should normally come from the add-on options and can be
+                  overridden here when needed.
+                </p>
+              </div>
+            ) : null}
+
             <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
               <div className="space-y-2">
-                <Label htmlFor="home-assistant-url">URL</Label>
+                <Label htmlFor="home-assistant-url">
+                  {addonMode ? "Device URL" : "URL"}
+                </Label>
                 <Input
                   id="home-assistant-url"
                   value={value.url}
@@ -141,7 +182,9 @@ export function HomeAssistantCard({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="home-assistant-token">Token</Label>
+                <Label htmlFor="home-assistant-token">
+                  {addonMode ? "Device Token" : "Token"}
+                </Label>
                 <Input
                   id="home-assistant-token"
                   type="password"
@@ -152,10 +195,17 @@ export function HomeAssistantCard({
                       token: event.target.value,
                     })
                   }
-                  placeholder="Paste token"
+                  placeholder={addonMode ? "Device long-lived token" : "Paste token"}
                 />
               </div>
             </div>
+
+            {addonMode ? (
+              <p className="text-xs text-muted-foreground">
+                Firmware builds require these values. The add-on options should
+                provide defaults for every build.
+              </p>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -164,7 +214,13 @@ export function HomeAssistantCard({
                 disabled={isTesting}
               >
                 <Wifi className="mr-2 h-4 w-4" />
-                {isTesting ? "Testing..." : "Test"}
+                {isTesting
+                  ? "Testing..."
+                  : addonMode
+                    ? isConfigured
+                      ? "Test Device Access"
+                      : "Test Add-on Link"
+                    : "Test"}
               </Button>
               {status ? (
                 <p className="text-sm text-muted-foreground">{status}</p>

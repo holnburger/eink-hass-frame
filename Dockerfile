@@ -29,5 +29,14 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/firmware ./firmware
+COPY --from=builder /app/scripts ./scripts
 EXPOSE 3000
 CMD ["bun", "run", "start"]
+
+FROM runner AS addon
+ENV HOME_ASSISTANT_ADDON=1
+ENV PORT=8099
+ENV PLATFORMIO_CORE_DIR=/data/.platformio
+ENV EINK_HASS_FRAME_DATA_DIR=/data/eink-hass-frame
+EXPOSE 8099
+CMD ["bun", "run", "scripts/start-addon.mjs"]

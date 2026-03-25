@@ -231,10 +231,6 @@ function formatClock(date: Date | null, showSeconds: boolean) {
   });
 }
 
-function isSegmentFontClass(fontClass: string) {
-  return fontClass.includes("font-segment");
-}
-
 function formatPreviewWeatherDate(date: Date | null) {
   if (!date) {
     return "Today";
