@@ -10,7 +10,8 @@ export async function GET() {
       version: "0.1.0",
       improv: true,
       new_install_improv_wait_time: 30,
-      home_assistant_domain: "m5paper-eink",
+      // removed because it is currently only added via mqtt and not an official home assistant integration
+      // home_assistant_domain: "m5paper-eink",
       builds: [
         {
           chipFamily: "ESP32-S3",
