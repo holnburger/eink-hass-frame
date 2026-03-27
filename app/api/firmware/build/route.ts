@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
@@ -14,6 +14,7 @@ import {
   getArtifactsDir,
   getBuildOutputDir,
 } from "@/lib/server/firmware-artifacts";
+import { generateMdiIconHeader } from "@/lib/server/generate-mdi-icons";
 import { resolveDeviceHomeAssistantConfig } from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
@@ -306,6 +307,7 @@ export async function POST(request: Request) {
   const includeDir = path.join(firmwareDir, "include");
   const buildDir = getBuildOutputDir();
   const artifactsDir = getArtifactsDir();
+  process.env.PLATFORMIO_CORE_DIR ||= path.join(rootDir, ".platformio");
 
   const payload = ((await request.json().catch(() => ({}))) ?? {}) as BuildPayload;
   const normalizedConfig = normalizeBuildConfig(payload);
@@ -378,26 +380,21 @@ export async function POST(request: Request) {
   const widgetIconNames = collectWidgetIconNames(payload);
 
   await ensureArtifactsDir();
+  await mkdir(process.env.PLATFORMIO_CORE_DIR, { recursive: true });
   await writeFile(generatedHeaderPath, generatedHeader, "utf8");
 
-  const generateIcons = await runCommand(
-    process.execPath,
-    [
-      path.join("scripts", "generate-mdi-icons.cjs"),
-      "--output",
-      generatedMdiHeaderPath,
-      "--widget-icons",
-      widgetIconNames.join(","),
-    ],
-    rootDir,
-  );
-  if (generateIcons.code !== 0) {
+  try {
+    await generateMdiIconHeader({
+      outputPath: generatedMdiHeaderPath,
+      widgetIcons: widgetIconNames,
+    });
+  } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         stage: "assets",
         error: "Generating firmware MDI icons failed.",
-        log: generateIcons.log,
+        log: error instanceof Error ? error.stack ?? error.message : String(error),
       },
       { status: 500 },
     );

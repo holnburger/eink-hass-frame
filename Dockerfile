@@ -25,13 +25,13 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+ENV PLATFORMIO_CORE_DIR=/app/.platformio
 RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
-COPY --from=builder /app/scripts/generate-mdi-icons.cjs ./scripts/generate-mdi-icons.cjs
 COPY --from=builder /app/scripts/start-addon.mjs ./scripts/start-addon.mjs
 EXPOSE 3000
 CMD ["bun", "server.js"]
