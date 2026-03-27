@@ -9,8 +9,8 @@ The repository can now also be used as a Home Assistant app folder for local ins
 - Next.js (App Router)
 - Tailwind CSS
 - shadcn-style component setup
-- Playwright E2E tests
-- Docker (multi-stage Bun image)
+- Playwright E2E tests (dev only)
+- Docker (slim standalone production image + separate dev compose)
 - PlatformIO firmware project using FastEPD
 
 ## Features
@@ -40,18 +40,17 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Docker
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 App runs at [http://localhost:3000](http://localhost:3000).
 
-This is now the live development setup:
+This is now the default production-style container setup:
 
-- source changes are mounted directly into the container
-- Next.js runs in dev mode with hot reload
-- firmware artifacts and caches stay inside named Docker volumes
-
-You only need `docker compose up --build` again when dependencies or the Docker image itself changed.
+- the container runs the standalone Next.js production server
+- runtime dependencies are trimmed down to the traced production set
+- Playwright and the rest of the dev-only toolchain stay out of the final image
+- firmware artifacts and PlatformIO cache stay inside named Docker volumes
 
 To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
 
@@ -64,11 +63,13 @@ docker compose up
 The web build validates that device Home Assistant credentials are present
 before compiling firmware. Wi-Fi is provisioned during the USB flashing flow.
 
-For a production-style container build, use the `prod` profile:
+For live development with source mounts and hot reload, use the separate dev compose file:
 
 ```bash
-docker compose --profile prod up --build eink-hass-frame-prod
+docker compose -f docker-compose.dev.yml up --build
 ```
+
+That dev setup mounts the repo into the container, keeps Next.js in dev mode, and includes the dev-only dependencies such as Playwright.
 
 ## Home Assistant Add-on
 

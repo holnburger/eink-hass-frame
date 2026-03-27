@@ -40,6 +40,7 @@ async function main() {
 
   process.env.HOME_ASSISTANT_ADDON ||= "1";
   process.env.EINK_HASS_FRAME_DATA_DIR ||= DEFAULT_DATA_DIR;
+  process.env.HOSTNAME ||= "0.0.0.0";
   process.env.PLATFORMIO_CORE_DIR ||= DEFAULT_PLATFORMIO_CORE_DIR;
 
   for (const [optionName, envName] of Object.entries(OPTION_ENV_MAP)) {
@@ -50,14 +51,12 @@ async function main() {
   await mkdir(process.env.PLATFORMIO_CORE_DIR, { recursive: true });
 
   const port = (process.env.PORT || DEFAULT_PORT).trim() || DEFAULT_PORT;
-  const child = spawn(
-    "bun",
-    ["run", "start", "--hostname", "0.0.0.0", "--port", port],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  process.env.PORT = port;
+
+  const child = spawn("bun", ["server.js"], {
+    stdio: "inherit",
+    env: process.env,
+  });
 
   child.on("exit", (code, signal) => {
     if (signal) {
