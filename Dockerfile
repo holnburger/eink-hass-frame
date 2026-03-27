@@ -1,7 +1,7 @@
 FROM oven/bun:1.2 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN npm_config_cpu=wasm32 bun install --frozen-lockfile
 
 FROM python:3.12-slim AS dev
 WORKDIR /app
@@ -10,7 +10,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN npm_config_cpu=wasm32 bun install --frozen-lockfile
 
 FROM oven/bun:1.2 AS builder
 WORKDIR /app

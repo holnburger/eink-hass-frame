@@ -2,7 +2,6 @@ import { writeFile } from "node:fs/promises";
 
 import { icons } from "@iconify-json/mdi";
 import { getIconData, iconToHTML, iconToSVG, replaceIDs } from "@iconify/utils";
-import sharp from "sharp";
 
 const WIDGET_ICON_SIZE = 28;
 const OVERVIEW_WIDGET_ICON_SIZE = 48;
@@ -54,6 +53,13 @@ const DEFAULT_WIDGET_ICON_NAMES = [
   "brightness-6",
 ] as const;
 
+let sharpImportPromise: Promise<unknown> | null = null;
+
+function loadSharp() {
+  sharpImportPromise ??= import("sharp");
+  return sharpImportPromise;
+}
+
 function sanitizeKeySegment(value: string) {
   const sanitized = value
     .trim()
@@ -102,6 +108,9 @@ async function svgToPacked1bpp(
   height: number,
   threshold: number,
 ) {
+  const { default: sharp } = (await loadSharp()) as {
+    default: typeof import("sharp");
+  };
   const { data, info } = await sharp(Buffer.from(svgMarkup))
     .resize(width, height, {
       fit: "contain",
