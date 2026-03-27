@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 
+import { resolveAppPath } from "@/lib/app-path";
+import { detectIngressPathFromHeaders } from "@/lib/server/ingress";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ingressInfo = detectIngressPathFromHeaders(request.headers, request.url);
+  const artifactPath = (path: string) =>
+    resolveAppPath(path, ingressInfo.path);
+
   return NextResponse.json(
     {
       name: "M5PaperS3 FastEPD Firmware",
@@ -17,15 +24,15 @@ export async function GET() {
           chipFamily: "ESP32-S3",
           parts: [
             {
-              path: "/api/firmware/artifacts/bootloader.bin",
+              path: artifactPath("/api/firmware/artifacts/bootloader.bin"),
               offset: 0,
             },
             {
-              path: "/api/firmware/artifacts/partitions.bin",
+              path: artifactPath("/api/firmware/artifacts/partitions.bin"),
               offset: 32768,
             },
             {
-              path: "/api/firmware/artifacts/firmware.bin",
+              path: artifactPath("/api/firmware/artifacts/firmware.bin"),
               offset: 65536,
             },
           ],

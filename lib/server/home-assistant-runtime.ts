@@ -1,3 +1,4 @@
+import { normalizeAppBasePath } from "@/lib/app-path";
 import { normalizeHomeAssistantConfig } from "@/lib/home-assistant";
 import {
   DEFAULT_APP_RUNTIME_INFO,
@@ -21,7 +22,9 @@ export function getSupervisorToken() {
   return readEnv("SUPERVISOR_TOKEN");
 }
 
-export function getAppRuntimeInfo(): AppRuntimeInfo {
+export function getAppRuntimeInfo(input?: {
+  ingressPath?: string;
+}): AppRuntimeInfo {
   const supervisorToken = getSupervisorToken();
   const defaultDeviceConfig = normalizeHomeAssistantConfig({
     url: readEnv("DEVICE_HOME_ASSISTANT_URL"),
@@ -34,6 +37,7 @@ export function getAppRuntimeInfo(): AppRuntimeInfo {
     supervisorConnected: supervisorToken.length > 0,
     hasDeviceHomeAssistantDefaults:
       defaultDeviceConfig.url.length > 0 && defaultDeviceConfig.token.length > 0,
+    ingressPath: normalizeAppBasePath(input?.ingressPath),
   };
 }
 

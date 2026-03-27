@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { NextResponse } from "next/server";
 
+import { resolveAppPath } from "@/lib/app-path";
 import { getArtifactsDir } from "@/lib/server/firmware-artifacts";
+import { detectIngressPathFromHeaders } from "@/lib/server/ingress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +36,10 @@ function isLoopbackHost(host: string) {
 function resolveFirmwareUrl(request: Request) {
   const rawHost = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim();
   const proto = (request.headers.get("x-forwarded-proto") ?? "http").split(",")[0].trim() || "http";
+  const ingressPath = detectIngressPathFromHeaders(
+    request.headers,
+    request.url,
+  ).path;
   if (!rawHost) {
     return {
       ok: false as const,
@@ -51,7 +57,10 @@ function resolveFirmwareUrl(request: Request) {
     };
   }
 
-  return { ok: true as const, url: `${proto}://${rawHost}/api/firmware/artifacts/firmware.bin` };
+  return {
+    ok: true as const,
+    url: `${proto}://${rawHost}${resolveAppPath("/api/firmware/artifacts/firmware.bin", ingressPath)}`,
+  };
 }
 
 async function readFirmwareArtifact() {

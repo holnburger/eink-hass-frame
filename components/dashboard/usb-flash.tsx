@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveAppPath } from "@/lib/app-path";
 
 type SavedDevice = {
   id: string;
@@ -17,10 +18,14 @@ type SavedDevice = {
 };
 
 type UsbFlashCardProps = {
+  appBasePath?: string;
   onSaveActiveDevice: (device: SavedDevice) => void;
 };
 
-export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
+export function UsbFlashCard({
+  appBasePath,
+  onSaveActiveDevice,
+}: UsbFlashCardProps) {
   const [artifactsReady, setArtifactsReady] = useState(false);
   const [checkingBinaries, setCheckingBinaries] = useState(true);
   const [deviceName, setDeviceName] = useState("M5PaperS3");
@@ -30,10 +35,13 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
   const checkFirmwareBinaries = useCallback(async () => {
     setCheckingBinaries(true);
     try {
-      const response = await fetch("/api/firmware/status", {
-        method: "GET",
-        cache: "no-store",
-      });
+      const response = await fetch(
+        resolveAppPath("/api/firmware/status", appBasePath),
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      );
       if (!response.ok) {
         setArtifactsReady(false);
         return;
@@ -46,7 +54,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
     } finally {
       setCheckingBinaries(false);
     }
-  }, []);
+  }, [appBasePath]);
 
   useEffect(() => {
     void checkFirmwareBinaries();
@@ -120,7 +128,7 @@ export function UsbFlashCard({ onSaveActiveDevice }: UsbFlashCardProps) {
             </p>
           ) : artifactsReady ? (
             <UsbInstallButton
-              manifest="/api/firmware/manifest"
+              manifest={resolveAppPath("/api/firmware/manifest", appBasePath)}
               onDetectedDeviceUrl={handleDetectedDeviceUrl}
             />
           ) : (

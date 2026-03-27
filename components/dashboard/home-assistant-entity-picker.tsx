@@ -5,6 +5,7 @@ import { Search, Unplug, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { resolveAppPath } from "@/lib/app-path";
 import {
   type HomeAssistantBinding,
   type HomeAssistantConfig,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/home-assistant";
 
 type HomeAssistantEntityPickerProps = {
+  appBasePath?: string;
   homeAssistant: HomeAssistantConfig;
   requestHomeAssistant?: HomeAssistantConfig;
   connectionReady: boolean;
@@ -22,6 +24,7 @@ type HomeAssistantEntityPickerProps = {
 };
 
 export function HomeAssistantEntityPicker({
+  appBasePath,
   homeAssistant,
   requestHomeAssistant,
   connectionReady,
@@ -70,17 +73,20 @@ export function HomeAssistantEntityPicker({
       setIsSearching(true);
       setStatus("");
       try {
-        const response = await fetch("/api/home-assistant/entities", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: requestConfig.url,
-            token: requestConfig.token,
-            query: trimmedQuery,
-            domains: searchDomains,
-            limit: 12,
-          }),
-        });
+        const response = await fetch(
+          resolveAppPath("/api/home-assistant/entities", appBasePath),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: requestConfig.url,
+              token: requestConfig.token,
+              query: trimmedQuery,
+              domains: searchDomains,
+              limit: 12,
+            }),
+          },
+        );
         const payload = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           error?: string;
@@ -118,7 +124,7 @@ export function HomeAssistantEntityPicker({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [connectionReady, query, requestConfig, supportedDomainsKey]);
+  }, [appBasePath, connectionReady, query, requestConfig, supportedDomainsKey]);
 
   if (supportedDomains.length === 0) {
     return null;

@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { ChevronDown, Wifi } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveAppPath } from "@/lib/app-path";
 import {
   isHomeAssistantConfigured,
   type HomeAssistantConfig,
 } from "@/lib/home-assistant";
 
 type HomeAssistantCardProps = {
+  appBasePath?: string;
   value: HomeAssistantConfig;
-  onChange: (config: HomeAssistantConfig) => void;
+  onChange: Dispatch<SetStateAction<HomeAssistantConfig>>;
   boundEntityCount: number;
   addonMode?: boolean;
   supervisorConnected?: boolean;
@@ -30,6 +39,7 @@ function summarizeUrl(rawUrl: string) {
 }
 
 export function HomeAssistantCard({
+  appBasePath,
   value,
   onChange,
   boundEntityCount,
@@ -39,7 +49,11 @@ export function HomeAssistantCard({
 }: HomeAssistantCardProps) {
   const [status, setStatus] = useState("");
   const [isTesting, setIsTesting] = useState(false);
-  const isConfigured = useMemo(() => isHomeAssistantConfigured(value), [value]);
+  const [draftConfig, setDraftConfig] = useState(value);
+  const isConfigured = useMemo(
+    () => isHomeAssistantConfigured(draftConfig),
+    [draftConfig],
+  );
   const hasActiveConnection = addonMode
     ? supervisorConnected || isConfigured
     : isConfigured;
@@ -56,6 +70,14 @@ export function HomeAssistantCard({
     hadActiveConnection.current = hasActiveConnection;
   }, [hasActiveConnection]);
 
+  useEffect(() => {
+    setDraftConfig(value);
+  }, [value]);
+
+  useEffect(() => {
+    setStatus("");
+  }, [draftConfig.url, draftConfig.token]);
+
   async function testConnection() {
     if (!addonMode && !isConfigured) {
       setStatus("Enter URL and token.");
@@ -70,15 +92,18 @@ export function HomeAssistantCard({
     );
 
     try {
-      const response = await fetch("/api/home-assistant/entities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: value.url,
-          token: value.token,
-          limit: 1,
-        }),
-      });
+      const response = await fetch(
+        resolveAppPath("/api/home-assistant/entities", appBasePath),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: draftConfig.url,
+            token: draftConfig.token,
+            limit: 1,
+          }),
+        },
+      );
       const payload = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
@@ -139,11 +164,11 @@ export function HomeAssistantCard({
             <span>
               {addonMode
                 ? isConfigured
-                  ? `Preview via add-on, firmware via ${summarizeUrl(value.url)}`
+                  ? `Preview via add-on, firmware via ${summarizeUrl(draftConfig.url)}`
                   : hasDeviceHomeAssistantDefaults
                     ? "Preview via add-on, firmware defaults from add-on options"
                     : "Preview via add-on"
-                : summarizeUrl(value.url)}
+                : summarizeUrl(draftConfig.url)}
             </span>
             {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
@@ -170,13 +195,18 @@ export function HomeAssistantCard({
                 </Label>
                 <Input
                   id="home-assistant-url"
-                  value={value.url}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      url: event.target.value,
-                    })
-                  }
+                  value={draftConfig.url}
+                  onChange={(event) => {
+                    const nextUrl = event.target.value;
+                    setDraftConfig((current) => ({
+                      ...current,
+                      url: nextUrl,
+                    }));
+                    onChange((current) => ({
+                      ...current,
+                      url: nextUrl,
+                    }));
+                  }}
                   placeholder="https://homeassistant.local:8123"
                 />
               </div>
@@ -188,13 +218,18 @@ export function HomeAssistantCard({
                 <Input
                   id="home-assistant-token"
                   type="password"
-                  value={value.token}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      token: event.target.value,
-                    })
-                  }
+                  value={draftConfig.token}
+                  onChange={(event) => {
+                    const nextToken = event.target.value;
+                    setDraftConfig((current) => ({
+                      ...current,
+                      token: nextToken,
+                    }));
+                    onChange((current) => ({
+                      ...current,
+                      token: nextToken,
+                    }));
+                  }}
                   placeholder={addonMode ? "Device long-lived token" : "Paste token"}
                 />
               </div>

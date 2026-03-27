@@ -231,6 +231,10 @@
 #define FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE FULL_REFRESH_EVERY_N_PARTIALS
 #endif
 
+#ifndef TOUCH_IDLE_FULL_REFRESH_MS_OVERRIDE
+#define TOUCH_IDLE_FULL_REFRESH_MS_OVERRIDE TOUCH_IDLE_FULL_REFRESH_MS
+#endif
+
 #ifndef UI_SHOW_SWITCH
 #define UI_SHOW_SWITCH 1
 #endif
@@ -424,8 +428,10 @@ static bool pageReady = false;
 // start in a "gray was shown" state and scrub the first mono page render.
 static bool lastRenderedPageUsedGrayMode = true;
 static bool pendingFullPageRender = false;
+static bool pendingTouchIdleFullRefresh = false;
 static bool ntpConfigured = false;
 static uint32_t lastClockUpdateMs = 0;
+static uint32_t lastTouchInputMs = 0;
 static uint32_t lastValueUpdateMs = 0;
 static uint32_t lastWeatherUpdateMs = 0;
 static uint32_t lastFullRefreshMs = 0;
@@ -2506,6 +2512,7 @@ static void renderActivePage(bool pageTransition)
   }
 
   pendingFullPageRender = false;
+  pendingTouchIdleFullRefresh = false;
 
   layoutCurrentPage();
   const bool targetUsesGrayMode = activePageUsesGrayMode();
@@ -5781,6 +5788,17 @@ static bool setPrimarySwitchState(bool enabled, bool redraw)
   return true;
 }
 
+static void scheduleTouchIdleFullRefresh(uint32_t nowMs)
+{
+  if (TOUCH_IDLE_FULL_REFRESH_MS_OVERRIDE == 0)
+  {
+    return;
+  }
+
+  lastTouchInputMs = nowMs;
+  pendingTouchIdleFullRefresh = true;
+}
+
 static void pollTouchInput()
 {
 #if CAPTOUCH_AVAILABLE
@@ -5801,6 +5819,7 @@ static void pollTouchInput()
     const int w = display.width();
     const int h = display.height();
     const uint32_t now = millis();
+    lastTouchInputMs = now;
 
     const int mappedPoints[6][2] = {
         {rawX, rawY},
@@ -5865,6 +5884,7 @@ static void pollTouchInput()
           mediaState.playing = !mediaState.playing;
           mediaState.lastPlaybackTickMs = now;
           refreshMediaPlayerControlsRegion();
+          scheduleTouchIdleFullRefresh(now);
           callHomeAssistantServiceForPage(currentPageIndex, "media_play_pause");
           Serial.printf("MEDIA_TOUCH ACTION=PLAY_PAUSE MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
           return;
@@ -5894,6 +5914,7 @@ static void pollTouchInput()
           {
             state.enabled = !state.enabled;
             drawSwitchWidget(widgetIndex, true);
+            scheduleTouchIdleFullRefresh(now);
           }
           callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
           Serial.printf(
@@ -5917,12 +5938,14 @@ static void pollTouchInput()
           {
             state.value = nextValue;
             drawSliderWidget(widgetIndex, true);
+            scheduleTouchIdleFullRefresh(now);
             handled = true;
           }
           else if (callHomeAssistantToggleForSliderWidget(currentPageIndex, widgetIndex))
           {
             state.value = nextValue;
             drawSliderWidget(widgetIndex, true);
+            scheduleTouchIdleFullRefresh(now);
             handled = true;
           }
 
@@ -5943,6 +5966,7 @@ static void pollTouchInput()
           lastTouchActionMs = now;
           state.value = sliderValueFromTouch(state, tx);
           drawSliderWidget(widgetIndex, true);
+          scheduleTouchIdleFullRefresh(now);
           callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
           Serial.printf(
               "SLIDER_TOUCH VALUE=%d MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -5968,6 +5992,7 @@ static void pollTouchInput()
             {
               state.thermostatActiveMode = thermostatModeBitForName(activateMode);
               drawThermostatWidget(widgetIndex, true);
+              scheduleTouchIdleFullRefresh(now);
             }
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=MODE_ACTIVE MODE=%s MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -5988,6 +6013,7 @@ static void pollTouchInput()
             {
               state.thermostatActiveMode = THERMOSTAT_MODE_BIT_OFF;
               drawThermostatWidget(widgetIndex, true);
+              scheduleTouchIdleFullRefresh(now);
             }
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=MODE_OFF MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -6007,6 +6033,7 @@ static void pollTouchInput()
             {
               state.thermostatActiveMode = THERMOSTAT_MODE_BIT_COOL;
               drawThermostatWidget(widgetIndex, true);
+              scheduleTouchIdleFullRefresh(now);
             }
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=MODE_COOL MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -6023,6 +6050,7 @@ static void pollTouchInput()
             lastTouchActionMs = now;
             state.value = clampInt(state.value + 5, 120, maxTemp);
             drawThermostatWidget(widgetIndex, true);
+            scheduleTouchIdleFullRefresh(now);
             callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=INCREASE VALUE=%.1f MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -6040,6 +6068,7 @@ static void pollTouchInput()
             lastTouchActionMs = now;
             state.value = clampInt(state.value - 5, 120, maxTemp);
             drawThermostatWidget(widgetIndex, true);
+            scheduleTouchIdleFullRefresh(now);
             callHomeAssistantServiceForWidget(currentPageIndex, widgetIndex);
             Serial.printf(
                 "THERMOSTAT_TOUCH ACTION=DECREASE VALUE=%.1f MAP=%s RAW=%d,%d XY=%d,%d\n",
@@ -6087,14 +6116,26 @@ static void runDisplayLoop()
   configureNtpIfNeeded();
   pollTouchInput();
 
+  const uint32_t nowMs = millis();
+  if (pendingTouchIdleFullRefresh &&
+      !touchPressed &&
+      TOUCH_IDLE_FULL_REFRESH_MS_OVERRIDE > 0 &&
+      nowMs - lastTouchInputMs >= TOUCH_IDLE_FULL_REFRESH_MS_OVERRIDE)
+  {
+    Serial.printf(
+        "TOUCH_IDLE_FULL_REFRESH AGE_MS=%lu\n",
+        (unsigned long)(nowMs - lastTouchInputMs));
+    renderActivePage();
+    return;
+  }
+
   if (FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE > 0 &&
-      millis() - lastFullRefreshMs >= (uint32_t)FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE * 1000UL)
+      nowMs - lastFullRefreshMs >= (uint32_t)FULL_REFRESH_EVERY_N_PARTIALS_OVERRIDE * 1000UL)
   {
     renderActivePage();
     return;
   }
 
-  const uint32_t nowMs = millis();
   if (activePageIsWeatherFocus())
   {
     bool rerenderWeatherPage = false;

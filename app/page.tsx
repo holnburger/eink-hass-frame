@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { getBrowserAppBasePath, resolveAppPath } from "@/lib/app-path";
 import {
   collectBoundEntityIds,
   collectThermostatHistoryEntityIds,
@@ -110,6 +111,7 @@ function isSavedDevice(value: unknown): value is SavedDevice {
 type EditableWidgetCardProps = {
   widget: WidgetConfig;
   widgetIndex: number;
+  appBasePath?: string;
   homeAssistant: HomeAssistantConfig;
   homeAssistantRequestConfig: HomeAssistantConfig;
   homeAssistantConnectionReady: boolean;
@@ -457,6 +459,7 @@ function EditablePageTab({
 function EditableWidgetCard({
   widget,
   widgetIndex,
+  appBasePath,
   homeAssistant,
   homeAssistantRequestConfig,
   homeAssistantConnectionReady,
@@ -701,6 +704,7 @@ function EditableWidgetCard({
       {widgetSupportsHomeAssistant(widget.type) ? (
         <div className="mt-4">
           <HomeAssistantEntityPicker
+            appBasePath={appBasePath}
             homeAssistant={homeAssistant}
             requestHomeAssistant={homeAssistantRequestConfig}
             connectionReady={homeAssistantConnectionReady}
@@ -861,6 +865,7 @@ export default function Home() {
     useState("");
   const [runtimeInfo, setRuntimeInfo] =
     useState<AppRuntimeInfo>(DEFAULT_APP_RUNTIME_INFO);
+  const [appBasePath, setAppBasePath] = useState("");
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -926,6 +931,10 @@ export default function Home() {
       runtimeInfo.addonMode,
       runtimeInfo.supervisorConnected,
     ],
+  );
+  const resolveBrowserAppPath = useMemo(
+    () => (path: string) => resolveAppPath(path, appBasePath),
+    [appBasePath],
   );
   const textWidgetMqttValidationById = useMemo(() => {
     const nameCounts = new Map<string, number>();
@@ -1000,13 +1009,20 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    setAppBasePath(getBrowserAppBasePath(runtimeInfo.ingressPath));
+  }, [runtimeInfo.ingressPath]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadRuntimeInfo() {
       try {
-        const response = await fetch("/api/runtime-info", {
-          cache: "no-store",
-        });
+        const response = await fetch(
+          resolveAppPath("/api/runtime-info", getBrowserAppBasePath()),
+          {
+            cache: "no-store",
+          },
+        );
         const payload = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           runtime?: AppRuntimeInfo;
@@ -1105,16 +1121,19 @@ export default function Home() {
 
     async function syncStates() {
       try {
-        const response = await fetch("/api/home-assistant/states", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: homeAssistantRequestConfig.url,
-            token: homeAssistantRequestConfig.token,
-            entityIds: boundEntityIds,
-            thermostatHistoryEntityIds,
-          }),
-        });
+        const response = await fetch(
+          resolveBrowserAppPath("/api/home-assistant/states"),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: homeAssistantRequestConfig.url,
+              token: homeAssistantRequestConfig.token,
+              entityIds: boundEntityIds,
+              thermostatHistoryEntityIds,
+            }),
+          },
+        );
         const payload = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           entities?: Record<string, HomeAssistantEntityState>;
@@ -1143,6 +1162,7 @@ export default function Home() {
     buildConfig.homeAssistant,
     homeAssistantRequestConfig,
     homeAssistantConnectionReady,
+    resolveBrowserAppPath,
     thermostatHistoryEntityIds,
   ]);
 
@@ -1163,15 +1183,18 @@ export default function Home() {
       setTextWidgetValidationError("");
 
       try {
-        const response = await fetch("/api/home-assistant/entity-presence", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: homeAssistantRequestConfig.url,
-            token: homeAssistantRequestConfig.token,
-            entityIds: textWidgetEntityIdsToValidate,
-          }),
-        });
+        const response = await fetch(
+          resolveBrowserAppPath("/api/home-assistant/entity-presence"),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: homeAssistantRequestConfig.url,
+              token: homeAssistantRequestConfig.token,
+              entityIds: textWidgetEntityIdsToValidate,
+            }),
+          },
+        );
         const payload = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           existingEntityIds?: string[];
@@ -1220,6 +1243,7 @@ export default function Home() {
     buildConfig.homeAssistant,
     homeAssistantRequestConfig,
     homeAssistantConnectionReady,
+    resolveBrowserAppPath,
     textWidgetEntityIdsToValidate,
   ]);
 
@@ -1478,6 +1502,7 @@ export default function Home() {
           </Card>
 
           <HomeAssistantCard
+            appBasePath={appBasePath}
             value={homeAssistant}
             onChange={setHomeAssistant}
             boundEntityCount={boundEntityCount}
@@ -1490,7 +1515,10 @@ export default function Home() {
         </section>
 
         {showUsbOnboarding ? (
-          <UsbFlashCard onSaveActiveDevice={handleSaveActiveDevice} />
+          <UsbFlashCard
+            appBasePath={appBasePath}
+            onSaveActiveDevice={handleSaveActiveDevice}
+          />
         ) : null}
 
         {activeDevice ? (
@@ -1737,6 +1765,7 @@ export default function Home() {
 
                         {editorPage.type === "weather-focus" ? (
                           <HomeAssistantEntityPicker
+                            appBasePath={appBasePath}
                             homeAssistant={homeAssistant}
                             requestHomeAssistant={homeAssistantRequestConfig}
                             connectionReady={homeAssistantConnectionReady}
@@ -1754,6 +1783,7 @@ export default function Home() {
                           />
                         ) : editorPage.type === "media-player" ? (
                           <HomeAssistantEntityPicker
+                            appBasePath={appBasePath}
                             homeAssistant={homeAssistant}
                             requestHomeAssistant={homeAssistantRequestConfig}
                             connectionReady={homeAssistantConnectionReady}
@@ -1786,6 +1816,7 @@ export default function Home() {
                                       key={widget.id}
                                       widget={widget}
                                       widgetIndex={widgetIndex}
+                                      appBasePath={appBasePath}
                                       homeAssistant={homeAssistant}
                                       homeAssistantRequestConfig={
                                         homeAssistantRequestConfig
@@ -1894,6 +1925,7 @@ export default function Home() {
                   <CardContent className="pt-6">
                     <div className="rounded-4xl border border-border bg-panel-strong p-4">
                       <DevicePreview
+                        appBasePath={appBasePath}
                         darkMode={buildConfig.darkMode}
                         hideWidgetBorders={buildConfig.hideWidgetBorders}
                         fontClass={fontClass}
@@ -1915,6 +1947,7 @@ export default function Home() {
             </section>
 
             <OtaFlashCard
+              appBasePath={appBasePath}
               buildConfig={buildConfig}
               activeDevice={activeDevice}
             />

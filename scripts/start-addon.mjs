@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
+import http from "node:http";
 import { mkdir, readFile } from "node:fs/promises";
 
 const DEFAULT_PORT = "8099";
+const DEFAULT_INTERNAL_HOST = "127.0.0.1";
+const DEFAULT_INTERNAL_PORT = "3000";
 const DEFAULT_OPTIONS_PATH = "/data/options.json";
 const DEFAULT_DATA_DIR = "/data/eink-hass-frame";
 const DEFAULT_PLATFORMIO_CORE_DIR = "/data/.platformio";
@@ -35,12 +38,319 @@ function applyOptionToEnv(options, optionName, envName) {
   }
 }
 
+function normalizeIngressPath(value) {
+  const firstValue = Array.isArray(value) ? value[0] : value;
+  const normalized = (firstValue ?? "").trim();
+  if (normalized.length === 0) {
+    return "";
+  }
+
+  if (normalized === "/") {
+    return "";
+  }
+
+  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+}
+
+function parseHeaderPath(value) {
+  const firstValue = Array.isArray(value) ? value[0] : value;
+  const normalized = (firstValue ?? "").trim();
+  if (normalized.length === 0) {
+    return "";
+  }
+
+  if (normalized.startsWith("/")) {
+    return normalized;
+  }
+
+  try {
+    return new URL(normalized).pathname;
+  } catch {
+    return "";
+  }
+}
+
+function deriveIngressPathFromOriginalPath(originalPath, requestPath) {
+  const normalizedOriginalPath = normalizeIngressPath(originalPath);
+  const normalizedRequestPath = normalizeIngressPath(requestPath);
+
+  if (!normalizedOriginalPath) {
+    return "";
+  }
+
+  if (!normalizedRequestPath || normalizedRequestPath === "/") {
+    return normalizedOriginalPath;
+  }
+
+  if (!normalizedOriginalPath.endsWith(normalizedRequestPath)) {
+    return "";
+  }
+
+  const basePath = normalizedOriginalPath.slice(
+    0,
+    normalizedOriginalPath.length - normalizedRequestPath.length,
+  );
+  return normalizeIngressPath(basePath);
+}
+
+function detectIngressPath(request) {
+  const headerIngressPath = normalizeIngressPath(
+    request.headers["x-ingress-path"],
+  );
+  if (headerIngressPath) {
+    return {
+      path: headerIngressPath,
+      source: "x-ingress-path",
+    };
+  }
+
+  const forwardedPrefix = normalizeIngressPath(
+    request.headers["x-forwarded-prefix"],
+  );
+  if (forwardedPrefix) {
+    return {
+      path: forwardedPrefix,
+      source: "x-forwarded-prefix",
+    };
+  }
+
+  const originalUri = parseHeaderPath(request.headers["x-original-uri"]);
+  const ingressPathFromOriginalUri = deriveIngressPathFromOriginalPath(
+    originalUri,
+    request.url ?? "/",
+  );
+  if (ingressPathFromOriginalUri) {
+    return {
+      path: ingressPathFromOriginalUri,
+      source: "x-original-uri",
+    };
+  }
+
+  const forwardedUri = parseHeaderPath(request.headers["x-forwarded-uri"]);
+  const ingressPathFromForwardedUri = deriveIngressPathFromOriginalPath(
+    forwardedUri,
+    request.url ?? "/",
+  );
+  if (ingressPathFromForwardedUri) {
+    return {
+      path: ingressPathFromForwardedUri,
+      source: "x-forwarded-uri",
+    };
+  }
+
+  const refererPath = normalizeIngressPath(parseHeaderPath(request.headers.referer));
+  if (refererPath) {
+    return {
+      path: refererPath,
+      source: "referer",
+    };
+  }
+
+  return {
+    path: "",
+    source: "",
+  };
+}
+
+function shouldRewriteResponse(contentType) {
+  const normalized = (contentType ?? "").split(";")[0].trim().toLowerCase();
+  return (
+    normalized === "text/html" ||
+    normalized === "text/css" ||
+    normalized === "application/javascript" ||
+    normalized === "text/javascript" ||
+    normalized === "text/x-component"
+  );
+}
+
+function stripIngressPathFromRequestUrl(requestUrl, ingressPath) {
+  if (!ingressPath) {
+    return requestUrl;
+  }
+
+  try {
+    const parsed = new URL(requestUrl, "http://addon.local");
+    const pathname = normalizeIngressPath(parsed.pathname);
+
+    if (pathname === ingressPath) {
+      parsed.pathname = "/";
+    } else if (pathname.startsWith(`${ingressPath}/`)) {
+      parsed.pathname = pathname.slice(ingressPath.length) || "/";
+    }
+
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return requestUrl;
+  }
+}
+
+function rewriteResponseBody(body, ingressPath) {
+  if (!ingressPath) {
+    return body;
+  }
+
+  return body
+    .replaceAll('"/_next/', `"${ingressPath}/_next/`)
+    .replaceAll("'/_next/", `'${ingressPath}/_next/`)
+    .replaceAll('url("/_next/', `url("${ingressPath}/_next/`)
+    .replaceAll("url('/_next/", `url('${ingressPath}/_next/`)
+    .replaceAll("url(/_next/", `url(${ingressPath}/_next/`)
+    .replaceAll('"/api/', `"${ingressPath}/api/`)
+    .replaceAll("'/api/", `'${ingressPath}/api/`)
+    .replaceAll('"/mock/', `"${ingressPath}/mock/`)
+    .replaceAll("'/mock/", `'${ingressPath}/mock/`)
+    .replaceAll('url("/mock/', `url("${ingressPath}/mock/`)
+    .replaceAll("url('/mock/", `url('${ingressPath}/mock/`)
+    .replaceAll("url(/mock/", `url(${ingressPath}/mock/`)
+    .replaceAll('"/favicon.ico', `"${ingressPath}/favicon.ico`)
+    .replaceAll("'/favicon.ico", `'${ingressPath}/favicon.ico`)
+    .replaceAll('url("/favicon.ico', `url("${ingressPath}/favicon.ico`)
+    .replaceAll("url('/favicon.ico", `url('${ingressPath}/favicon.ico`)
+    .replaceAll("url(/favicon.ico", `url(${ingressPath}/favicon.ico`);
+}
+
+function injectIngressBootstrapScript(body, ingressPath) {
+  if (!ingressPath) {
+    return body;
+  }
+
+  const scriptTag = `<script>window.__EINK_HASS_FRAME_BASE_PATH__=${JSON.stringify(ingressPath)};</script>`;
+  if (body.includes(scriptTag)) {
+    return body;
+  }
+
+  if (body.includes("</head>")) {
+    return body.replace("</head>", `${scriptTag}</head>`);
+  }
+
+  if (body.includes("</body>")) {
+    return body.replace("</body>", `${scriptTag}</body>`);
+  }
+
+  return `${scriptTag}${body}`;
+}
+
+function rewriteLocationHeader(location, ingressPath) {
+  if (!ingressPath || typeof location !== "string") {
+    return location;
+  }
+
+  return location.startsWith("/") && !location.startsWith("//")
+    ? `${ingressPath}${location}`
+    : location;
+}
+
+function startIngressProxyServer({
+  listenPort,
+  internalHost,
+  internalPort,
+}) {
+  let lastLoggedIngressPath = "";
+  const proxyServer = http.createServer((request, response) => {
+    const ingressInfo = detectIngressPath(request);
+    const ingressPath = ingressInfo.path;
+    const proxiedRequestPath = stripIngressPathFromRequestUrl(
+      request.url ?? "/",
+      ingressPath,
+    );
+    const proxyHeaders = { ...request.headers };
+    delete proxyHeaders["accept-encoding"];
+    proxyHeaders.host = `${internalHost}:${internalPort}`;
+
+    if (ingressPath && ingressPath !== lastLoggedIngressPath) {
+      lastLoggedIngressPath = ingressPath;
+      console.log(
+        `ADDON_INGRESS_PATH DETECTED=${ingressPath} SOURCE=${ingressInfo.source}`,
+      );
+    }
+
+    const proxyRequest = http.request(
+      {
+        hostname: internalHost,
+        port: internalPort,
+        method: request.method,
+        path: proxiedRequestPath,
+        headers: proxyHeaders,
+      },
+      (proxyResponse) => {
+        const responseHeaders = { ...proxyResponse.headers };
+        const contentTypeHeader = Array.isArray(responseHeaders["content-type"])
+          ? responseHeaders["content-type"][0]
+          : responseHeaders["content-type"];
+
+        if (responseHeaders.location) {
+          responseHeaders.location = rewriteLocationHeader(
+            Array.isArray(responseHeaders.location)
+              ? responseHeaders.location[0]
+              : responseHeaders.location,
+            ingressPath,
+          );
+        }
+
+        if (
+          request.method === "HEAD" ||
+          !shouldRewriteResponse(contentTypeHeader) ||
+          ingressPath.length === 0
+        ) {
+          response.writeHead(proxyResponse.statusCode ?? 502, responseHeaders);
+          proxyResponse.pipe(response);
+          return;
+        }
+
+        const chunks = [];
+        proxyResponse.on("data", (chunk) => {
+          chunks.push(
+            typeof chunk === "string" ? Buffer.from(chunk) : Buffer.from(chunk),
+          );
+        });
+        proxyResponse.on("end", () => {
+          const originalBody = Buffer.concat(chunks).toString("utf8");
+          let rewrittenBody = rewriteResponseBody(originalBody, ingressPath);
+          if (
+            (contentTypeHeader ?? "").split(";")[0].trim().toLowerCase() ===
+            "text/html"
+          ) {
+            rewrittenBody = injectIngressBootstrapScript(
+              rewrittenBody,
+              ingressPath,
+            );
+          }
+
+          delete responseHeaders["content-length"];
+          delete responseHeaders["content-encoding"];
+          delete responseHeaders["transfer-encoding"];
+          delete responseHeaders.etag;
+
+          response.writeHead(proxyResponse.statusCode ?? 502, responseHeaders);
+          response.end(rewrittenBody);
+        });
+      },
+    );
+
+    proxyRequest.on("error", (error) => {
+      if (!response.headersSent) {
+        response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+      }
+      response.end(`Add-on proxy error: ${String(error)}`);
+    });
+
+    request.pipe(proxyRequest);
+  });
+
+  proxyServer.listen(listenPort, "0.0.0.0", () => {
+    console.log(
+      `ADDON_PROXY_READY PORT=${listenPort} INTERNAL=${internalHost}:${internalPort}`,
+    );
+  });
+
+  return proxyServer;
+}
+
 async function main() {
   const addonOptions = await readAddonOptions();
 
   process.env.HOME_ASSISTANT_ADDON ||= "1";
   process.env.EINK_HASS_FRAME_DATA_DIR ||= DEFAULT_DATA_DIR;
-  process.env.HOSTNAME ||= "0.0.0.0";
   process.env.PLATFORMIO_CORE_DIR ||= DEFAULT_PLATFORMIO_CORE_DIR;
 
   for (const [optionName, envName] of Object.entries(OPTION_ENV_MAP)) {
@@ -50,15 +360,33 @@ async function main() {
   await mkdir(process.env.EINK_HASS_FRAME_DATA_DIR, { recursive: true });
   await mkdir(process.env.PLATFORMIO_CORE_DIR, { recursive: true });
 
-  const port = (process.env.PORT || DEFAULT_PORT).trim() || DEFAULT_PORT;
-  process.env.PORT = port;
+  const listenPort = (process.env.PORT || DEFAULT_PORT).trim() || DEFAULT_PORT;
+  const internalHost =
+    (process.env.ADDON_INTERNAL_HOST || DEFAULT_INTERNAL_HOST).trim() ||
+    DEFAULT_INTERNAL_HOST;
+  const internalPort =
+    (process.env.ADDON_INTERNAL_PORT || DEFAULT_INTERNAL_PORT).trim() ||
+    DEFAULT_INTERNAL_PORT;
+
+  const childEnv = {
+    ...process.env,
+    HOSTNAME: internalHost,
+    PORT: internalPort,
+  };
 
   const child = spawn("bun", ["server.js"], {
     stdio: "inherit",
-    env: process.env,
+    env: childEnv,
+  });
+
+  const proxyServer = startIngressProxyServer({
+    listenPort: Number.parseInt(listenPort, 10),
+    internalHost,
+    internalPort: Number.parseInt(internalPort, 10),
   });
 
   child.on("exit", (code, signal) => {
+    proxyServer.close();
     if (signal) {
       process.kill(process.pid, signal);
       return;

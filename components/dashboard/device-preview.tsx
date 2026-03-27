@@ -26,9 +26,11 @@ import {
   type HomeAssistantConfig,
   type HomeAssistantEntityState,
 } from "@/lib/home-assistant";
+import { resolveAppPath } from "@/lib/app-path";
 import type { PageConfig, WidgetConfig } from "@/lib/layout-config";
 
 type DevicePreviewProps = {
+  appBasePath?: string;
   darkMode: boolean;
   hideWidgetBorders: boolean;
   fontClass: string;
@@ -1873,6 +1875,7 @@ function PreviewOverviewPage({
 }
 
 export function DevicePreview({
+  appBasePath,
   darkMode,
   hideWidgetBorders,
   fontClass,
@@ -1912,6 +1915,13 @@ export function DevicePreview({
   const mediaPreview = resolveHomeAssistantMediaPlayer(
     pageEntity,
     homeAssistantConfig.url,
+  );
+  const fallbackMediaMock = useMemo(
+    () => ({
+      ...MEDIA_MOCK,
+      coverUrl: resolveAppPath(MEDIA_MOCK.coverUrl, appBasePath),
+    }),
+    [appBasePath],
   );
   const shellClasses = useMemo(
     () =>
@@ -1967,7 +1977,7 @@ export function DevicePreview({
                       hasContent: mediaPreview.hasMedia,
                       state: mediaPreview.state,
                     }
-                  : MEDIA_MOCK
+                  : fallbackMediaMock
               }
               darkMode={darkMode}
               fontClass={fontClass}

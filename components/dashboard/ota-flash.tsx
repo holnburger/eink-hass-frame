@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LoaderCircle, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { resolveAppPath } from "@/lib/app-path";
 import type { BuildConfig } from "@/lib/layout-config";
 
 type SavedDevice = {
@@ -14,6 +15,7 @@ type SavedDevice = {
 };
 
 type OtaFlashCardProps = {
+  appBasePath?: string;
   buildConfig: BuildConfig;
   activeDevice: SavedDevice | null;
 };
@@ -22,7 +24,11 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
+export function OtaFlashCard({
+  appBasePath,
+  buildConfig,
+  activeDevice,
+}: OtaFlashCardProps) {
   const [status, setStatus] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -31,11 +37,14 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
     for (let attempt = 0; attempt < 40; attempt++) {
       let online = false;
       try {
-        const response = await fetch("/api/device/health", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deviceIp }),
-        });
+        const response = await fetch(
+          resolveAppPath("/api/device/health", appBasePath),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deviceIp }),
+          },
+        );
         if (response.ok) {
           online = true;
         } else {
@@ -78,11 +87,14 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
     setStatus("Building…");
 
     try {
-      const buildResponse = await fetch("/api/firmware/build", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildConfig),
-      });
+      const buildResponse = await fetch(
+        resolveAppPath("/api/firmware/build", appBasePath),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildConfig),
+        },
+      );
       const buildResult = (await buildResponse.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
@@ -98,13 +110,16 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
 
       setStatus("Updating…");
 
-      const otaResponse = await fetch("/api/device/ota", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceIp: activeDevice.ip,
-        }),
-      });
+      const otaResponse = await fetch(
+        resolveAppPath("/api/device/ota", appBasePath),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deviceIp: activeDevice.ip,
+          }),
+        },
+      );
       const otaResult = (await otaResponse.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
@@ -139,25 +154,25 @@ export function OtaFlashCard({ buildConfig, activeDevice }: OtaFlashCardProps) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50">
       <div className="mx-auto flex w-full max-w-350 flex-col items-end gap-2 px-4 sm:px-6 lg:px-8">
-      {status ? (
-        <div className="pointer-events-auto rounded-2xl border border-border-strong bg-panel px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_30px_rgba(17,17,17,0.12)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.35)]">
-          {status}
-        </div>
-      ) : null}
-      <Button
-        type="button"
-        size="lg"
-        className="pointer-events-auto h-14 px-6 shadow-[0_14px_30px_rgba(17,17,17,0.18)]"
-        onClick={buildAndUpdate}
-        disabled={isUpdating}
-      >
-        {isUpdating ? (
-          <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="mr-2 h-4 w-4" />
-        )}
-        {isUpdating ? "Working..." : "Build & Update"}
-      </Button>
+        {status ? (
+          <div className="pointer-events-auto rounded-2xl border border-border-strong bg-panel px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_30px_rgba(17,17,17,0.12)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.35)]">
+            {status}
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          size="lg"
+          className="pointer-events-auto h-14 px-6 shadow-[0_14px_30px_rgba(17,17,17,0.18)]"
+          onClick={buildAndUpdate}
+          disabled={isUpdating}
+        >
+          {isUpdating ? (
+            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="mr-2 h-4 w-4" />
+          )}
+          {isUpdating ? "Working..." : "Build & Update"}
+        </Button>
       </div>
     </div>
   );
