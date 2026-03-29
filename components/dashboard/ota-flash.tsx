@@ -104,8 +104,8 @@ export function OtaFlashCard({
 
       if (!buildResponse.ok || buildResult.ok === false) {
         const detail =
-          buildResult.error ??
           buildResult.details ??
+          buildResult.error ??
           `HTTP ${buildResponse.status}`;
         setStatus(
           `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}: ${detail}`,
