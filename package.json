@@ -17,7 +17,7 @@
     "@iconify-json/mdi": "^1.2.3",
     "@iconify-json/wi": "^1.2.1",
     "@iconify/utils": "^3.1.0",
-    "@resvg/resvg-js": "^2.6.2",
+    "@resvg/resvg-wasm": "^2.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "esp-web-tools": "^10.2.1",

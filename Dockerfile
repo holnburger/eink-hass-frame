@@ -1,4 +1,4 @@
-FROM oven/bun:1.2 AS deps
+FROM oven/bun:1.3.10 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
@@ -12,7 +12,7 @@ COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM oven/bun:1.2 AS builder
+FROM oven/bun:1.3.10 AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules

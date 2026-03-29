@@ -1,12 +1,13 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const { Resvg } = require("@resvg/resvg-js");
+const { Resvg, initWasm } = require("@resvg/resvg-wasm");
 const mdi = require("@iconify-json/mdi/icons.json");
 
 const DEFAULT_OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_mdi_icons.h");
 const WIDGET_ICON_SIZE = 28;
 const OVERVIEW_WIDGET_ICON_SIZE = 48;
+const RESVG_WASM_PATH = require.resolve("@resvg/resvg-wasm/index_bg.wasm");
 
 const CORE_ICONS = [
   { key: "chevron_left", icon: "chevron-left", width: 18, height: 18, threshold: 208 },
@@ -54,6 +55,8 @@ const DEFAULT_WIDGET_ICON_NAMES = [
   "air-humidifier",
   "brightness-6",
 ];
+
+let wasmInitPromise;
 
 function parseCliOptions(argv) {
   const options = {
@@ -132,7 +135,13 @@ function compositeGray(pixels, offset) {
   return Math.round(luminance * alpha + 255 * (1 - alpha));
 }
 
-function svgToPacked1bpp(svgMarkup, threshold) {
+async function ensureResvgWasm() {
+  wasmInitPromise ??= initWasm(fs.readFile(RESVG_WASM_PATH));
+  await wasmInitPromise;
+}
+
+async function svgToPacked1bpp(svgMarkup, threshold) {
+  await ensureResvgWasm();
   const resvg = new Resvg(svgMarkup);
   const rendered = resvg.render();
   const pitch = Math.ceil(rendered.width / 8);
@@ -178,7 +187,7 @@ async function main() {
   const renderedIcons = await Promise.all(
     renderedSpecs.map(async ({ key, icon, width, height, threshold }) => ({
       key,
-      ...svgToPacked1bpp(renderIconSvg(icon, width, height), threshold),
+      ...(await svgToPacked1bpp(renderIconSvg(icon, width, height), threshold)),
     })),
   );
 
