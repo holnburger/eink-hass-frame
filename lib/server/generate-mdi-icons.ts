@@ -68,6 +68,12 @@ const nativeSharpModuleIds = new Set([
   "@img/sharp-linuxmusl-x64/sharp.node",
 ]);
 const sharpCacheSegment = `${path.sep}node_modules${path.sep}sharp${path.sep}`;
+const runtimeRequire = require as unknown as (id: string) => unknown;
+const callRuntimeLoader = Function(
+  "loader",
+  "id",
+  "return loader(id)",
+) as (loader: (id: string) => unknown, id: string) => unknown;
 
 function getSharpFactory(candidate: unknown): SharpFactory {
   if (typeof candidate === "function") {
@@ -114,9 +120,13 @@ function clearSharpCache() {
   }
 }
 
-function loadSharpThroughWasmWrapper() {
+function loadSharpFromPackage() {
   clearSharpCache();
+  const sharpPackagePath = path.join(process.cwd(), "node_modules", "sharp");
+  return getSharpFactory(callRuntimeLoader(runtimeRequire, sharpPackagePath));
+}
 
+function loadSharpThroughWasmWrapper() {
   const moduleApi = require("node:module") as InternalModuleApi;
   const originalLoad = moduleApi._load;
 
@@ -133,7 +143,7 @@ function loadSharpThroughWasmWrapper() {
   }) as InternalModuleApi["_load"];
 
   try {
-    return getSharpFactory(require("sharp"));
+    return loadSharpFromPackage();
   } finally {
     moduleApi._load = originalLoad;
   }
@@ -142,8 +152,7 @@ function loadSharpThroughWasmWrapper() {
 function loadSharp() {
   sharpImportPromise ??= (async () => {
     try {
-      const sharpModule = await import("sharp");
-      return getSharpFactory(sharpModule);
+      return loadSharpFromPackage();
     } catch (error) {
       if (!shouldFallbackToSharpWasm(error)) {
         throw error;
