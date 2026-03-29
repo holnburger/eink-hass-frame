@@ -1,4 +1,6 @@
+import { createRequire } from "node:module";
 import { writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { icons } from "@iconify-json/mdi";
 import { getIconData, iconToHTML, iconToSVG, replaceIDs } from "@iconify/utils";
@@ -54,9 +56,102 @@ const DEFAULT_WIDGET_ICON_NAMES = [
 ] as const;
 
 let sharpImportPromise: Promise<unknown> | null = null;
+const require = createRequire(import.meta.url);
+
+type SharpFactory = typeof import("sharp");
+type InternalModuleApi = {
+  _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+};
+
+const nativeSharpModuleIds = new Set([
+  "@img/sharp-linux-x64/sharp.node",
+  "@img/sharp-linuxmusl-x64/sharp.node",
+]);
+const sharpCacheSegment = `${path.sep}node_modules${path.sep}sharp${path.sep}`;
+
+function getSharpFactory(candidate: unknown): SharpFactory {
+  if (typeof candidate === "function") {
+    return candidate as SharpFactory;
+  }
+
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    "default" in candidate &&
+    typeof (candidate as { default?: unknown }).default === "function"
+  ) {
+    return (candidate as { default: SharpFactory }).default;
+  }
+
+  throw new Error("Sharp module did not export a callable factory.");
+}
+
+function shouldFallbackToSharpWasm(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (process.platform !== "linux" || process.arch !== "x64") {
+    return false;
+  }
+
+  return (
+    error.message.includes(
+      'Could not load the "sharp" module using the linux-x64 runtime',
+    ) ||
+    error.message.includes(
+      "Prebuilt binaries for linux-x64 require v2 microarchitecture",
+    ) ||
+    error.message.includes("Unsupported CPU")
+  );
+}
+
+function clearSharpCache() {
+  for (const cacheKey of Object.keys(require.cache)) {
+    if (cacheKey.includes(sharpCacheSegment)) {
+      delete require.cache[cacheKey];
+    }
+  }
+}
+
+function loadSharpThroughWasmWrapper() {
+  clearSharpCache();
+
+  const moduleApi = require("node:module") as InternalModuleApi;
+  const originalLoad = moduleApi._load;
+
+  moduleApi._load = ((request, parent, isMain) => {
+    if (nativeSharpModuleIds.has(request)) {
+      const notFound = new Error(
+        `Cannot find module '${request}'`,
+      ) as Error & { code?: string };
+      notFound.code = "MODULE_NOT_FOUND";
+      throw notFound;
+    }
+
+    return originalLoad(request, parent, isMain);
+  }) as InternalModuleApi["_load"];
+
+  try {
+    return getSharpFactory(require("sharp"));
+  } finally {
+    moduleApi._load = originalLoad;
+  }
+}
 
 function loadSharp() {
-  sharpImportPromise ??= import("sharp");
+  sharpImportPromise ??= (async () => {
+    try {
+      const sharpModule = await import("sharp");
+      return getSharpFactory(sharpModule);
+    } catch (error) {
+      if (!shouldFallbackToSharpWasm(error)) {
+        throw error;
+      }
+
+      return loadSharpThroughWasmWrapper();
+    }
+  })();
   return sharpImportPromise;
 }
 
@@ -108,9 +203,7 @@ async function svgToPacked1bpp(
   height: number,
   threshold: number,
 ) {
-  const { default: sharp } = (await loadSharp()) as {
-    default: typeof import("sharp");
-  };
+  const sharp = (await loadSharp()) as SharpFactory;
   const { data, info } = await sharp(Buffer.from(svgMarkup))
     .resize(width, height, {
       fit: "contain",

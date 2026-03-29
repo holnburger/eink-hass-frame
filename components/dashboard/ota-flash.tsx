@@ -99,11 +99,16 @@ export function OtaFlashCard({
         ok?: boolean;
         error?: string;
         stage?: string;
+        details?: string;
       };
 
       if (!buildResponse.ok || buildResult.ok === false) {
+        const detail =
+          buildResult.error ??
+          buildResult.details ??
+          `HTTP ${buildResponse.status}`;
         setStatus(
-          `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}.`,
+          `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}: ${detail}`,
         );
         return;
       }

@@ -1,7 +1,12 @@
 FROM oven/bun:1.2 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN npm_config_cpu=wasm32 bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
+
+FROM node:20-slim AS sharp-wasm
+WORKDIR /sharp
+RUN npm init -y >/dev/null \
+    && npm install --ignore-scripts --force @img/sharp-wasm32@0.34.5 @emnapi/runtime@1.8.1 tslib@2.8.1
 
 FROM python:3.12-slim AS dev
 WORKDIR /app
@@ -10,7 +15,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY package.json bun.lock ./
-RUN npm_config_cpu=wasm32 bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 FROM oven/bun:1.2 AS builder
 WORKDIR /app
@@ -30,6 +35,12 @@ RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=deps /app/node_modules/@emnapi ./node_modules/@emnapi
+COPY --from=deps /app/node_modules/@img ./node_modules/@img
+COPY --from=deps /app/node_modules/tslib ./node_modules/tslib
+COPY --from=sharp-wasm /sharp/node_modules/@img/sharp-wasm32 ./node_modules/@img/sharp-wasm32
+COPY --from=sharp-wasm /sharp/node_modules/@emnapi ./node_modules/@emnapi
+COPY --from=sharp-wasm /sharp/node_modules/tslib ./node_modules/tslib
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
 COPY --from=builder /app/scripts/start-addon.mjs ./scripts/start-addon.mjs

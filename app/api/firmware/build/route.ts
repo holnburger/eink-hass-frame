@@ -389,11 +389,14 @@ export async function POST(request: Request) {
       widgetIcons: widgetIconNames,
     });
   } catch (error) {
+    const assetError =
+      error instanceof Error ? error.message.split("\n")[0] : String(error);
     return NextResponse.json(
       {
         ok: false,
         stage: "assets",
         error: "Generating firmware MDI icons failed.",
+        details: assetError,
         log: error instanceof Error ? error.stack ?? error.message : String(error),
       },
       { status: 500 },
