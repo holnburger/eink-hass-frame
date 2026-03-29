@@ -3,11 +3,6 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM node:20-slim AS sharp-wasm
-WORKDIR /sharp
-RUN npm init -y >/dev/null \
-    && npm install --ignore-scripts --force @img/sharp-wasm32@0.34.5 @emnapi/runtime@1.8.1 tslib@2.8.1
-
 FROM python:3.12-slim AS dev
 WORKDIR /app
 ENV NODE_ENV=development
@@ -35,15 +30,11 @@ RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=deps /app/node_modules/@emnapi ./node_modules/@emnapi
-COPY --from=deps /app/node_modules/@img ./node_modules/@img
-COPY --from=deps /app/node_modules/tslib ./node_modules/tslib
-COPY --from=sharp-wasm /sharp/node_modules/@img/sharp-wasm32 ./node_modules/@img/sharp-wasm32
-COPY --from=sharp-wasm /sharp/node_modules/@emnapi ./node_modules/@emnapi
-COPY --from=sharp-wasm /sharp/node_modules/tslib ./node_modules/tslib
+COPY --from=deps /app/node_modules/@iconify-json ./node_modules/@iconify-json
+COPY --from=deps /app/node_modules/@resvg ./node_modules/@resvg
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
-COPY --from=builder /app/scripts/start-addon.mjs ./scripts/start-addon.mjs
+COPY --from=builder /app/scripts ./scripts
 EXPOSE 3000
 CMD ["bun", "server.js"]
 

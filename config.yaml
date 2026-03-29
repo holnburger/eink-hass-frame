@@ -1,5 +1,5 @@
 name: "E-Ink HASS Frame"
-version: "0.1.5"
+version: "0.2.0"
 slug: "eink_hass_frame"
 description: "Build firmware and manage M5PaperS3 e-ink dashboards for Home Assistant."
 stage: experimental

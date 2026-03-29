@@ -1,9 +1,8 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const sharp = require("sharp");
-const { icons } = require("@iconify-json/mdi");
-const { getIconData, iconToSVG, iconToHTML, replaceIDs } = require("@iconify/utils");
+const { Resvg } = require("@resvg/resvg-js");
+const mdi = require("@iconify-json/mdi/icons.json");
 
 const DEFAULT_OUTPUT_PATH = path.join(process.cwd(), "firmware", "include", "generated_mdi_icons.h");
 const WIDGET_ICON_SIZE = 28;
@@ -93,7 +92,7 @@ function sanitizeKeySegment(value) {
 function resolveWidgetIconNames(widgetIcons) {
   return Array.from(
     new Set([...DEFAULT_WIDGET_ICON_NAMES, ...widgetIcons]),
-  ).filter((iconName) => Boolean(getIconData(icons, iconName)));
+  ).filter((iconName) => Boolean(mdi.icons[iconName]));
 }
 
 function buildWidgetIconSpecs(iconNames, keyPrefix, size) {
@@ -107,40 +106,41 @@ function buildWidgetIconSpecs(iconNames, keyPrefix, size) {
 }
 
 function renderIconSvg(iconName, width, height) {
-  const iconData = getIconData(icons, iconName);
+  const iconData = mdi.icons[iconName];
   if (!iconData) {
     throw new Error(`Icon '${iconName}' not found in MDI set`);
   }
 
-  const rendered = iconToSVG(iconData, {
-    width: `${width}`,
-    height: `${height}`,
-  });
-  return iconToHTML(replaceIDs(rendered.body), rendered.attributes);
+  const viewBoxLeft = iconData.left ?? mdi.left ?? 0;
+  const viewBoxTop = iconData.top ?? mdi.top ?? 0;
+  const viewBoxWidth = iconData.width ?? mdi.width ?? 24;
+  const viewBoxHeight = iconData.height ?? mdi.height ?? 24;
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBoxLeft} ${viewBoxTop} ${viewBoxWidth} ${viewBoxHeight}">`,
+    iconData.body,
+    "</svg>",
+  ].join("");
 }
 
-async function svgToPacked1bpp(svgMarkup, width, height, threshold) {
-  const { data, info } = await sharp(Buffer.from(svgMarkup))
-    .resize(width, height, {
-      fit: "contain",
-      background: { r: 255, g: 255, b: 255, alpha: 0 },
-    })
-    .ensureAlpha()
-    .flatten({ background: "#ffffff" })
-    .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+function compositeGray(pixels, offset) {
+  const red = pixels[offset] ?? 255;
+  const green = pixels[offset + 1] ?? 255;
+  const blue = pixels[offset + 2] ?? 255;
+  const alpha = (pixels[offset + 3] ?? 255) / 255;
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  return Math.round(luminance * alpha + 255 * (1 - alpha));
+}
 
-  if (info.channels < 1) {
-    throw new Error("Expected grayscale icon data");
-  }
+function svgToPacked1bpp(svgMarkup, threshold) {
+  const resvg = new Resvg(svgMarkup);
+  const rendered = resvg.render();
+  const pitch = Math.ceil(rendered.width / 8);
+  const packed = new Array(pitch * rendered.height).fill(0);
 
-  const pitch = Math.ceil(info.width / 8);
-  const packed = new Array(pitch * info.height).fill(0);
-
-  for (let y = 0; y < info.height; y++) {
-    for (let x = 0; x < info.width; x++) {
-      const gray = data[(y * info.width + x) * info.channels];
+  for (let y = 0; y < rendered.height; y++) {
+    for (let x = 0; x < rendered.width; x++) {
+      const gray = compositeGray(rendered.pixels, (y * rendered.width + x) * 4);
       if (gray >= threshold) {
         continue;
       }
@@ -150,8 +150,8 @@ async function svgToPacked1bpp(svgMarkup, width, height, threshold) {
   }
 
   return {
-    width: info.width,
-    height: info.height,
+    width: rendered.width,
+    height: rendered.height,
     packed,
   };
 }
@@ -178,7 +178,7 @@ async function main() {
   const renderedIcons = await Promise.all(
     renderedSpecs.map(async ({ key, icon, width, height, threshold }) => ({
       key,
-      ...(await svgToPacked1bpp(renderIconSvg(icon, width, height), width, height, threshold)),
+      ...svgToPacked1bpp(renderIconSvg(icon, width, height), threshold),
     })),
   );
 
