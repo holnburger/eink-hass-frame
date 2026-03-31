@@ -40,24 +40,36 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Docker
 
 ```bash
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
 
 App runs at [http://localhost:3000](http://localhost:3000).
 
-This is now the default production-style container setup:
+The default production compose setup now prefers the published GHCR image
+`ghcr.io/holnburger/eink-hass-frame:0.2.1` and only falls back to a local
+build if that image tag is not available yet.
+
+This production-style container setup keeps:
 
 - the container runs the standalone Next.js production server
 - runtime dependencies are trimmed down to the traced production set
 - Playwright and the rest of the dev-only toolchain stay out of the final image
 - firmware artifacts and PlatformIO cache stay inside named Docker volumes
 
+If you explicitly want to rebuild the image from the current checkout, you can
+still do that:
+
+```bash
+docker compose up --build
+```
+
 To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
 
 ```bash
 export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
 export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
-docker compose up
+docker compose up -d
 ```
 
 The web build validates that device Home Assistant credentials are present
@@ -66,10 +78,22 @@ before compiling firmware. Wi-Fi is provisioned during the USB flashing flow.
 For live development with source mounts and hot reload, use the separate dev compose file:
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.dev.yml build
+docker compose -f docker-compose.dev.yml up
 ```
 
-That dev setup mounts the repo into the container, keeps Next.js in dev mode, and includes the dev-only dependencies such as Playwright.
+That dev setup mounts the repo into the container, keeps Next.js in dev mode,
+and includes the dev-only dependencies such as Playwright. Re-run the dev image
+build only when the `Dockerfile`, `package.json`, or `bun.lock` changes.
+
+Every push to `main` publishes the reusable images through
+`.github/workflows/publish-images.yml`:
+
+- `ghcr.io/holnburger/eink-hass-frame:<version>` and `:latest`
+- `ghcr.io/holnburger/{arch}-eink-hass-frame-addon:<version>` and `:latest`
+
+If these images should be pulled by Home Assistant or another host without
+registry credentials, make the GHCR packages public after the first publish.
 
 ## Home Assistant Add-on
 
@@ -84,6 +108,13 @@ To install it as a local add-on:
 1. Copy or clone this repository into `/addons/eink-hass-frame` on your Home Assistant host.
 2. Reload the local app repository or restart Home Assistant.
 3. Install `E-Ink HASS Frame` from the App Store.
+
+Home Assistant now pulls the published add-on image declared in `config.yaml`
+instead of rebuilding it locally on every install/update. The image tag is
+derived from the add-on `version`.
+
+If you want Home Assistant to build directly from your local checkout for
+debugging, temporarily remove the `image:` line from `config.yaml`.
 
 In app mode:
 

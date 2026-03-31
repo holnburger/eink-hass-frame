@@ -1,0 +1,121 @@
+name: Publish Docker images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish-runner:
+    name: Publish runner image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read image metadata
+        id: vars
+        run: |
+          version="$(sed -n 's/^version: "\([^"]*\)"$/\1/p' config.yaml)"
+          if [ -z "$version" ]; then
+            echo "Unable to read version from config.yaml" >&2
+            exit 1
+          fi
+
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push runner image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runner
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BUILD_VERSION=${{ steps.vars.outputs.version }}
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:latest
+          cache-from: type=gha,scope=runner
+          cache-to: type=gha,mode=max,scope=runner
+
+  publish-addon:
+    name: Publish add-on image (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: aarch64
+            platform: linux/arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read image metadata
+        id: vars
+        run: |
+          version="$(sed -n 's/^version: "\([^"]*\)"$/\1/p' config.yaml)"
+          if [ -z "$version" ]; then
+            echo "Unable to read version from config.yaml" >&2
+            exit 1
+          fi
+
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push add-on image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: addon
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            BUILD_VERSION=${{ steps.vars.outputs.version }}
+            BUILD_ARCH=${{ matrix.arch }}
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:${{ steps.vars.outputs.version }}
+            ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:latest
+          cache-from: type=gha,scope=addon-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}

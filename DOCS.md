@@ -17,6 +17,14 @@ M5PaperS3 e-ink dashboard project in this repository.
 2. Restart Home Assistant or reload the local add-on repository.
 3. Open the Add-on Store and install `E-Ink HASS Frame`.
 
+The add-on manifest points at the published image
+`ghcr.io/holnburger/{arch}-eink-hass-frame-addon`, so Home Assistant pulls the
+image tag that matches the add-on `version` instead of rebuilding the container
+locally each time.
+
+If your Home Assistant host should pull the image without registry credentials,
+make the GHCR package public after the first publish.
+
 ## Options
 
 Required options:
@@ -39,3 +47,5 @@ Required options:
 - Port `8099` is disabled by default. You can enable it if you want to open the
   UI directly instead of through ingress.
 - This add-on currently targets `amd64` and `aarch64`.
+- If you want to force a local source build while debugging, temporarily remove
+  the `image:` entry from `config.yaml`.

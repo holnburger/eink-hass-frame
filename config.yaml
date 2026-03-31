@@ -1,7 +1,8 @@
 name: "E-Ink HASS Frame"
-version: "0.2.1"
+version: "0.3.0"
 slug: "eink_hass_frame"
 description: "Build firmware and manage M5PaperS3 e-ink dashboards for Home Assistant."
+image: "ghcr.io/holnburger/{arch}-eink-hass-frame-addon"
 stage: experimental
 arch:
   - amd64

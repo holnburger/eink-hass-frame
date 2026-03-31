@@ -1,3 +1,7 @@
+ARG BUILD_VERSION=dev
+ARG BUILD_ARCH=amd64
+ARG REPOSITORY_URL=https://github.com/holnburger/eink-hass-frame
+
 FROM oven/bun:1.3.10 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
@@ -20,12 +24,18 @@ COPY . .
 RUN bun run build
 
 FROM python:3.12-slim AS runner
+ARG BUILD_VERSION
+ARG REPOSITORY_URL
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 ENV PLATFORMIO_CORE_DIR=/app/.platformio
+LABEL org.opencontainers.image.title="eink-hass-frame" \
+      org.opencontainers.image.description="Next.js dashboard and firmware builder for M5PaperS3 e-ink dashboards." \
+      org.opencontainers.image.source="${REPOSITORY_URL}" \
+      org.opencontainers.image.version="${BUILD_VERSION}"
 RUN pip install --no-cache-dir platformio
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=builder /app/.next/standalone ./
@@ -39,9 +49,18 @@ EXPOSE 3000
 CMD ["bun", "server.js"]
 
 FROM runner AS addon
+ARG BUILD_VERSION
+ARG BUILD_ARCH
+ARG REPOSITORY_URL
 ENV HOME_ASSISTANT_ADDON=1
 ENV PORT=8099
 ENV PLATFORMIO_CORE_DIR=/data/.platformio
 ENV EINK_HASS_FRAME_DATA_DIR=/data/eink-hass-frame
+LABEL io.hass.type="addon" \
+      io.hass.version="${BUILD_VERSION}" \
+      io.hass.arch="${BUILD_ARCH}" \
+      org.opencontainers.image.title="eink-hass-frame-addon" \
+      org.opencontainers.image.source="${REPOSITORY_URL}" \
+      org.opencontainers.image.version="${BUILD_VERSION}"
 EXPOSE 8099
 CMD ["bun", "scripts/start-addon.mjs"]
