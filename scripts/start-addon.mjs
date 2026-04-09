@@ -184,29 +184,39 @@ function stripIngressPathFromRequestUrl(requestUrl, ingressPath) {
   }
 }
 
-function rewriteResponseBody(body, ingressPath) {
+export function rewriteResponseBody(body, ingressPath) {
   if (!ingressPath) {
     return body;
   }
 
-  return body
-    .replaceAll('"/_next/', `"${ingressPath}/_next/`)
-    .replaceAll("'/_next/", `'${ingressPath}/_next/`)
-    .replaceAll('url("/_next/', `url("${ingressPath}/_next/`)
-    .replaceAll("url('/_next/", `url('${ingressPath}/_next/`)
-    .replaceAll("url(/_next/", `url(${ingressPath}/_next/`)
-    .replaceAll('"/api/', `"${ingressPath}/api/`)
-    .replaceAll("'/api/", `'${ingressPath}/api/`)
-    .replaceAll('"/mock/', `"${ingressPath}/mock/`)
-    .replaceAll("'/mock/", `'${ingressPath}/mock/`)
-    .replaceAll('url("/mock/', `url("${ingressPath}/mock/`)
-    .replaceAll("url('/mock/", `url('${ingressPath}/mock/`)
-    .replaceAll("url(/mock/", `url(${ingressPath}/mock/`)
-    .replaceAll('"/favicon.ico', `"${ingressPath}/favicon.ico`)
-    .replaceAll("'/favicon.ico", `'${ingressPath}/favicon.ico`)
-    .replaceAll('url("/favicon.ico', `url("${ingressPath}/favicon.ico`)
-    .replaceAll("url('/favicon.ico", `url('${ingressPath}/favicon.ico`)
-    .replaceAll("url(/favicon.ico", `url(${ingressPath}/favicon.ico`);
+  const replacements = [
+    ["/_next/", `${ingressPath}/_next/`],
+    ["/api/", `${ingressPath}/api/`],
+    ["/mock/", `${ingressPath}/mock/`],
+    ["/favicon.ico", `${ingressPath}/favicon.ico`],
+  ];
+
+  let rewrittenBody = body;
+  const placeholderByTargetPath = new Map();
+
+  for (const [index, [sourcePath, targetPath]] of replacements.entries()) {
+    const placeholder = `__EINK_HASS_FRAME_REWRITE_${index}__`;
+    placeholderByTargetPath.set(placeholder, targetPath);
+    rewrittenBody = rewrittenBody
+      .replaceAll(`"${sourcePath}`, `"${placeholder}`)
+      .replaceAll(`'${sourcePath}`, `'${placeholder}`)
+      .replaceAll(`\\"${sourcePath}`, `\\"${placeholder}`)
+      .replaceAll(`\\'${sourcePath}`, `\\'${placeholder}`)
+      .replaceAll(`url("${sourcePath}`, `url("${placeholder}`)
+      .replaceAll(`url('${sourcePath}`, `url('${placeholder}`)
+      .replaceAll(`url(${sourcePath}`, `url(${placeholder}`);
+  }
+
+  for (const [placeholder, targetPath] of placeholderByTargetPath) {
+    rewrittenBody = rewrittenBody.replaceAll(placeholder, targetPath);
+  }
+
+  return rewrittenBody;
 }
 
 function injectIngressBootstrapScript(body, ingressPath) {
@@ -396,4 +406,6 @@ async function main() {
   });
 }
 
-await main();
+if (import.meta.main) {
+  await main();
+}

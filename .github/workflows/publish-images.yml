@@ -53,11 +53,15 @@ jobs:
           push: true
           build-args: |
             BUILD_VERSION=${{ steps.vars.outputs.version }}
-          tags: |
-            ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:${{ steps.vars.outputs.version }}
-            ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:latest
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:latest
           cache-from: type=gha,scope=runner
           cache-to: type=gha,mode=max,scope=runner
+
+      - name: Create runner version tag
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:${{ steps.vars.outputs.version }} \
+            ghcr.io/${{ steps.vars.outputs.owner }}/eink-hass-frame:latest
 
   publish-addon:
     name: Publish add-on image (${{ matrix.arch }})
@@ -114,8 +118,12 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ steps.vars.outputs.version }}
             BUILD_ARCH=${{ matrix.arch }}
-          tags: |
-            ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:${{ steps.vars.outputs.version }}
-            ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:latest
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:latest
           cache-from: type=gha,scope=addon-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}
+
+      - name: Create add-on version tag
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:${{ steps.vars.outputs.version }} \
+            ghcr.io/${{ steps.vars.outputs.owner }}/${{ matrix.arch }}-eink-hass-frame-addon:latest
