@@ -48,8 +48,12 @@ RUN apt-get update \
   && ln -sf /opt/platformio/bin/platformio /usr/local/bin/platformio
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=deps /app/node_modules/sharp ./node_modules/sharp
+COPY --from=deps /app/node_modules/detect-libc ./node_modules/detect-libc
+COPY --from=deps /app/node_modules/semver ./node_modules/semver
 COPY --from=deps /app/node_modules/@iconify-json ./node_modules/@iconify-json
 COPY --from=deps /app/node_modules/@iconify ./node_modules/@iconify
+COPY --from=deps /app/node_modules/@img ./node_modules/@img
 COPY --from=deps /app/node_modules/@resvg ./node_modules/@resvg
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
