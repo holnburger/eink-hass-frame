@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
@@ -94,6 +95,15 @@ function summarizeCommandLog(log: string, maxLines = 12) {
       : cleaned.slice(-maxLines);
 
   return selected.join("\n");
+}
+
+async function fileExists(filePath: string) {
+  try {
+    await access(filePath, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function widgetTypeToCpp(type: string) {
@@ -410,6 +420,14 @@ export async function POST(request: Request) {
 
   const generatedHeaderPath = path.join(includeDir, "generated_ui_config.h");
   const generatedMdiHeaderPath = path.join(includeDir, "generated_mdi_icons.h");
+  const generatedWeatherHeaderPath = path.join(
+    includeDir,
+    "generated_weather_icons.h",
+  );
+  const generatedMediaCoverHeaderPath = path.join(
+    includeDir,
+    "generated_media_cover.h",
+  );
   const generatedHeader = createGeneratedConfig(payload, buildId);
   const widgetIconNames = collectWidgetIconNames(payload);
 
@@ -427,16 +445,23 @@ export async function POST(request: Request) {
       outputPath: generatedMdiHeaderPath,
       widgetIcons: widgetIconNames,
     });
-    await generateWeatherIconHeader();
-    await generateMediaCoverHeader();
+
+    if (!(await fileExists(generatedWeatherHeaderPath))) {
+      await generateWeatherIconHeader();
+    }
+
+    if (!(await fileExists(generatedMediaCoverHeaderPath))) {
+      await generateMediaCoverHeader();
+    }
   } catch (error) {
-    const assetError =
-      error instanceof Error ? error.message.split("\n")[0] : String(error);
+    const assetError = summarizeCommandLog(
+      error instanceof Error ? error.message : String(error),
+    );
     return NextResponse.json(
       {
         ok: false,
         stage: "assets",
-        error: "Generating firmware MDI icons failed.",
+        error: "Generating firmware assets failed.",
         details: assetError,
         log: error instanceof Error ? error.stack ?? error.message : String(error),
       },

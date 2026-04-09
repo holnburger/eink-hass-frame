@@ -58,6 +58,8 @@ COPY --from=deps /app/node_modules/@resvg ./node_modules/@resvg
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
 COPY --from=builder /app/scripts ./scripts
+RUN node scripts/generate-weather-icons.cjs \
+  && node scripts/generate-media-cover.cjs
 RUN mkdir -p /app/.platformio \
   && pio pkg install --project-dir /app/firmware -e m5papers3
 EXPOSE 3000
