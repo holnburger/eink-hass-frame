@@ -31,6 +31,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+ENV HOME=/app
 ENV PLATFORMIO_CORE_DIR=/app/.platformio
 ENV PATH=/opt/platformio/bin:$PATH
 LABEL org.opencontainers.image.title="eink-hass-frame" \
@@ -38,7 +39,7 @@ LABEL org.opencontainers.image.title="eink-hass-frame" \
       org.opencontainers.image.source="${REPOSITORY_URL}" \
       org.opencontainers.image.version="${BUILD_VERSION}"
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip python3-venv \
+  && apt-get install -y --no-install-recommends git python3 python3-pip python3-venv \
   && python3 -m venv /opt/platformio \
   && /opt/platformio/bin/pip install --no-cache-dir --upgrade pip \
   && /opt/platformio/bin/pip install --no-cache-dir platformio \
@@ -52,6 +53,8 @@ COPY --from=deps /app/node_modules/@resvg ./node_modules/@resvg
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware
 COPY --from=builder /app/scripts ./scripts
+RUN mkdir -p /app/.platformio \
+  && pio pkg install --project-dir /app/firmware -e m5papers3
 EXPOSE 3000
 CMD ["node", "server.js"]
 
@@ -61,6 +64,7 @@ ARG BUILD_ARCH
 ARG REPOSITORY_URL
 ENV HOME_ASSISTANT_ADDON=1
 ENV PORT=8099
+ENV HOME=/data
 ENV PLATFORMIO_CORE_DIR=/data/.platformio
 ENV EINK_HASS_FRAME_DATA_DIR=/data/eink-hass-frame
 LABEL io.hass.type="addon" \

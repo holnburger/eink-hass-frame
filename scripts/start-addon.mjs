@@ -366,11 +366,13 @@ async function main() {
   process.env.HOME_ASSISTANT_ADDON ||= "1";
   process.env.EINK_HASS_FRAME_DATA_DIR ||= DEFAULT_DATA_DIR;
   process.env.PLATFORMIO_CORE_DIR ||= DEFAULT_PLATFORMIO_CORE_DIR;
+  process.env.HOME = process.env.EINK_HASS_FRAME_DATA_DIR;
 
   for (const [optionName, envName] of Object.entries(OPTION_ENV_MAP)) {
     applyOptionToEnv(addonOptions, optionName, envName);
   }
 
+  await mkdir(process.env.HOME, { recursive: true });
   await mkdir(process.env.EINK_HASS_FRAME_DATA_DIR, { recursive: true });
   await mkdir(process.env.PLATFORMIO_CORE_DIR, { recursive: true });
 

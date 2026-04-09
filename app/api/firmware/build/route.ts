@@ -67,6 +67,31 @@ function normalizeThermostatTenths(value: unknown, fallbackTenths: number, stepT
   return Math.max(120, Math.min(300, snapped));
 }
 
+function stripAnsi(input: string) {
+  return input.replace(/\u001B\[[0-9;]*[A-Za-z]/g, "");
+}
+
+function summarizeCommandLog(log: string, maxLines = 12) {
+  const cleaned = stripAnsi(log)
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+
+  if (cleaned.length === 0) {
+    return "";
+  }
+
+  const priorityLines = cleaned.filter((line) =>
+    /error|fatal|exception|failed|not found|permission denied/i.test(line),
+  );
+  const selected =
+    priorityLines.length > 0
+      ? priorityLines.slice(-maxLines)
+      : cleaned.slice(-maxLines);
+
+  return selected.join("\n");
+}
+
 function widgetTypeToCpp(type: string) {
   switch (type) {
     case "clock":
@@ -308,6 +333,11 @@ export async function POST(request: Request) {
   const buildDir = getBuildOutputDir();
   const artifactsDir = getArtifactsDir();
   process.env.PLATFORMIO_CORE_DIR ||= path.join(rootDir, ".platformio");
+  if ((process.env.HOME_ASSISTANT_ADDON ?? "").trim() === "1") {
+    process.env.HOME =
+      (process.env.EINK_HASS_FRAME_DATA_DIR ?? "").trim() ||
+      process.env.PLATFORMIO_CORE_DIR;
+  }
 
   const payload = ((await request.json().catch(() => ({}))) ?? {}) as BuildPayload;
   const normalizedConfig = normalizeBuildConfig(payload);
@@ -380,7 +410,12 @@ export async function POST(request: Request) {
   const widgetIconNames = collectWidgetIconNames(payload);
 
   await ensureArtifactsDir();
-  await mkdir(process.env.PLATFORMIO_CORE_DIR, { recursive: true });
+  const homeDir = (process.env.HOME ?? "").trim();
+  if (homeDir.length > 0) {
+    await mkdir(homeDir, { recursive: true });
+  }
+  const platformioCoreDir = (process.env.PLATFORMIO_CORE_DIR ?? "").trim();
+  await mkdir(platformioCoreDir, { recursive: true });
   await writeFile(generatedHeaderPath, generatedHeader, "utf8");
 
   try {
@@ -411,6 +446,7 @@ export async function POST(request: Request) {
         stage: "tooling",
         error:
           "PlatformIO (pio) not found in container. Install platformio in image or host runtime.",
+        details: summarizeCommandLog(pioCheck.log),
         log: pioCheck.log,
       },
       { status: 500 },
@@ -424,6 +460,7 @@ export async function POST(request: Request) {
         ok: false,
         stage: "build",
         error: "PlatformIO build failed.",
+        details: summarizeCommandLog(build.log),
         log: build.log,
       },
       { status: 500 },

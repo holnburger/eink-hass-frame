@@ -20,6 +20,19 @@ type OtaFlashCardProps = {
   activeDevice: SavedDevice | null;
 };
 
+function summarizeLog(log?: string, maxLines = 6) {
+  if (!log) {
+    return "";
+  }
+
+  const lines = log
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+
+  return lines.slice(-maxLines).join("\n");
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -100,12 +113,14 @@ export function OtaFlashCard({
         error?: string;
         stage?: string;
         details?: string;
+        log?: string;
       };
 
       if (!buildResponse.ok || buildResult.ok === false) {
         const detail =
-          buildResult.details ??
-          buildResult.error ??
+          buildResult.details ||
+          summarizeLog(buildResult.log) ||
+          buildResult.error ||
           `HTTP ${buildResponse.status}`;
         setStatus(
           `Build failed${buildResult.stage ? ` (${buildResult.stage})` : ""}: ${detail}`,
@@ -160,7 +175,7 @@ export function OtaFlashCard({
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50">
       <div className="mx-auto flex w-full max-w-350 flex-col items-end gap-2 px-4 sm:px-6 lg:px-8">
         {status ? (
-          <div className="pointer-events-auto rounded-2xl border border-border-strong bg-panel px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_30px_rgba(17,17,17,0.12)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.35)]">
+          <div className="pointer-events-auto whitespace-pre-wrap rounded-2xl border border-border-strong bg-panel px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_30px_rgba(17,17,17,0.12)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.35)]">
             {status}
           </div>
         ) : null}
