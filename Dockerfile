@@ -49,6 +49,7 @@ RUN apt-get update \
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=deps /app/node_modules/@iconify-json ./node_modules/@iconify-json
+COPY --from=deps /app/node_modules/@iconify ./node_modules/@iconify
 COPY --from=deps /app/node_modules/@resvg ./node_modules/@resvg
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/firmware ./firmware

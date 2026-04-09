@@ -6,16 +6,16 @@ type GenerateMdiIconHeaderInput = {
   widgetIcons: string[];
 };
 
-export async function generateMdiIconHeader(
-  input: GenerateMdiIconHeaderInput,
+async function runGeneratorScript(
+  scriptName: string,
+  args: string[] = [],
 ) {
-  const scriptPath = path.join(process.cwd(), "scripts", "generate-mdi-icons.cjs");
-  const widgetIconsArg = input.widgetIcons.join(",");
+  const scriptPath = path.join(process.cwd(), "scripts", scriptName);
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [scriptPath, "--output", input.outputPath, "--widget-icons", widgetIconsArg],
+      [scriptPath, ...args],
       {
         cwd: process.cwd(),
         env: process.env,
@@ -43,8 +43,28 @@ export async function generateMdiIconHeader(
       }
 
       reject(
-        new Error(log.trim() || `MDI icon generator exited with code ${code ?? 1}.`),
+        new Error(log.trim() || `${scriptName} exited with code ${code ?? 1}.`),
       );
     });
   });
+}
+
+export async function generateMdiIconHeader(
+  input: GenerateMdiIconHeaderInput,
+) {
+  const widgetIconsArg = input.widgetIcons.join(",");
+  await runGeneratorScript("generate-mdi-icons.cjs", [
+    "--output",
+    input.outputPath,
+    "--widget-icons",
+    widgetIconsArg,
+  ]);
+}
+
+export async function generateWeatherIconHeader() {
+  await runGeneratorScript("generate-weather-icons.cjs");
+}
+
+export async function generateMediaCoverHeader() {
+  await runGeneratorScript("generate-media-cover.cjs");
 }

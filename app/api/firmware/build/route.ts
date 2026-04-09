@@ -14,7 +14,11 @@ import {
   getArtifactsDir,
   getBuildOutputDir,
 } from "@/lib/server/firmware-artifacts";
-import { generateMdiIconHeader } from "@/lib/server/generate-mdi-icons";
+import {
+  generateMdiIconHeader,
+  generateMediaCoverHeader,
+  generateWeatherIconHeader,
+} from "@/lib/server/generate-mdi-icons";
 import { resolveDeviceHomeAssistantConfig } from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
@@ -423,6 +427,8 @@ export async function POST(request: Request) {
       outputPath: generatedMdiHeaderPath,
       widgetIcons: widgetIconNames,
     });
+    await generateWeatherIconHeader();
+    await generateMediaCoverHeader();
   } catch (error) {
     const assetError =
       error instanceof Error ? error.message.split("\n")[0] : String(error);
