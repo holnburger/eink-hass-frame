@@ -353,6 +353,10 @@ function startIngressProxyServer({
     );
   });
 
+  proxyServer.on("error", (error) => {
+    console.error(`ADDON_PROXY_ERROR ${String(error)}`);
+  });
+
   return proxyServer;
 }
 
@@ -384,9 +388,18 @@ async function main() {
     PORT: internalPort,
   };
 
-  const child = spawn("bun", ["server.js"], {
+  console.log(`ADDON_RUNTIME EXEC=${process.execPath}`);
+
+  const child = spawn(process.execPath, ["server.js"], {
     stdio: "inherit",
     env: childEnv,
+  });
+
+  child.on("error", (error) => {
+    console.error(`ADDON_CHILD_ERROR ${String(error)}`);
+  });
+  child.on("exit", (code, signal) => {
+    console.log(`ADDON_CHILD_EXIT CODE=${code ?? ""} SIGNAL=${signal ?? ""}`);
   });
 
   const proxyServer = startIngressProxyServer({
@@ -405,6 +418,26 @@ async function main() {
     process.exit(code ?? 1);
   });
 }
+
+process.on("SIGTERM", () => {
+  console.log("ADDON_SIGNAL SIGTERM");
+});
+
+process.on("SIGINT", () => {
+  console.log("ADDON_SIGNAL SIGINT");
+});
+
+process.on("exit", (code) => {
+  console.log(`ADDON_PROCESS_EXIT CODE=${code}`);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("ADDON_UNCAUGHT_EXCEPTION", error);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("ADDON_UNHANDLED_REJECTION", reason);
+});
 
 if (import.meta.main) {
   await main();
