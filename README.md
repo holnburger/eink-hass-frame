@@ -67,9 +67,14 @@ docker compose up --build
 To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
 
 ```bash
-export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
 export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
 docker compose up -d
+```
+
+If you are not running inside Home Assistant add-on mode, also set:
+
+```bash
+export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
 ```
 
 The web build validates that device Home Assistant credentials are present

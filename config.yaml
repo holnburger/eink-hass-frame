@@ -1,5 +1,5 @@
 name: "E-Ink HASS Frame"
-version: "0.3.6"
+version: "0.3.7"
 slug: "eink_hass_frame"
 description: "Build firmware and manage M5PaperS3 e-ink dashboards for Home Assistant."
 image: "ghcr.io/holnburger/{arch}-eink-hass-frame-addon"
@@ -22,5 +22,4 @@ ports_description:
   8099/tcp: "Direct web UI (optional)"
 options: {}
 schema:
-  device_home_assistant_url: "url"
   device_home_assistant_token: "password"

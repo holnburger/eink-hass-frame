@@ -8,11 +8,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const ingressInfo = detectIngressPathFromHeaders(request.headers, request.url);
+  const runtime = await getAppRuntimeInfo({
+    ingressPath: ingressInfo.path,
+  });
 
   return NextResponse.json({
     ok: true,
-    runtime: getAppRuntimeInfo({
-      ingressPath: ingressInfo.path,
-    }),
+    runtime,
   });
 }

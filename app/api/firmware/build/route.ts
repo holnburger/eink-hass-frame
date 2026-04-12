@@ -199,11 +199,11 @@ async function runCommand(command: string, args: string[], cwd: string) {
   });
 }
 
-function createGeneratedConfig(payload: BuildPayload, buildId: string) {
+async function createGeneratedConfig(payload: BuildPayload, buildId: string) {
   const config = normalizeBuildConfig(payload);
   const fontName = sanitizeCString(config.fontName);
   const escapedBuildId = sanitizeCString(buildId);
-  const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
+  const deviceHomeAssistantConfig = await resolveDeviceHomeAssistantConfig(
     config.homeAssistant,
   );
   const homeAssistantUrl = sanitizeCString(deviceHomeAssistantConfig.url);
@@ -357,16 +357,16 @@ export async function POST(request: Request) {
   const normalizedConfig = normalizeBuildConfig(payload);
   const buildId = new Date().toISOString();
   const exposedTextWidgets = collectExposedTextWidgets(payload);
-  const deviceHomeAssistantConfig = resolveDeviceHomeAssistantConfig(
+  const deviceHomeAssistantConfig = await resolveDeviceHomeAssistantConfig(
     normalizedConfig.homeAssistant,
   );
 
   const missingRequirements: string[] = [];
   if (!deviceHomeAssistantConfig.url) {
-    missingRequirements.push("device Home Assistant URL");
+    missingRequirements.push("device Home Assistant address");
   }
   if (!deviceHomeAssistantConfig.token) {
-    missingRequirements.push("device Home Assistant token");
+    missingRequirements.push("device long-lived access token");
   }
   if (missingRequirements.length > 0) {
     return NextResponse.json(
@@ -428,7 +428,7 @@ export async function POST(request: Request) {
     includeDir,
     "generated_media_cover.h",
   );
-  const generatedHeader = createGeneratedConfig(payload, buildId);
+  const generatedHeader = await createGeneratedConfig(payload, buildId);
   const widgetIconNames = collectWidgetIconNames(payload);
 
   await ensureArtifactsDir();

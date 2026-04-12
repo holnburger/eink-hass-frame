@@ -686,6 +686,39 @@ function PreviewWeather({
   );
 }
 
+function PreviewOverviewWeather({
+  entity,
+  index,
+  darkMode,
+}: {
+  entity?: HomeAssistantEntityState;
+  index: number;
+  darkMode: boolean;
+}) {
+  const weather =
+    resolveHomeAssistantWeather(entity) ??
+    WEATHER_STATES[index % WEATHER_STATES.length];
+  const temperature =
+    typeof weather.temperature === "number" ? weather.temperature : "--";
+  const temperatureUnit =
+    "temperatureUnit" in weather ? weather.temperatureUnit : "°C";
+
+  return (
+    <div className="mx-auto flex w-full max-w-[18rem] flex-col items-center justify-center px-4 py-5 text-center">
+      <div className="flex items-center justify-center gap-4">
+        <WeatherIcon condition={weather.condition} className="h-14 w-14" />
+        <div className="flex items-start gap-1 leading-none">
+          <span className="text-[3.35rem] font-semibold tabular-nums tracking-[-0.07em]">
+            {temperature}
+          </span>
+          <span className="mt-1.5 text-base opacity-55">{temperatureUnit}</span>
+        </div>
+      </div>
+      <p className="mt-5 text-sm opacity-60">{weather.condition}</p>
+    </div>
+  );
+}
+
 function previewWeatherRainChanceForCondition(condition: string) {
   if (condition.includes("Rain") || condition.includes("rain")) {
     return 68;
@@ -1662,30 +1695,16 @@ function PreviewOverviewPage({
   now: Date | null;
   darkMode: boolean;
 }) {
-  const clockWidget = page.widgets.find(
-    (widget) => widget.type === "clock",
-  ) ?? {
-    id: "preview-overview-clock",
-    type: "clock",
-    label: "Clock",
-    clockStyle: "digital",
-    showSeconds: true,
-  };
-  const clockWidgetIndex = page.widgets.findIndex(
-    (widget) => widget.type === "clock",
+  const orderedWidgets = page.widgets.map((widget, index) => ({
+    widget,
+    index,
+  }));
+  const stackEntries = orderedWidgets.filter(
+    (entry) =>
+      entry.widget.type === "clock" ||
+      entry.widget.type === "weather" ||
+      (entry.widget.type === "text" && entry.widget.label.trim().length > 0),
   );
-  const orderedTextWidgets = page.widgets
-    .map((widget, index) => ({ widget, index }))
-    .filter(
-      (entry) =>
-        entry.widget.type === "text" && entry.widget.label.trim().length > 0,
-    );
-  const textWidgetsAbove = orderedTextWidgets
-    .filter((entry) => clockWidgetIndex < 0 || entry.index < clockWidgetIndex)
-    .map((entry) => entry.widget);
-  const textWidgetsBelow = orderedTextWidgets
-    .filter((entry) => clockWidgetIndex >= 0 && entry.index > clockWidgetIndex)
-    .map((entry) => entry.widget);
   const buttonWidgets = page.widgets
     .filter((widget) => widget.type === "button")
     .slice(0, 6);
@@ -1714,33 +1733,18 @@ function PreviewOverviewPage({
   const hourAngle = (hours + minutes / 60) * 30;
   const minuteAngle = (minutes + seconds / 60) * 6;
   const secondAngle = seconds * 6;
-  const showSeconds = clockWidget.showSeconds !== false;
-  const renderTextBlock = (widgets: WidgetConfig[]) => (
-    <div className="w-full space-y-3 text-center">
-      {widgets.map((widget) => (
-        <p
-          key={widget.id}
-          className="whitespace-pre-line px-3 text-[1.28rem] leading-[2.28]"
-        >
-          {widget.label}
-        </p>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="flex h-full flex-col px-2 pt-2 pb-3">
-      <div className="flex flex-1 flex-col items-center justify-start">
-        {textWidgetsAbove.length > 0 ? (
-          <div className="w-full pt-2">{renderTextBlock(textWidgetsAbove)}</div>
-        ) : null}
-
+  const renderOverviewEntry = (entry: {
+    widget: WidgetConfig;
+    index: number;
+  }) => {
+    if (entry.widget.type === "clock") {
+      const showSeconds = entry.widget.showSeconds !== false;
+      return (
         <div
-          className={`flex min-h-56 w-full items-center justify-center ${
-            textWidgetsAbove.length > 0 ? "mt-3" : ""
-          }`}
+          key={entry.widget.id}
+          className="flex min-h-44 w-full items-center justify-center"
         >
-          {clockWidget.clockStyle === "analog" ? (
+          {entry.widget.clockStyle === "analog" ? (
             <svg viewBox="0 0 220 220" className="h-50 w-50">
               <circle
                 cx="110"
@@ -1822,14 +1826,38 @@ function PreviewOverviewPage({
             </time>
           )}
         </div>
+      );
+    }
 
-        {textWidgetsBelow.length > 0 ? (
-          <div className="mt-3 w-full">{renderTextBlock(textWidgetsBelow)}</div>
-        ) : null}
+    if (entry.widget.type === "weather") {
+      return (
+        <PreviewOverviewWeather
+          key={entry.widget.id}
+          entity={getBoundEntityState(entry.widget, homeAssistantStates)}
+          index={entry.index}
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    return (
+      <p
+        key={entry.widget.id}
+        className="whitespace-pre-line px-3 text-center text-[1.28rem] leading-[2.28]"
+      >
+        {entry.widget.label}
+      </p>
+    );
+  };
+
+  return (
+    <div className="flex h-full flex-col px-2 pt-2 pb-3">
+      <div className="flex flex-1 flex-col justify-evenly">
+        {stackEntries.map(renderOverviewEntry)}
       </div>
 
       {buttonWidgets.length > 0 ? (
-        <div className="mt-3 flex justify-center pb-3">
+        <div className="mt-auto flex justify-center pb-3">
           <div className="flex flex-col gap-4">
             {buttonRows.map((row, rowIndex) => (
               <div

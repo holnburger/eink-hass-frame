@@ -2448,7 +2448,7 @@ static void drawWeatherIcon(const BB_RECT &rect, const char *condition)
   const MdiMonoIconAsset *icon = getMdiWeatherIconAsset(condition);
   if (icon != nullptr)
   {
-    drawMdiMonoIconCentered(rect, icon);
+    drawMdiMonoIconScaled(rect, icon, 0);
     return;
   }
 #endif

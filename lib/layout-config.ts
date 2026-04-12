@@ -340,7 +340,7 @@ export function createPageOfType(
       isWeatherFocus || isMediaPlayer
         ? []
         : isOverview
-          ? [createWidget("clock"), createWidget("text")]
+          ? [createWidget("weather"), createWidget("clock"), createWidget("text")]
           : [
               createWidget("clock"),
               createWidget("weather"),

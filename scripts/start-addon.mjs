@@ -10,7 +10,6 @@ const DEFAULT_DATA_DIR = "/data/eink-hass-frame";
 const DEFAULT_PLATFORMIO_CORE_DIR = "/data/.platformio";
 
 const OPTION_ENV_MAP = {
-  device_home_assistant_url: "DEVICE_HOME_ASSISTANT_URL",
   device_home_assistant_token: "DEVICE_HOME_ASSISTANT_TOKEN",
 };
 

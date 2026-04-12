@@ -3,6 +3,8 @@ export type AppRuntimeInfo = {
   supervisorConnected: boolean;
   hasDeviceHomeAssistantDefaults: boolean;
   ingressPath: string;
+  deviceHomeAssistantUrl: string;
+  deviceHomeAssistantUrlSource: "configured" | "detected" | "";
 };
 
 export const DEFAULT_APP_RUNTIME_INFO: AppRuntimeInfo = {
@@ -10,4 +12,6 @@ export const DEFAULT_APP_RUNTIME_INFO: AppRuntimeInfo = {
   supervisorConnected: false,
   hasDeviceHomeAssistantDefaults: false,
   ingressPath: "",
+  deviceHomeAssistantUrl: "",
+  deviceHomeAssistantUrlSource: "",
 };

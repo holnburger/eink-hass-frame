@@ -1343,12 +1343,23 @@ export default function Home() {
       return;
     }
     if (editorPage.type === "overview") {
-      if (type !== "clock" && type !== "button" && type !== "text") {
+      if (
+        type !== "clock" &&
+        type !== "weather" &&
+        type !== "button" &&
+        type !== "text"
+      ) {
         return;
       }
       if (
         type === "clock" &&
         editorPage.widgets.some((widget) => widget.type === "clock")
+      ) {
+        return;
+      }
+      if (
+        type === "weather" &&
+        editorPage.widgets.some((widget) => widget.type === "weather")
       ) {
         return;
       }
@@ -1510,6 +1521,10 @@ export default function Home() {
             supervisorConnected={runtimeInfo.supervisorConnected}
             hasDeviceHomeAssistantDefaults={
               runtimeInfo.hasDeviceHomeAssistantDefaults
+            }
+            deviceHomeAssistantUrl={runtimeInfo.deviceHomeAssistantUrl}
+            deviceHomeAssistantUrlSource={
+              runtimeInfo.deviceHomeAssistantUrlSource
             }
           />
         </section>
@@ -1725,6 +1740,7 @@ export default function Home() {
                                           )
                                         : nextType === "overview"
                                           ? [
+                                              createWidget("weather"),
                                               createWidget("clock"),
                                               createWidget("text"),
                                             ]
@@ -1873,6 +1889,7 @@ export default function Home() {
                               {(editorPage.type === "overview"
                                 ? WIDGET_OPTIONS.filter(
                                     (widgetOption) =>
+                                      widgetOption.type === "weather" ||
                                       widgetOption.type === "clock" ||
                                       widgetOption.type === "button" ||
                                       widgetOption.type === "text",
@@ -1896,6 +1913,11 @@ export default function Home() {
                                         editorPage.widgets.some(
                                           (widget) => widget.type === "clock",
                                         )) ||
+                                        (widgetOption.type === "weather" &&
+                                          editorPage.widgets.some(
+                                            (widget) =>
+                                              widget.type === "weather",
+                                          )) ||
                                         (widgetOption.type === "button" &&
                                           editorPage.widgets.filter(
                                             (widget) =>

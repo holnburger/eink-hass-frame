@@ -1,9 +1,6 @@
 configuration:
-  device_home_assistant_url:
-    name: Home Assistant URL
-    description: Required Home Assistant URL embedded into firmware for device-side API access.
   device_home_assistant_token:
-    name: Device Home Assistant Token
-    description: Required long-lived access token paired with the device Home Assistant URL.
+    name: Device Long-Lived Access Token
+    description: Long-lived Home Assistant token embedded into firmware so the device can talk to Home Assistant directly.
 network:
   8099/TCP: Direct web UI port

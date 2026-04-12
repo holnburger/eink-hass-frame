@@ -18,6 +18,7 @@ export type HomeAssistantPageType = (typeof HOME_ASSISTANT_PAGE_TYPES)[number];
 export type HomeAssistantConfig = {
   url: string;
   token: string;
+  manualUrlOverride?: boolean;
 };
 
 export type HomeAssistantBinding = {
@@ -47,6 +48,7 @@ export const THERMOSTAT_HISTORY_POINT_COUNT = 24;
 export const DEFAULT_HOME_ASSISTANT_CONFIG: HomeAssistantConfig = {
   url: "",
   token: "",
+  manualUrlOverride: false,
 };
 
 export function normalizeHomeAssistantUrl(value: unknown) {
@@ -73,6 +75,7 @@ export function normalizeHomeAssistantConfig(
   return {
     url: normalizeHomeAssistantUrl(candidate.url),
     token: typeof candidate.token === "string" ? candidate.token.trim() : "",
+    manualUrlOverride: candidate.manualUrlOverride === true,
   };
 }
 

@@ -29,10 +29,8 @@ make the GHCR package public after the first publish.
 
 Required options:
 
-- `device_home_assistant_url`
-  Home Assistant URL embedded into firmware for device-side API access
 - `device_home_assistant_token`
-  Long-lived access token paired with `device_home_assistant_url`
+  Long-lived access token embedded into firmware for device-side API access
 
 ## Notes
 
@@ -40,6 +38,8 @@ Required options:
   Home Assistant connection automatically.
 - The required `device_*` settings are only used for firmware builds, because
   the device itself cannot use the Supervisor proxy.
+- In add-on mode, the Home Assistant address for the device is auto-detected
+  from Home Assistant or Supervisor network metadata when possible.
 - Wi-Fi is provisioned during the USB flashing flow and then stored on the
   device, so the add-on does not need Wi-Fi settings.
 - Firmware builds fail validation if the required device Home Assistant

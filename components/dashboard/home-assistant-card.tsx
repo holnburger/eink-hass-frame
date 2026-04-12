@@ -28,6 +28,8 @@ type HomeAssistantCardProps = {
   addonMode?: boolean;
   supervisorConnected?: boolean;
   hasDeviceHomeAssistantDefaults?: boolean;
+  deviceHomeAssistantUrl?: string;
+  deviceHomeAssistantUrlSource?: "configured" | "detected" | "";
 };
 
 function summarizeUrl(rawUrl: string) {
@@ -46,10 +48,24 @@ export function HomeAssistantCard({
   addonMode = false,
   supervisorConnected = false,
   hasDeviceHomeAssistantDefaults = false,
+  deviceHomeAssistantUrl = "",
+  deviceHomeAssistantUrlSource = "",
 }: HomeAssistantCardProps) {
   const [status, setStatus] = useState("");
   const [isTesting, setIsTesting] = useState(false);
   const [draftConfig, setDraftConfig] = useState(value);
+  const isManualDeviceUrlOverride = draftConfig.manualUrlOverride === true;
+  const resolvedDeviceUrl = addonMode
+    ? isManualDeviceUrlOverride && draftConfig.url
+      ? draftConfig.url
+      : deviceHomeAssistantUrl || draftConfig.url
+    : draftConfig.url;
+  const hasResolvedDeviceToken =
+    draftConfig.token.trim().length > 0 || hasDeviceHomeAssistantDefaults;
+  const hasDeviceFirmwareConfig =
+    resolvedDeviceUrl.length > 0 && hasResolvedDeviceToken;
+  const showDeviceUrlInput =
+    !addonMode || resolvedDeviceUrl.length === 0 || isManualDeviceUrlOverride;
   const isConfigured = useMemo(
     () => isHomeAssistantConfigured(draftConfig),
     [draftConfig],
@@ -86,7 +102,7 @@ export function HomeAssistantCard({
 
     setIsTesting(true);
     setStatus(
-      addonMode && !isConfigured
+      addonMode && !hasDeviceFirmwareConfig
         ? "Testing add-on connection…"
         : "Testing…",
     );
@@ -115,7 +131,7 @@ export function HomeAssistantCard({
       }
 
       setStatus(
-        addonMode && !isConfigured
+        addonMode && !hasDeviceFirmwareConfig
           ? "Connected through the add-on."
           : "Connected.",
       );
@@ -163,12 +179,10 @@ export function HomeAssistantCard({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
             <span>
               {addonMode
-                ? isConfigured
-                  ? `Preview via add-on, firmware via ${summarizeUrl(draftConfig.url)}`
-                  : hasDeviceHomeAssistantDefaults
-                    ? "Preview via add-on, firmware defaults from add-on options"
+                ? hasDeviceFirmwareConfig
+                    ? `Preview via add-on, firmware via ${summarizeUrl(resolvedDeviceUrl)}`
                     : "Preview via add-on"
-                : summarizeUrl(draftConfig.url)}
+                : summarizeUrl(resolvedDeviceUrl)}
             </span>
             {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
@@ -180,40 +194,113 @@ export function HomeAssistantCard({
                   Home Assistant is available through the add-on.
                 </p>
                 <p className="mt-1">
-                  Search, preview, and validation use the Supervisor proxy.
-                  The fields below are used for the device firmware itself.
-                  They should normally come from the add-on options and can be
-                  overridden here when needed.
+                  Search, preview, and validation use the Supervisor proxy automatically.
+                  The display firmware still needs a direct Home Assistant
+                  connection, so the detected device address and the long-lived
+                  access token below are what get written into the firmware.
                 </p>
               </div>
             ) : null}
 
             <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-              <div className="space-y-2">
-                <Label htmlFor="home-assistant-url">
-                  {addonMode ? "Device URL" : "URL"}
-                </Label>
-                <Input
-                  id="home-assistant-url"
-                  value={draftConfig.url}
-                  onChange={(event) => {
-                    const nextUrl = event.target.value;
-                    setDraftConfig((current) => ({
-                      ...current,
-                      url: nextUrl,
-                    }));
-                    onChange((current) => ({
-                      ...current,
-                      url: nextUrl,
-                    }));
-                  }}
-                  placeholder="https://homeassistant.local:8123"
-                />
-              </div>
+              {showDeviceUrlInput ? (
+                <div className="space-y-2">
+                  <Label htmlFor="home-assistant-url">
+                    {addonMode
+                      ? "Device Home Assistant Address"
+                      : "Home Assistant Address"}
+                  </Label>
+                  <Input
+                    id="home-assistant-url"
+                    value={draftConfig.url}
+                    onChange={(event) => {
+                      const nextUrl = event.target.value;
+                      setDraftConfig((current) => ({
+                        ...current,
+                        url: nextUrl,
+                        manualUrlOverride: addonMode
+                          ? current.manualUrlOverride
+                          : false,
+                      }));
+                      onChange((current) => ({
+                        ...current,
+                        url: nextUrl,
+                        manualUrlOverride: addonMode
+                          ? current.manualUrlOverride
+                          : false,
+                      }));
+                    }}
+                    placeholder="https://homeassistant.local:8123"
+                  />
+                  {addonMode && deviceHomeAssistantUrl ? (
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span>
+                        Leave the override disabled to keep using{" "}
+                        {summarizeUrl(deviceHomeAssistantUrl)}.
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() => {
+                          setDraftConfig((current) => ({
+                            ...current,
+                            manualUrlOverride: false,
+                          }));
+                          onChange((current) => ({
+                            ...current,
+                            manualUrlOverride: false,
+                          }));
+                        }}
+                      >
+                        Use Detected
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>
+                    {deviceHomeAssistantUrlSource === "configured"
+                      ? "Configured Device Address"
+                      : "Detected Device Address"}
+                  </Label>
+                  <div className="rounded-2xl border border-border-strong bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
+                    {resolvedDeviceUrl}
+                  </div>
+                  {addonMode && deviceHomeAssistantUrl ? (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() => {
+                          setDraftConfig((current) => ({
+                            ...current,
+                            url: current.url || deviceHomeAssistantUrl,
+                            manualUrlOverride: true,
+                          }));
+                          onChange((current) => ({
+                            ...current,
+                            url: current.url || deviceHomeAssistantUrl,
+                            manualUrlOverride: true,
+                          }));
+                        }}
+                      >
+                        Override
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="home-assistant-token">
-                  {addonMode ? "Device Token" : "Token"}
+                  {addonMode
+                    ? "Device Long-Lived Access Token"
+                    : "Long-Lived Access Token"}
                 </Label>
                 <Input
                   id="home-assistant-token"
@@ -230,15 +317,20 @@ export function HomeAssistantCard({
                       token: nextToken,
                     }));
                   }}
-                  placeholder={addonMode ? "Device long-lived token" : "Paste token"}
+                  placeholder={
+                    addonMode
+                      ? "Token written into the device firmware"
+                      : "Paste token"
+                  }
                 />
               </div>
             </div>
 
             {addonMode ? (
               <p className="text-xs text-muted-foreground">
-                Firmware builds require these values. The add-on options should
-                provide defaults for every build.
+                The device address is resolved automatically when possible.
+                Keep the long-lived access token in the add-on configuration so
+                each firmware build can embed it for the device.
               </p>
             ) : null}
 
@@ -252,7 +344,7 @@ export function HomeAssistantCard({
                 {isTesting
                   ? "Testing..."
                   : addonMode
-                    ? isConfigured
+                    ? hasDeviceFirmwareConfig
                       ? "Test Device Access"
                       : "Test Add-on Link"
                     : "Test"}
