@@ -39,7 +39,10 @@ Required options:
 - The required `device_*` settings are only used for firmware builds, because
   the device itself cannot use the Supervisor proxy.
 - In add-on mode, the Home Assistant address for the device is auto-detected
-  from Home Assistant or Supervisor network metadata when possible.
+  from Home Assistant or Supervisor network metadata when possible. The add-on
+  manifest enables `homeassistant_api`, `hassio_api`, and
+  `hassio_role: default` so this fallback can read the needed metadata
+  automatically.
 - Wi-Fi is provisioned during the USB flashing flow and then stored on the
   device, so the add-on does not need Wi-Fi settings.
 - Firmware builds fail validation if the required device Home Assistant

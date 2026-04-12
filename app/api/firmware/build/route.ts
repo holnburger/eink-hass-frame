@@ -20,7 +20,10 @@ import {
   generateMediaCoverHeader,
   generateWeatherIconHeader,
 } from "@/lib/server/generate-mdi-icons";
-import { resolveDeviceHomeAssistantConfig } from "@/lib/server/home-assistant-runtime";
+import {
+  isHomeAssistantAddonRuntime,
+  resolveDeviceHomeAssistantConfig,
+} from "@/lib/server/home-assistant-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -357,6 +360,7 @@ export async function POST(request: Request) {
   const normalizedConfig = normalizeBuildConfig(payload);
   const buildId = new Date().toISOString();
   const exposedTextWidgets = collectExposedTextWidgets(payload);
+  const addonMode = isHomeAssistantAddonRuntime();
   const deviceHomeAssistantConfig = await resolveDeviceHomeAssistantConfig(
     normalizedConfig.homeAssistant,
   );
@@ -369,11 +373,15 @@ export async function POST(request: Request) {
     missingRequirements.push("device long-lived access token");
   }
   if (missingRequirements.length > 0) {
+    const addonHint =
+      addonMode && !deviceHomeAssistantConfig.url
+        ? " The add-on detects this automatically through Home Assistant and Supervisor metadata. If this add-on was installed from an older image, rebuild or update it so `hassio_api: true` and `hassio_role: default` are active, or enter an override address in the Home Assistant card."
+        : "";
     return NextResponse.json(
       {
         ok: false,
         stage: "validation",
-        error: `Missing required build settings: ${missingRequirements.join(", ")}.`,
+        error: `Missing required build settings: ${missingRequirements.join(", ")}.${addonHint}`,
       },
       { status: 400 },
     );

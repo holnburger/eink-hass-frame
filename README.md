@@ -124,7 +124,7 @@ debugging, temporarily remove the `image:` line from `config.yaml`.
 In app mode:
 
 - dashboard entity search and preview use the Supervisor Home Assistant proxy automatically
-- firmware builds require device-facing Home Assistant URL/token values from app options
+- firmware builds auto-detect the device-facing Home Assistant address through Home Assistant/Supervisor metadata and still require the device token from app options
 - Wi-Fi is provisioned during the USB flashing flow instead of being managed by the app
 - firmware artifacts are stored under `/data/eink-hass-frame`
 - the app uses internal port `8099` instead of the usual local dev port `3000`
@@ -177,7 +177,7 @@ Implement secure OTA validation before production usage.
 ## Home Assistant
 
 1. In standalone Docker or local development, enter your Home Assistant base URL and a long-lived access token in the dashboard.
-2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds use the required device credentials from app options.
+2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds auto-detect the device address through Home Assistant/Supervisor metadata and use the required device token from app options.
 3. Search for entities directly inside widget cards and bind them to supported widget types.
 4. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
 
