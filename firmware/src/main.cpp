@@ -1711,7 +1711,7 @@ static bool widgetShouldBeVisible(int pageIndex, int widgetIndex)
   }
 
   const WidgetRuntimeState &state = widgetStates[pageIndex][widgetIndex];
-  return state.lastHomeAssistantUpdateMs == 0 || state.homeAssistantAvailable;
+  return state.homeAssistantAvailable;
 }
 
 static int widgetWeight(const UiWidgetConfig &widget)

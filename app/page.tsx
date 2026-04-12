@@ -1346,6 +1346,7 @@ export default function Home() {
       if (
         type !== "clock" &&
         type !== "weather" &&
+        type !== "progress" &&
         type !== "button" &&
         type !== "text"
       ) {
@@ -1891,6 +1892,7 @@ export default function Home() {
                                     (widgetOption) =>
                                       widgetOption.type === "weather" ||
                                       widgetOption.type === "clock" ||
+                                      widgetOption.type === "progress" ||
                                       widgetOption.type === "button" ||
                                       widgetOption.type === "text",
                                   )

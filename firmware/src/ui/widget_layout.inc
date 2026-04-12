@@ -59,7 +59,7 @@ static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState 
   if (clockWidgetIsAnalog(widget))
   {
     const int faceSize = (state.contentRect.w < state.contentRect.h ? state.contentRect.w : state.contentRect.h);
-    const int inset = 8;
+    const int inset = activePageIsOverview() ? 2 : 8;
     state.faceRect = {
         state.contentRect.x + ((state.contentRect.w - faceSize) / 2) + inset,
         state.contentRect.y + ((state.contentRect.h - faceSize) / 2) + inset,
@@ -217,9 +217,30 @@ static int overviewContentWidgetHeight(const UiWidgetConfig &widget)
   {
     return 126;
   }
+  if (widget.type == UI_WIDGET_PROGRESS)
+  {
+    return 92;
+  }
   if (widget.type == UI_WIDGET_TEXT)
   {
-    return 152;
+    return 108;
+  }
+  return 0;
+}
+
+static int overviewMinimumContentWidgetHeight(const UiWidgetConfig &widget)
+{
+  if (widget.type == UI_WIDGET_WEATHER)
+  {
+    return 126;
+  }
+  if (widget.type == UI_WIDGET_PROGRESS)
+  {
+    return 80;
+  }
+  if (widget.type == UI_WIDGET_TEXT)
+  {
+    return 80;
   }
   return 0;
 }
@@ -240,17 +261,17 @@ static void resetOverviewWidgetLayoutState(WidgetRuntimeState &state)
 
 static bool isOverviewStackWidget(const UiWidgetConfig &widget)
 {
-  return widget.type == UI_WIDGET_CLOCK || widget.type == UI_WIDGET_TEXT || widget.type == UI_WIDGET_WEATHER;
+  return widget.type == UI_WIDGET_CLOCK || widget.type == UI_WIDGET_TEXT || widget.type == UI_WIDGET_WEATHER || widget.type == UI_WIDGET_PROGRESS;
 }
 
 static int overviewPreferredClockHeight(const UiWidgetConfig &widget)
 {
-  return clockWidgetIsAnalog(widget) ? 212 : 188;
+  return clockWidgetIsAnalog(widget) ? 300 : 212;
 }
 
 static int overviewMinimumClockHeight(const UiWidgetConfig &widget)
 {
-  return clockWidgetIsAnalog(widget) ? 168 : 148;
+  return clockWidgetIsAnalog(widget) ? 216 : 164;
 }
 
 static int overviewPreferredStackWidgetHeight(const UiWidgetConfig &widget)
@@ -268,7 +289,7 @@ static int overviewMinimumStackWidgetHeight(const UiWidgetConfig &widget)
   {
     return overviewMinimumClockHeight(widget);
   }
-  return overviewContentWidgetHeight(widget);
+  return overviewMinimumContentWidgetHeight(widget);
 }
 
 static void layoutOverviewContentWidget(int widgetIndex, int x, int y, int width, int height)
@@ -299,6 +320,17 @@ static void layoutOverviewContentWidget(int widgetIndex, int x, int y, int width
     {
       state.contentRect.w = 0;
     }
+  }
+  else if (widget.type == UI_WIDGET_PROGRESS)
+  {
+    const int barWidth = width - 88;
+    const int clampedBarWidth = barWidth > 120 ? barWidth : 120;
+    state.controlRect = {
+        x + ((width - clampedBarWidth) / 2),
+        y + height - 20,
+        clampedBarWidth,
+        10,
+    };
   }
 }
 
@@ -369,8 +401,8 @@ static void layoutOverviewPage()
   const int width = display.width();
   const int height = display.height();
   const int margin = 24;
-  const int contentTop = showPageChrome() ? 24 : 18;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
+  const int contentTop = showPageChrome() ? 18 : 18;
+  const int footerTop = showPageChrome() ? (height - 64) : (height - 16);
   const UiPageConfig &page = UI_PAGES[currentPageIndex];
 
   int stackWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
@@ -388,7 +420,10 @@ static void layoutOverviewPage()
     {
       buttonWidgetIndices[buttonWidgetCount++] = widgetIndex;
     }
-    else if (isOverviewStackWidget(widget) && stackWidgetCount < UI_MAX_WIDGETS_PER_PAGE)
+    else if (
+        isOverviewStackWidget(widget) &&
+        widgetShouldBeVisible(currentPageIndex, widgetIndex) &&
+        stackWidgetCount < UI_MAX_WIDGETS_PER_PAGE)
     {
       stackWidgetIndices[stackWidgetCount++] = widgetIndex;
     }
@@ -424,19 +459,28 @@ static void layoutOverviewPage()
   if (stackAreaHeight > 0 && totalStackHeight > stackAreaHeight)
   {
     int overflow = totalStackHeight - stackAreaHeight;
-    for (int index = 0; index < stackWidgetCount && overflow > 0; index++)
+    for (int pass = 0; pass < 2 && overflow > 0; pass++)
     {
-      const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, stackWidgetIndices[index]);
-      const int minimumHeight = overviewMinimumStackWidgetHeight(widget);
-      const int reducibleHeight = widgetHeights[index] - minimumHeight;
-      if (reducibleHeight <= 0)
+      for (int index = 0; index < stackWidgetCount && overflow > 0; index++)
       {
-        continue;
+        const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, stackWidgetIndices[index]);
+        const bool isClock = widget.type == UI_WIDGET_CLOCK;
+        if ((pass == 0 && isClock) || (pass == 1 && !isClock))
+        {
+          continue;
+        }
+
+        const int minimumHeight = overviewMinimumStackWidgetHeight(widget);
+        const int reducibleHeight = widgetHeights[index] - minimumHeight;
+        if (reducibleHeight <= 0)
+        {
+          continue;
+        }
+        const int reduction = reducibleHeight < overflow ? reducibleHeight : overflow;
+        widgetHeights[index] -= reduction;
+        totalStackHeight -= reduction;
+        overflow -= reduction;
       }
-      const int reduction = reducibleHeight < overflow ? reducibleHeight : overflow;
-      widgetHeights[index] -= reduction;
-      totalStackHeight -= reduction;
-      overflow -= reduction;
     }
   }
 

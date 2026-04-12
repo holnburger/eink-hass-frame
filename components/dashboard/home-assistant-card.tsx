@@ -176,32 +176,12 @@ export function HomeAssistantCard({
       <CardContent className="pt-6">
         {collapsed && hasActiveConnection ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
-            <span>
-              {addonMode
-                ? hasDeviceFirmwareConfig
-                    ? `Preview via add-on, firmware via ${summarizeUrl(resolvedDeviceUrl)}`
-                    : "Preview via add-on"
-                : summarizeUrl(resolvedDeviceUrl)}
-            </span>
+            <span>{summarizeUrl(resolvedDeviceUrl)}</span>
             {status ? <span>{status}</span> : <span>Connected</span>}
           </div>
         ) : (
           <div className="space-y-4">
-            {addonMode ? (
-              <div className="rounded-3xl border border-border bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">
-                  Home Assistant is available through the add-on.
-                </p>
-                <p className="mt-1">
-                  Search, preview, and validation use the Supervisor proxy automatically.
-                  The display firmware still needs a direct Home Assistant
-                  connection, so the local device address and the long-lived
-                  access token below are what get written into the firmware.
-                </p>
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="grid gap-4">
               {showDeviceUrlInput ? (
                 <div className="space-y-2">
                   <Label htmlFor="home-assistant-url">
@@ -231,33 +211,6 @@ export function HomeAssistantCard({
                     }}
                     placeholder="http://homeassistant.local:8123 or 192.168.1.20"
                   />
-                  {addonMode && deviceHomeAssistantUrl ? (
-                    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                      <span>
-                        Leave the override disabled to keep using the add-on
-                        configuration for{" "}
-                        {summarizeUrl(deviceHomeAssistantUrl)}.
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={() => {
-                          setDraftConfig((current) => ({
-                            ...current,
-                            manualUrlOverride: false,
-                          }));
-                          onChange((current) => ({
-                            ...current,
-                            manualUrlOverride: false,
-                          }));
-                        }}
-                      >
-                        Use Add-on Config
-                      </Button>
-                    </div>
-                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -265,30 +218,6 @@ export function HomeAssistantCard({
                   <div className="rounded-2xl border border-border-strong bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
                     {resolvedDeviceUrl}
                   </div>
-                  {addonMode && deviceHomeAssistantUrl ? (
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={() => {
-                          setDraftConfig((current) => ({
-                            ...current,
-                            url: current.url || deviceHomeAssistantUrl,
-                            manualUrlOverride: true,
-                          }));
-                          onChange((current) => ({
-                            ...current,
-                            url: current.url || deviceHomeAssistantUrl,
-                            manualUrlOverride: true,
-                          }));
-                        }}
-                      >
-                        Override
-                      </Button>
-                    </div>
-                  ) : null}
                 </div>
               )}
 
@@ -330,7 +259,7 @@ export function HomeAssistantCard({
               </p>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 justify-end">
               <Button
                 type="button"
                 onClick={testConnection}

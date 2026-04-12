@@ -412,6 +412,53 @@ function PreviewProgress({
   );
 }
 
+function PreviewOverviewProgress({
+  widget,
+  entity,
+  darkMode,
+}: {
+  widget: WidgetConfig;
+  entity?: HomeAssistantEntityState;
+  darkMode: boolean;
+}) {
+  const entityUnavailable = isHomeAssistantEntityUnavailable(entity);
+  if (widget.hideWhenUnavailable && entityUnavailable) {
+    return null;
+  }
+  const liveValue = entityUnavailable
+    ? undefined
+    : resolveHomeAssistantNumericValue(entity, "progress");
+  const value = entityUnavailable
+    ? null
+    : Math.max(0, Math.min(100, liveValue ?? widget.value ?? 0));
+
+  return (
+    <div className="mx-auto flex w-full flex-col items-center justify-center px-4 py-3 text-center mb-3">
+      <div className="flex items-center w-full px-1 justify-between gap-4">
+        <div>
+          <p className="text-sm">{widget.label}</p>
+        </div>
+        {value !== null ? (
+          <p className="text-sm font-medium tabular-nums opacity-70">
+            {value}%
+          </p>
+        ) : null}
+      </div>
+
+      <div
+        className={`h-3 w-full rounded-full p-0.5 ${
+          darkMode ? "bg-white/10" : "bg-zinc-400/25"
+        }`}
+      >
+        <div
+          className={`h-full rounded-full ${darkMode ? "bg-white/80" : "bg-black"}`}
+          style={{ width: `${value ?? 0}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PreviewSlider({
   widget,
   entity,
@@ -1703,6 +1750,7 @@ function PreviewOverviewPage({
     (entry) =>
       entry.widget.type === "clock" ||
       entry.widget.type === "weather" ||
+      entry.widget.type === "progress" ||
       (entry.widget.type === "text" && entry.widget.label.trim().length > 0),
   );
   const buttonWidgets = page.widgets
@@ -1742,10 +1790,10 @@ function PreviewOverviewPage({
       return (
         <div
           key={entry.widget.id}
-          className="flex min-h-44 w-full items-center justify-center"
+          className="flex min-h-52 w-full items-center justify-center"
         >
           {entry.widget.clockStyle === "analog" ? (
-            <svg viewBox="0 0 220 220" className="h-50 w-50">
+            <svg viewBox="0 0 220 220" className="h-56 w-56">
               <circle
                 cx="110"
                 cy="110"
@@ -1835,6 +1883,17 @@ function PreviewOverviewPage({
           key={entry.widget.id}
           entity={getBoundEntityState(entry.widget, homeAssistantStates)}
           index={entry.index}
+          darkMode={darkMode}
+        />
+      );
+    }
+
+    if (entry.widget.type === "progress") {
+      return (
+        <PreviewOverviewProgress
+          key={entry.widget.id}
+          widget={entry.widget}
+          entity={getBoundEntityState(entry.widget, homeAssistantStates)}
           darkMode={darkMode}
         />
       );
