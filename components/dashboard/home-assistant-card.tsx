@@ -29,7 +29,7 @@ type HomeAssistantCardProps = {
   supervisorConnected?: boolean;
   hasDeviceHomeAssistantDefaults?: boolean;
   deviceHomeAssistantUrl?: string;
-  deviceHomeAssistantUrlSource?: "configured" | "detected" | "";
+  deviceHomeAssistantUrlSource?: "configured" | "";
 };
 
 function summarizeUrl(rawUrl: string) {
@@ -49,7 +49,6 @@ export function HomeAssistantCard({
   supervisorConnected = false,
   hasDeviceHomeAssistantDefaults = false,
   deviceHomeAssistantUrl = "",
-  deviceHomeAssistantUrlSource = "",
 }: HomeAssistantCardProps) {
   const [status, setStatus] = useState("");
   const [isTesting, setIsTesting] = useState(false);
@@ -196,7 +195,7 @@ export function HomeAssistantCard({
                 <p className="mt-1">
                   Search, preview, and validation use the Supervisor proxy automatically.
                   The display firmware still needs a direct Home Assistant
-                  connection, so the detected device address and the long-lived
+                  connection, so the local device address and the long-lived
                   access token below are what get written into the firmware.
                 </p>
               </div>
@@ -207,7 +206,7 @@ export function HomeAssistantCard({
                 <div className="space-y-2">
                   <Label htmlFor="home-assistant-url">
                     {addonMode
-                      ? "Device Home Assistant Address"
+                      ? "Device Home Assistant Local Address"
                       : "Home Assistant Address"}
                   </Label>
                   <Input
@@ -230,12 +229,13 @@ export function HomeAssistantCard({
                           : false,
                       }));
                     }}
-                    placeholder="https://homeassistant.local:8123"
+                    placeholder="http://homeassistant.local:8123 or 192.168.1.20"
                   />
                   {addonMode && deviceHomeAssistantUrl ? (
                     <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                       <span>
-                        Leave the override disabled to keep using{" "}
+                        Leave the override disabled to keep using the add-on
+                        configuration for{" "}
                         {summarizeUrl(deviceHomeAssistantUrl)}.
                       </span>
                       <Button
@@ -254,18 +254,14 @@ export function HomeAssistantCard({
                           }));
                         }}
                       >
-                        Use Detected
+                        Use Add-on Config
                       </Button>
                     </div>
                   ) : null}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Label>
-                    {deviceHomeAssistantUrlSource === "configured"
-                      ? "Configured Device Address"
-                      : "Detected Device Address"}
-                  </Label>
+                  <Label>Configured Device Local Address</Label>
                   <div className="rounded-2xl border border-border-strong bg-panel-subtle px-4 py-3 text-sm text-muted-foreground">
                     {resolvedDeviceUrl}
                   </div>
@@ -328,9 +324,9 @@ export function HomeAssistantCard({
 
             {addonMode ? (
               <p className="text-xs text-muted-foreground">
-                The device address is resolved automatically when possible.
-                Keep the long-lived access token in the add-on configuration so
-                each firmware build can embed it for the device.
+                Set a LAN hostname or IP that the display can reach directly in
+                the add-on configuration. Keep the long-lived access token there
+                as well so each firmware build can embed both values.
               </p>
             ) : null}
 

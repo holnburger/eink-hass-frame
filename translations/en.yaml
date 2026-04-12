@@ -1,6 +1,9 @@
 configuration:
+  device_home_assistant_url:
+    name: Home Assistant Local Address
+    description: LAN URL or hostname for the display to reach Home Assistant directly, for example http://homeassistant.local:8123 or http://192.168.1.20:8123.
   device_home_assistant_token:
-    name: Device Long-Lived Access Token
+    name: Home Assistant Long-Lived Access Token
     description: Long-lived Home Assistant token embedded into firmware so the device can talk to Home Assistant directly.
 network:
   8099/TCP: Direct web UI port

@@ -202,13 +202,17 @@ async function runCommand(command: string, args: string[], cwd: string) {
   });
 }
 
-async function createGeneratedConfig(payload: BuildPayload, buildId: string) {
+async function createGeneratedConfig(
+  payload: BuildPayload,
+  buildId: string,
+  deviceHomeAssistantConfig: {
+    url: string;
+    token: string;
+  },
+) {
   const config = normalizeBuildConfig(payload);
   const fontName = sanitizeCString(config.fontName);
   const escapedBuildId = sanitizeCString(buildId);
-  const deviceHomeAssistantConfig = await resolveDeviceHomeAssistantConfig(
-    config.homeAssistant,
-  );
   const homeAssistantUrl = sanitizeCString(deviceHomeAssistantConfig.url);
   const homeAssistantToken = sanitizeCString(deviceHomeAssistantConfig.token);
   const homeAssistantEnabled =
@@ -367,7 +371,7 @@ export async function POST(request: Request) {
 
   const missingRequirements: string[] = [];
   if (!deviceHomeAssistantConfig.url) {
-    missingRequirements.push("device Home Assistant address");
+    missingRequirements.push("device Home Assistant local address");
   }
   if (!deviceHomeAssistantConfig.token) {
     missingRequirements.push("device long-lived access token");
@@ -375,7 +379,7 @@ export async function POST(request: Request) {
   if (missingRequirements.length > 0) {
     const addonHint =
       addonMode && !deviceHomeAssistantConfig.url
-        ? " The add-on detects this automatically through Home Assistant and Supervisor metadata. If this add-on was installed from an older image, rebuild or update it so `hassio_api: true` and `hassio_role: default` are active, or enter an override address in the Home Assistant card."
+        ? " Set the device Home Assistant local address in the add-on configuration, or enter an override address in the Home Assistant card."
         : "";
     return NextResponse.json(
       {
@@ -436,7 +440,11 @@ export async function POST(request: Request) {
     includeDir,
     "generated_media_cover.h",
   );
-  const generatedHeader = await createGeneratedConfig(payload, buildId);
+  const generatedHeader = await createGeneratedConfig(
+    payload,
+    buildId,
+    deviceHomeAssistantConfig,
+  );
   const widgetIconNames = collectWidgetIconNames(payload);
 
   await ensureArtifactsDir();

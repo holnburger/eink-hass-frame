@@ -1,5 +1,5 @@
 name: "E-Ink HASS Frame"
-version: "0.4.0"
+version: "0.4.1"
 slug: "eink_hass_frame"
 description: "Build firmware and manage M5PaperS3 e-ink dashboards for Home Assistant."
 image: "ghcr.io/holnburger/{arch}-eink-hass-frame-addon"
@@ -15,8 +15,6 @@ panel_title: "E-Ink Frame"
 panel_icon: "mdi:tablet-dashboard"
 panel_admin: false
 homeassistant_api: true
-hassio_api: true
-hassio_role: default
 watchdog: "http://[HOST]:[PORT:8099]/api/health"
 ports:
   8099/tcp: null
@@ -24,4 +22,5 @@ ports_description:
   8099/tcp: "Direct web UI (optional)"
 options: {}
 schema:
+  device_home_assistant_url: "str"
   device_home_assistant_token: "password"

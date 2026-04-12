@@ -67,14 +67,9 @@ docker compose up --build
 To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
 
 ```bash
+export DEVICE_HOME_ASSISTANT_URL="http://192.168.1.20:8123"
 export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
 docker compose up -d
-```
-
-If you are not running inside Home Assistant add-on mode, also set:
-
-```bash
-export DEVICE_HOME_ASSISTANT_URL="https://homeassistant.local:8123"
 ```
 
 The web build validates that device Home Assistant credentials are present
@@ -124,7 +119,7 @@ debugging, temporarily remove the `image:` line from `config.yaml`.
 In app mode:
 
 - dashboard entity search and preview use the Supervisor Home Assistant proxy automatically
-- firmware builds auto-detect the device-facing Home Assistant address through Home Assistant/Supervisor metadata and still require the device token from app options
+- firmware builds require an explicit LAN-reachable device Home Assistant address and token from app options
 - Wi-Fi is provisioned during the USB flashing flow instead of being managed by the app
 - firmware artifacts are stored under `/data/eink-hass-frame`
 - the app uses internal port `8099` instead of the usual local dev port `3000`
@@ -177,7 +172,7 @@ Implement secure OTA validation before production usage.
 ## Home Assistant
 
 1. In standalone Docker or local development, enter your Home Assistant base URL and a long-lived access token in the dashboard.
-2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds auto-detect the device address through Home Assistant/Supervisor metadata and use the required device token from app options.
+2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds use the required device local address and token from app options.
 3. Search for entities directly inside widget cards and bind them to supported widget types.
 4. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
 

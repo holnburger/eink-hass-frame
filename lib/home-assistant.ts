@@ -61,6 +61,18 @@ export function normalizeHomeAssistantUrl(value: unknown) {
     return "";
   }
 
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(`http://${trimmed.replace(/\/+$/, "")}`);
+      if (!parsed.port) {
+        parsed.port = "8123";
+      }
+      return parsed.toString().replace(/\/+$/, "");
+    } catch {
+      return trimmed.replace(/\/+$/, "");
+    }
+  }
+
   return trimmed.replace(/\/+$/, "");
 }
 

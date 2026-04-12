@@ -29,6 +29,9 @@ make the GHCR package public after the first publish.
 
 Required options:
 
+- `device_home_assistant_url`
+  LAN URL, hostname, or IP that the device can reach directly, for example
+  `http://homeassistant.local:8123` or `192.168.1.20`
 - `device_home_assistant_token`
   Long-lived access token embedded into firmware for device-side API access
 
@@ -38,11 +41,9 @@ Required options:
   Home Assistant connection automatically.
 - The required `device_*` settings are only used for firmware builds, because
   the device itself cannot use the Supervisor proxy.
-- In add-on mode, the Home Assistant address for the device is auto-detected
-  from Home Assistant or Supervisor network metadata when possible. The add-on
-  manifest enables `homeassistant_api`, `hassio_api`, and
-  `hassio_role: default` so this fallback can read the needed metadata
-  automatically.
+- In add-on mode, set a LAN-reachable Home Assistant address for the device in
+  the add-on configuration. Use a local hostname or IP rather than a public
+  domain if the display cannot reliably resolve or reach the external address.
 - Wi-Fi is provisioned during the USB flashing flow and then stored on the
   device, so the add-on does not need Wi-Fi settings.
 - Firmware builds fail validation if the required device Home Assistant
