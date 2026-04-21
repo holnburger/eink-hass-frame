@@ -59,9 +59,9 @@ import {
   getClockFontClass,
   getFontClass,
   getFirmwareFontName,
+  getMaxWidgetsPerPage,
   getTextWidgetMqttEntityId,
   MAX_PAGES,
-  MAX_WIDGETS_PER_PAGE,
   normalizeTextWidgetMqttName,
   normalizeBuildConfig,
   PAGE_TYPE_OPTIONS,
@@ -1339,7 +1339,10 @@ export default function Home() {
   }
 
   function addWidget(type: WidgetType) {
-    if (!editorPage || editorPage.widgets.length >= MAX_WIDGETS_PER_PAGE) {
+    if (
+      !editorPage ||
+      editorPage.widgets.length >= getMaxWidgetsPerPage(editorPage.type)
+    ) {
       return;
     }
     if (editorPage.type === "overview") {
@@ -1909,7 +1912,9 @@ export default function Home() {
                                   onClick={() => addWidget(widgetOption.type)}
                                   disabled={
                                     editorPage.widgets.length >=
-                                      MAX_WIDGETS_PER_PAGE ||
+                                      getMaxWidgetsPerPage(
+                                        editorPage.type,
+                                      ) ||
                                     (editorPage.type === "overview" &&
                                       ((widgetOption.type === "clock" &&
                                         editorPage.widgets.some(

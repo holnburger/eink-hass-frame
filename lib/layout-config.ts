@@ -8,6 +8,7 @@ import {
 
 export const MAX_PAGES = 8;
 export const MAX_WIDGETS_PER_PAGE = 8;
+export const MAX_OVERVIEW_WIDGETS_PER_PAGE = 16;
 
 export const FONT_OPTIONS = [
   {
@@ -69,6 +70,12 @@ export type WidgetType =
   | "thermostat"
   | "text"
   | "title";
+
+export function getMaxWidgetsPerPage(type: PageType): number {
+  return type === "overview"
+    ? MAX_OVERVIEW_WIDGETS_PER_PAGE
+    : MAX_WIDGETS_PER_PAGE;
+}
 
 export type WidgetConfig = {
   id: string;
@@ -584,7 +591,7 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
             type === "weather-focus" || type === "media-player"
               ? []
               : widgetsInput
-                  .slice(0, MAX_WIDGETS_PER_PAGE)
+                  .slice(0, getMaxWidgetsPerPage(type))
                   .map((widget, widgetIndex) =>
                     normalizeWidget(widget, widgetIndex),
                   )
