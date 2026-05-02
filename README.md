@@ -1,179 +1,131 @@
-# E-Ink Home Assistant Frame
+# E-Ink HASS Frame
 
-Next.js app + firmware workspace for managing M5PaperS3 e-ink devices with a minimal grayscale interface.
+Turn an M5PaperS3 into a wall-mounted e-ink dashboard for Home Assistant.
 
-The repository can now also be used as a Home Assistant app folder for local installation through the Supervisor app store.
+E-Ink HASS Frame is a Home Assistant add-on for configuring, building, and
+flashing dashboards for the M5PaperS3. It is designed for displays that live in
+your home and stay plugged in, for example in a picture frame on the wall. It is
+not optimized for long battery life or deep sleep use.
 
-## Stack
+![Dashboard control page](./screenshot.png)
 
-- Next.js (App Router)
-- Tailwind CSS
-- shadcn-style component setup
-- Playwright E2E tests (dev only)
-- Docker (slim standalone production image + separate dev compose)
-- PlatformIO firmware project using FastEPD
+![M5PaperS3 in a wooden picture frame](./wall_example.jpeg)
 
-## Features
+## What It Does
 
-- Device dashboard for e-ink page configuration
-- Home Assistant connection from the web configurator
-- Entity search + binding for weather, progress, switch, slider, and thermostat widgets
-- Live browser preview updates from bound Home Assistant entities
-- Direct ESP-to-Home Assistant sync for bound widgets, including touch-driven service calls
-- Page controls for widgets (clock, weather, progress)
-- Theme controls (font profile + dark/light UI)
-- Partial refresh policy controls
-- One-click firmware build from web UI (`Build Firmware`)
-- USB first-flash from browser (Web Serial via `esp-web-tools`)
-- Automatic device IP detection from serial logs after Wi-Fi connect
-- OTA update trigger form for subsequent firmware upgrades
+The add-on gives you a browser-based control page where you can design the pages
+shown on the e-ink display, connect them to Home Assistant entities, build the
+firmware, and update the device over the air. A live preview helps you setting up the pages for your liking.
 
-## Local Development
+Supported page types:
+
+- Overview page
+- Weather page
+- Player page
+- Custom pages with widgets
+
+Supported custom widgets:
+
+- Switch
+- Progress bar
+- Slider
+- Thermostat
+- Text
+- Clocks
+- Weather widgets
+
+The display can also be controlled through MQTT. You can switch pages, toggle
+dark mode, expose MQTT text widgets, and publish device status such as battery
+level, plug status, current page, availability, and MQTT connection state.
+
+## Install In Home Assistant
+
+Install it as a custom Home Assistant add-on repository:
+
+[![Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fholnburger%2Feink-hass-frame)
+
+1. Open Home Assistant.
+2. Go to **Settings** -> **Add-ons** -> **Add-on Store**.
+3. Open the three-dot menu and choose **Repositories**.
+4. Add this repository URL:
+
+   ```text
+   https://github.com/holnburger/eink-hass-frame
+   ```
+
+5. Install **E-Ink HASS Frame** from the add-on store.
+6. Start the add-on and open it from the Home Assistant sidebar or add-on page.
+
+The add-on runs inside Home Assistant and can browse your Home Assistant
+entities through the Supervisor connection. For firmware builds, set the
+device-facing Home Assistant URL and long-lived access token in the add-on
+configuration, because the M5PaperS3 itself needs a LAN-reachable address.
+
+This add on doesn't need to run constantly. You only need this to set up and configure your device, you can shut it down afterwards.
+
+## First Flash
+
+The first flash must be done over USB from a browser. This project uses Web
+Serial, so browser flashing only works in Chrome and Edge.
+
+Inside the add-on:
+
+1. Configure your pages and Home Assistant bindings.
+2. Build the firmware.
+3. Connect the M5PaperS3 over USB.
+4. Use the browser flashing flow to install the firmware.
+5. Connect the M5PaperS3 to your wifi during the setup.
+6. Optional: Visit the device to configure your MQTT connection to Home Assistant
+6. Finish the setup and save the device for future updates.
+
+After the first USB flash, OTA updates are possible from the same control page.
+You can rebuild the firmware and upload it to the device over the network.
+Important: You don't need to run this add on constantly. This add on is just needed to configure your device.
+
+## Run Outside Home Assistant
+
+You can also run E-Ink HASS Frame as a Docker container on another computer.
 
 ```bash
-bun install
-bun run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Docker
-
-```bash
-docker compose pull
 docker compose up -d
 ```
 
-App runs at [http://localhost:3000](http://localhost:3000).
+Then open:
 
-The default production compose setup now prefers the published GHCR image
-`ghcr.io/holnburger/eink-hass-frame:0.2.1` and only falls back to a local
-build if that image tag is not available yet.
-
-This production-style container setup keeps:
-
-- the container runs the standalone Next.js production server
-- runtime dependencies are trimmed down to the traced production set
-- Playwright and the rest of the dev-only toolchain stay out of the final image
-- firmware artifacts and PlatformIO cache stay inside named Docker volumes
-
-If you explicitly want to rebuild the image from the current checkout, you can
-still do that:
-
-```bash
-docker compose up --build
+```text
+http://localhost:3000
 ```
 
-To keep device Home Assistant credentials out of the browser UI/localStorage, set them as env vars before starting:
+When running outside Home Assistant, enter your Home Assistant base URL and a
+long-lived access token in the app so it can search entities and build firmware
+with the right device configuration.
 
-```bash
-export DEVICE_HOME_ASSISTANT_URL="http://192.168.1.20:8123"
-export DEVICE_HOME_ASSISTANT_TOKEN="your-long-lived-token"
-docker compose up -d
-```
+## MQTT Control
 
-The web build validates that device Home Assistant credentials are present
-before compiling firmware. Wi-Fi is provisioned during the USB flashing flow.
+MQTT is configured directly on the M5PaperS3 after it is online. Home Assistant
+discovery can expose controls and sensors automatically.
 
-For live development with source mounts and hot reload, use the separate dev compose file:
+MQTT can be used to:
 
-```bash
-docker compose -f docker-compose.dev.yml build
-docker compose -f docker-compose.dev.yml up
-```
+- Change to a specific page
+- Go to the another page on the device (drop down)
+- Toggle dark mode
+- Update exposed text widgets
+- Report battery level
+- Report whether the device is plugged in
+- Report the current page
+- Report availability and MQTT status
 
-That dev setup mounts the repo into the container, keeps Next.js in dev mode,
-and includes the dev-only dependencies such as Playwright. Re-run the dev image
-build only when the `Dockerfile`, `package.json`, or `bun.lock` changes.
+## Notes 
 
-Every push to `main` publishes the reusable images through
-`.github/workflows/publish-images.yml`:
+This project is vibe coded (Codex) and experimental. It is mainly build because I wanted a pleasant picture like dashboard. It is NOT a polished commercial firmware. There IS spaghetti code.
 
-- `ghcr.io/holnburger/eink-hass-frame:<version>` and `:latest`
-- `ghcr.io/holnburger/{arch}-eink-hass-frame-addon:<version>` and `:latest`
+The intended setup is:
 
-If these images should be pulled by Home Assistant or another host without
-registry credentials, make the GHCR packages public after the first publish.
+- M5PaperS3
+- Always plugged in
+- Home Assistant
+- Optional MQTT broker
+- Chrome or Edge for the first USB flash
 
-## Home Assistant Add-on
-
-This repository now includes a Home Assistant app definition at the repo root:
-
-- `config.yaml` for Supervisor metadata and options
-- `DOCS.md` for app usage notes
-- `translations/en.yaml` for option labels
-
-To install it as a local add-on:
-
-1. Copy or clone this repository into `/addons/eink-hass-frame` on your Home Assistant host.
-2. Reload the local app repository or restart Home Assistant.
-3. Install `E-Ink HASS Frame` from the App Store.
-
-Home Assistant now pulls the published add-on image declared in `config.yaml`
-instead of rebuilding it locally on every install/update. The image tag is
-derived from the add-on `version`.
-
-If you want Home Assistant to build directly from your local checkout for
-debugging, temporarily remove the `image:` line from `config.yaml`.
-
-In app mode:
-
-- dashboard entity search and preview use the Supervisor Home Assistant proxy automatically
-- firmware builds require an explicit LAN-reachable device Home Assistant address and token from app options
-- Wi-Fi is provisioned during the USB flashing flow instead of being managed by the app
-- firmware artifacts are stored under `/data/eink-hass-frame`
-- the app uses internal port `8099` instead of the usual local dev port `3000`
-
-## Playwright
-
-```bash
-bunx playwright install chromium
-bun run test:e2e
-```
-
-## Firmware
-
-See [`firmware/README.md`](./firmware/README.md) for FastEPD + PlatformIO setup.
-
-### Local `pio run`
-
-If you build firmware directly with PlatformIO (outside the web UI), you can still load optional fallback Wi-Fi credentials from `firmware/.env`.
-
-```bash
-cp firmware/.env.example firmware/.env
-# edit firmware/.env
-cd firmware
-pio run -e m5papers3
-```
-
-`WIFI_SSID` / `WIFI_PASSWORD` are injected at compile-time via `firmware/tools/load_env.py`.
-
-### USB Web Flashing
-
-1. Start the container and open the dashboard.
-2. Configure the page/theme options.
-3. Click `Build Firmware` in the USB card.
-4. After build success, click install and flash via USB.
-5. Click `I finished flashing`, name the device, and save it as active for OTA.
-6. Optionally connect serial to read boot/IP logs.
-
-The web app build endpoint compiles firmware with PlatformIO and stores artifacts in backend storage (`/.firmware-artifacts`). Flashing uses backend API routes directly.
-
-### OTA
-
-The web app uploads the built firmware directly to `http://<device-ip>/api/ota/upload`.
-
-For older devices that only support URL-based OTA, the server falls back to
-calling `http://<device-ip>/api/ota` with a firmware URL derived from the
-current app host when that host is LAN-reachable.
-
-Implement secure OTA validation before production usage.
-
-## Home Assistant
-
-1. In standalone Docker or local development, enter your Home Assistant base URL and a long-lived access token in the dashboard.
-2. In app mode, the dashboard uses the Supervisor proxy automatically, while firmware builds use the required device local address and token from app options.
-3. Search for entities directly inside widget cards and bind them to supported widget types.
-4. Build firmware after configuring the connection if you want the device itself to subscribe to Home Assistant updates.
-
-The browser stores the Home Assistant settings locally. Firmware builds embed the same URL and token so the device can fetch state updates and send service calls directly.
+I started this because I was heavily inspired by the e-ink remote that I saw in this [reddit thread](https://www.reddit.com/r/homeassistant/comments/1qs0q11/eink_remote_for_home_assistant/). This project is heavily relying on the [FastEPD](https://github.com/bitbank2/FastEPD) project by bitbank2. Thank you for your work!
