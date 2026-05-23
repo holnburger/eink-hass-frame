@@ -9,27 +9,46 @@ type CacheEntry = {
 
 const storageCache = new Map<string, CacheEntry>();
 
-function readLocalStorageValue<T>(key: string, initialValue: T): T {
+type BrowserStorageKind = "local" | "session";
+
+function getBrowserStorage(kind: BrowserStorageKind) {
   if (typeof window === "undefined") {
+    return null;
+  }
+  return kind === "session" ? window.sessionStorage : window.localStorage;
+}
+
+function readBrowserStorageValue<T>(
+  kind: BrowserStorageKind,
+  key: string,
+  initialValue: T,
+): T {
+  const storage = getBrowserStorage(kind);
+  if (!storage) {
     return initialValue;
   }
 
   try {
-    const raw = window.localStorage.getItem(key);
-    const cached = storageCache.get(key);
+    const raw = storage.getItem(key);
+    const cacheKey = `${kind}:${key}`;
+    const cached = storageCache.get(cacheKey);
     if (cached && cached.raw === raw) {
       return cached.value as T;
     }
 
     const parsed = raw !== null ? (JSON.parse(raw) as T) : initialValue;
-    storageCache.set(key, { raw, value: parsed });
+    storageCache.set(cacheKey, { raw, value: parsed });
     return parsed;
   } catch {
     return initialValue;
   }
 }
 
-export function useLocalStorage<T>(key: string, initialValue: T) {
+function useBrowserStorage<T>(
+  kind: BrowserStorageKind,
+  key: string,
+  initialValue: T,
+) {
   const value = useSyncExternalStore(
     (onStoreChange) => {
       if (typeof window === "undefined") {
@@ -38,14 +57,14 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
       const handler = () => onStoreChange();
       window.addEventListener("storage", handler);
-      window.addEventListener("local-storage", handler);
+      window.addEventListener(`${kind}-storage`, handler);
 
       return () => {
         window.removeEventListener("storage", handler);
-        window.removeEventListener("local-storage", handler);
+        window.removeEventListener(`${kind}-storage`, handler);
       };
     },
-    () => readLocalStorageValue(key, initialValue),
+    () => readBrowserStorageValue(kind, key, initialValue),
     () => initialValue,
   );
 
@@ -54,20 +73,35 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       return;
     }
 
+    const storage = getBrowserStorage(kind);
+    if (!storage) {
+      return;
+    }
+
     try {
       const resolved =
         typeof nextValue === "function"
-          ? (nextValue as (prev: T) => T)(readLocalStorageValue(key, initialValue))
+          ? (nextValue as (prev: T) => T)(
+              readBrowserStorageValue(kind, key, initialValue),
+            )
           : nextValue;
 
       const raw = JSON.stringify(resolved);
-      window.localStorage.setItem(key, raw);
-      storageCache.set(key, { raw, value: resolved });
-      window.dispatchEvent(new Event("local-storage"));
+      storage.setItem(key, raw);
+      storageCache.set(`${kind}:${key}`, { raw, value: resolved });
+      window.dispatchEvent(new Event(`${kind}-storage`));
     } catch {
       // ignore persistence errors
     }
   };
 
   return [value, setValue] as const;
+}
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  return useBrowserStorage("local", key, initialValue);
+}
+
+export function useSessionStorage<T>(key: string, initialValue: T) {
+  return useBrowserStorage("session", key, initialValue);
 }

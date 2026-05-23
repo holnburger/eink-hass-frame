@@ -6,7 +6,8 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   countWidgets,
-  getTextWidgetMqttEntityId,
+  getTextWidgetMqttEntityIdForMode,
+  normalizeTextWidgetMqttMode,
   normalizeBuildConfig,
 } from "@/lib/layout-config";
 import {
@@ -27,6 +28,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const MAX_MEDIA_PLAYER_ENTITIES = 4;
 
 type BuildPayload = {
   darkMode?: boolean;
@@ -178,7 +181,11 @@ function collectExposedTextWidgets(payload: BuildPayload) {
         widgetId: widget.id,
         widgetLabel: widget.label,
         mqttName: widget.mqttName ?? "",
-        entityId: getTextWidgetMqttEntityId(widget.mqttName),
+        mqttMode: normalizeTextWidgetMqttMode(widget.mqttMode),
+        entityId: getTextWidgetMqttEntityIdForMode(
+          widget.mqttName,
+          widget.mqttMode,
+        ),
       })),
   );
 }
@@ -221,7 +228,7 @@ async function createGeneratedConfig(
   const partialRefreshMs = normalizeNumber(config.partialRefreshMs, 30000);
   const fullRefreshEvery = normalizeNumber(config.fullRefreshEvery, 60);
   const maxWidgetsPerPage = Math.max(1, ...config.pages.map((page) => page.widgets.length));
-  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, 0, \"\", \"\"}";
+  const emptyWidget = "{UI_WIDGET_NONE, \"\", \"\", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, 0, UI_TEXT_MQTT_MODE_TEXT, \"\", \"\"}";
 
   const pageSource = config.pages
     .map((page) => {
@@ -258,16 +265,48 @@ async function createGeneratedConfig(
               : 0;
           const mqttExpose =
             widget.type === "text" && widget.mqttExpose === true ? 1 : 0;
+          const mqttMode =
+            widget.type === "text" &&
+            normalizeTextWidgetMqttMode(widget.mqttMode) === "notify"
+              ? "UI_TEXT_MQTT_MODE_NOTIFY"
+              : "UI_TEXT_MQTT_MODE_TEXT";
           const mqttName = sanitizeCString(
             widget.type === "text" ? (widget.mqttName ?? "") : "",
           );
           const entityId = sanitizeCString(widget.homeAssistant?.entityId ?? "");
-          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, ${showHistoryGraph}, ${hideWhenUnavailable}, ${invertLogic}, ${mqttExpose}, "${mqttName}", "${entityId}"}`;
+          return `{${widgetTypeToCpp(widget.type)}, "${label}", "${icon}", ${value}, ${currentValue}, ${maxValue}, ${enabled}, ${clockStyle}, ${showSeconds}, ${showHistoryGraph}, ${hideWhenUnavailable}, ${invertLogic}, ${mqttExpose}, ${mqttMode}, "${mqttName}", "${entityId}"}`;
         })
         .concat(Array.from({ length: Math.max(0, maxWidgetsPerPage - page.widgets.length) }, () => emptyWidget))
         .join(", ");
       const pageEntityId = sanitizeCString(page.homeAssistant?.entityId ?? "");
-      return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, "${pageEntityId}", {${widgets}}}`;
+      const mediaBindings =
+        page.type === "media-player"
+          ? page.homeAssistantBindings && page.homeAssistantBindings.length > 0
+            ? page.homeAssistantBindings
+            : page.homeAssistant
+              ? [page.homeAssistant]
+              : []
+          : [];
+      const mediaEntityIds = mediaBindings
+        .slice(0, MAX_MEDIA_PLAYER_ENTITIES)
+        .map((binding) => `"${sanitizeCString(binding.entityId)}"`)
+        .concat(
+          Array.from(
+            {
+              length: Math.max(
+                0,
+                MAX_MEDIA_PLAYER_ENTITIES - mediaBindings.length,
+              ),
+            },
+            () => "\"\"",
+          ),
+        )
+        .join(", ");
+      const mediaShowActiveOnly =
+        page.type === "media-player" && page.mediaShowActiveOnly !== false
+          ? 1
+          : 0;
+      return `  {${pageTypeToCpp(page.type)}, "${sanitizeCString(page.name)}", ${page.widgets.length}, "${pageEntityId}", ${Math.min(mediaBindings.length, MAX_MEDIA_PLAYER_ENTITIES)}, ${mediaShowActiveOnly}, {${mediaEntityIds}}, {${widgets}}}`;
     })
     .join(",\n");
 
@@ -287,6 +326,7 @@ async function createGeneratedConfig(
 #define HOME_ASSISTANT_URL_BUILD "${homeAssistantUrl}"
 #define HOME_ASSISTANT_TOKEN_BUILD "${homeAssistantToken}"
 #define HOME_ASSISTANT_ENABLED_BUILD ${homeAssistantEnabled ? 1 : 0}
+#define UI_MAX_MEDIA_PLAYER_ENTITIES ${MAX_MEDIA_PLAYER_ENTITIES}
 
 enum UiWidgetType : uint8_t {
   UI_WIDGET_CLOCK = 0,
@@ -313,6 +353,11 @@ enum UiPageType : uint8_t {
   UI_PAGE_MEDIA_PLAYER = 3,
 };
 
+enum UiTextMqttMode : uint8_t {
+  UI_TEXT_MQTT_MODE_TEXT = 0,
+  UI_TEXT_MQTT_MODE_NOTIFY = 1,
+};
+
 typedef struct {
   uint8_t type;
   const char *label;
@@ -327,6 +372,7 @@ typedef struct {
   uint8_t hideWhenUnavailable;
   uint8_t invertLogic;
   uint8_t mqttExpose;
+  uint8_t mqttMode;
   const char *mqttName;
   const char *entityId;
 } UiWidgetConfig;
@@ -336,6 +382,9 @@ typedef struct {
   const char *name;
   uint8_t widgetCount;
   const char *entityId;
+  uint8_t mediaEntityCount;
+  uint8_t mediaShowActiveOnly;
+  const char *mediaEntityIds[UI_MAX_MEDIA_PLAYER_ENTITIES];
   UiWidgetConfig widgets[${maxWidgetsPerPage}];
 } UiPageConfig;
 

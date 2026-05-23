@@ -103,6 +103,15 @@ static bool mediaStateHasRenderableMedia(const MediaPageRuntimeState &state)
          state.elapsedSeconds > 0;
 }
 
+static int mediaStateActivityPriority(const MediaPageRuntimeState &state)
+{
+  if (!mediaStateHasRenderableMedia(state))
+  {
+    return 0;
+  }
+  return state.playing ? 2 : 1;
+}
+
 static bool mediaPageHasRenderableMedia(int pageIndex)
 {
   if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)

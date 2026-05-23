@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useLocalStorage } from "@/hooks/use-local-storage";
+import { useLocalStorage, useSessionStorage } from "@/hooks/use-local-storage";
 import { getBrowserAppBasePath, resolveAppPath } from "@/lib/app-path";
 import {
   collectBoundEntityIds,
@@ -60,8 +60,9 @@ import {
   getFontClass,
   getFirmwareFontName,
   getMaxWidgetsPerPage,
-  getTextWidgetMqttEntityId,
+  getTextWidgetMqttEntityIdForMode,
   MAX_PAGES,
+  normalizeTextWidgetMqttMode,
   normalizeTextWidgetMqttName,
   normalizeBuildConfig,
   PAGE_TYPE_OPTIONS,
@@ -94,6 +95,7 @@ const mutedPanelClass = "rounded-3xl border border-border bg-panel-subtle";
 const raisedPanelClass = "rounded-3xl border border-border bg-panel";
 const compactMutedPanelClass =
   "rounded-2xl border border-border bg-panel-subtle";
+const MAX_MEDIA_PLAYER_BINDINGS = 4;
 
 function isSavedDevice(value: unknown): value is SavedDevice {
   if (!value || typeof value !== "object") {
@@ -746,45 +748,67 @@ function EditableWidgetCard({
           </div>
 
           {widget.mqttExpose === true ? (
-            <div className="space-y-2">
-              <Label className="col-span-1" htmlFor={`${widget.id}-mqtt-name`}>
-                MQTT Name
-              </Label>
-              <Input
-                id={`${widget.id}-mqtt-name`}
-                value={widget.mqttName ?? ""}
-                maxLength={48}
-                placeholder="welcome_home"
-                onChange={(event) =>
-                  onUpdate(widget.id, (current) => ({
-                    ...current,
-                    mqttName: normalizeTextWidgetMqttName(event.target.value),
-                  }))
-                }
-              />
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-2">
+                <Label htmlFor={`${widget.id}-mqtt-mode`}>MQTT Entity</Label>
+                <Select
+                  value={normalizeTextWidgetMqttMode(widget.mqttMode)}
+                  onValueChange={(value) =>
+                    onUpdate(widget.id, (current) => ({
+                      ...current,
+                      mqttMode: normalizeTextWidgetMqttMode(value),
+                    }))
+                  }
+                >
+                  <SelectTrigger id={`${widget.id}-mqtt-mode`}>
+                    <SelectValue placeholder="MQTT Entity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">input_text</SelectItem>
+                    <SelectItem value="notify">notify</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${widget.id}-mqtt-name`}>MQTT Name</Label>
+                <Input
+                  id={`${widget.id}-mqtt-name`}
+                  value={widget.mqttName ?? ""}
+                  maxLength={48}
+                  placeholder="welcome_home"
+                  onChange={(event) =>
+                    onUpdate(widget.id, (current) => ({
+                      ...current,
+                      mqttName: normalizeTextWidgetMqttName(event.target.value),
+                    }))
+                  }
+                />
+              </div>
               {textWidgetEntityId ? (
-                <p className="text-xs font-mono text-muted-foreground">
+                <p className="text-xs font-mono text-muted-foreground md:col-span-2">
                   {textWidgetEntityId}
                 </p>
               ) : null}
               {textWidgetMqttValidation?.invalidReason ? (
-                <p className="text-xs text-red-700">
+                <p className="text-xs text-red-700 md:col-span-2">
                   {textWidgetMqttValidation.invalidReason}
                 </p>
               ) : null}
               {textWidgetMqttValidation?.duplicateInLayout ? (
-                <p className="text-xs text-red-700">
+                <p className="text-xs text-red-700 md:col-span-2">
                   Name already used in this layout.
                 </p>
               ) : null}
               {textWidgetMqttValidation?.checking ? (
-                <p className="text-xs text-muted-foreground">Checking…</p>
+                <p className="text-xs text-muted-foreground md:col-span-2">
+                  Checking…
+                </p>
               ) : textWidgetMqttValidation?.lookupError ? (
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-amber-700 md:col-span-2">
                   {textWidgetMqttValidation.lookupError}
                 </p>
               ) : textWidgetMqttValidation?.existsInHomeAssistant ? (
-                <p className="text-xs text-red-700">
+                <p className="text-xs text-red-700 md:col-span-2">
                   Home Assistant already has this entity.
                 </p>
               ) : null}
@@ -839,7 +863,7 @@ export default function Home() {
     DEFAULT_BUILD_CONFIG.fullRefreshEvery,
   );
   const [homeAssistant, setHomeAssistant] =
-    useLocalStorage<HomeAssistantConfig>(
+    useSessionStorage<HomeAssistantConfig>(
       "hass.homeAssistant",
       DEFAULT_HOME_ASSISTANT_CONFIG,
     );
@@ -866,6 +890,8 @@ export default function Home() {
   const [runtimeInfo, setRuntimeInfo] =
     useState<AppRuntimeInfo>(DEFAULT_APP_RUNTIME_INFO);
   const [appBasePath, setAppBasePath] = useState("");
+  const [mediaPlayerBindingSlotsByPageId, setMediaPlayerBindingSlotsByPageId] =
+    useState<Record<string, number>>({});
 
   const buildConfig = useMemo<BuildConfig>(
     () =>
@@ -954,7 +980,10 @@ export default function Home() {
         }
 
         const normalizedName = normalizeTextWidgetMqttName(widget.mqttName);
-        const entityId = getTextWidgetMqttEntityId(normalizedName);
+        const entityId = getTextWidgetMqttEntityIdForMode(
+          normalizedName,
+          widget.mqttMode,
+        );
         validationById.set(widget.id, {
           entityId,
           invalidReason:
@@ -1003,6 +1032,25 @@ export default function Home() {
     return index >= 0 ? index : 0;
   }, [buildConfig.pages, editorPageId]);
   const editorPage = buildConfig.pages[editorPageIndex] ?? buildConfig.pages[0];
+  const editorMediaPlayerBindings =
+    editorPage?.type === "media-player"
+      ? editorPage.homeAssistantBindings &&
+        editorPage.homeAssistantBindings.length > 0
+        ? editorPage.homeAssistantBindings
+        : editorPage.homeAssistant
+          ? [editorPage.homeAssistant]
+          : []
+      : [];
+  const editorMediaPlayerBindingSlotCount =
+    editorPage?.type === "media-player"
+      ? Math.min(
+          MAX_MEDIA_PLAYER_BINDINGS,
+          Math.max(
+            editorMediaPlayerBindings.length,
+            mediaPlayerBindingSlotsByPageId[editorPage.id] ?? 1,
+          ),
+        )
+      : 0;
 
   useEffect(() => {
     setThemeModeReady(true);
@@ -1011,6 +1059,28 @@ export default function Home() {
   useEffect(() => {
     setAppBasePath(getBrowserAppBasePath(runtimeInfo.ingressPath));
   }, [runtimeInfo.ingressPath]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const legacyHomeAssistant = window.localStorage.getItem(
+        "hass.homeAssistant",
+      );
+      const sessionHomeAssistant = window.sessionStorage.getItem(
+        "hass.homeAssistant",
+      );
+      if (legacyHomeAssistant && !sessionHomeAssistant) {
+        window.sessionStorage.setItem("hass.homeAssistant", legacyHomeAssistant);
+        window.dispatchEvent(new Event("session-storage"));
+      }
+      window.localStorage.removeItem("hass.homeAssistant");
+    } catch {
+      // ignore storage migration errors
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1715,6 +1785,15 @@ export default function Home() {
                                     nextType === "weather-focus" ||
                                     nextType === "media-player"
                                   ) {
+                                    const nextBindings =
+                                      nextType === "media-player"
+                                        ? page.homeAssistantBindings &&
+                                          page.homeAssistantBindings.length > 0
+                                          ? page.homeAssistantBindings
+                                          : page.homeAssistant
+                                            ? [page.homeAssistant]
+                                            : []
+                                        : undefined;
                                     return {
                                       ...page,
                                       type: nextType,
@@ -1723,6 +1802,11 @@ export default function Home() {
                                       )
                                         ? page.homeAssistant
                                         : undefined,
+                                      homeAssistantBindings: nextBindings,
+                                      mediaShowActiveOnly:
+                                        nextType === "media-player"
+                                          ? page.mediaShowActiveOnly !== false
+                                          : undefined,
                                       widgets: [],
                                     };
                                   }
@@ -1730,6 +1814,8 @@ export default function Home() {
                                     ...page,
                                     type: nextType,
                                     homeAssistant: undefined,
+                                    homeAssistantBindings: undefined,
+                                    mediaShowActiveOnly: undefined,
                                     widgets:
                                       page.widgets.length > 0 &&
                                       nextType !== "overview"
@@ -1802,23 +1888,134 @@ export default function Home() {
                             }
                           />
                         ) : editorPage.type === "media-player" ? (
-                          <HomeAssistantEntityPicker
-                            appBasePath={appBasePath}
-                            homeAssistant={homeAssistant}
-                            requestHomeAssistant={homeAssistantRequestConfig}
-                            connectionReady={homeAssistantConnectionReady}
-                            managedByAddon={runtimeInfo.addonMode}
-                            supportedDomains={getCompatibleDomainsForPage(
-                              "media-player",
-                            )}
-                            value={editorPage.homeAssistant}
-                            onChange={(homeAssistantBinding) =>
-                              updateCurrentPage((page) => ({
-                                ...page,
-                                homeAssistant: homeAssistantBinding,
-                              }))
-                            }
-                          />
+                          <div className="space-y-3">
+                            {Array.from(
+                              { length: editorMediaPlayerBindingSlotCount },
+                              (_, bindingIndex) =>
+                                editorMediaPlayerBindings[bindingIndex],
+                            ).map((binding, bindingIndex) => (
+                              <div
+                                key={`${editorPage.id}-media-player-${bindingIndex}`}
+                                className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]"
+                              >
+                                <HomeAssistantEntityPicker
+                                  appBasePath={appBasePath}
+                                  homeAssistant={homeAssistant}
+                                  requestHomeAssistant={homeAssistantRequestConfig}
+                                  connectionReady={homeAssistantConnectionReady}
+                                  managedByAddon={runtimeInfo.addonMode}
+                                  supportedDomains={getCompatibleDomainsForPage(
+                                    "media-player",
+                                  )}
+                                  value={binding}
+                                  onChange={(homeAssistantBinding) =>
+                                    updateCurrentPage((page) => {
+                                      const currentBindings =
+                                        page.homeAssistantBindings &&
+                                        page.homeAssistantBindings.length > 0
+                                          ? [...page.homeAssistantBindings]
+                                          : page.homeAssistant
+                                            ? [page.homeAssistant]
+                                            : [];
+                                      if (homeAssistantBinding) {
+                                        currentBindings[bindingIndex] =
+                                          homeAssistantBinding;
+                                      } else {
+                                        currentBindings.splice(bindingIndex, 1);
+                                      }
+                                      const nextBindings = currentBindings.filter(
+                                        Boolean,
+                                      );
+                                      setMediaPlayerBindingSlotsByPageId(
+                                        (prev) => ({
+                                          ...prev,
+                                          [page.id]: Math.max(
+                                            prev[page.id] ?? 1,
+                                            bindingIndex + 1,
+                                          ),
+                                        }),
+                                      );
+                                      return {
+                                        ...page,
+                                        homeAssistant: nextBindings[0],
+                                        homeAssistantBindings: nextBindings,
+                                      };
+                                    })
+                                  }
+                                />
+                                <Button
+                                  variant="destructive"
+                                  onClick={() =>
+                                    updateCurrentPage((page) => {
+                                      const currentBindings =
+                                        page.homeAssistantBindings &&
+                                        page.homeAssistantBindings.length > 0
+                                          ? [...page.homeAssistantBindings]
+                                          : page.homeAssistant
+                                            ? [page.homeAssistant]
+                                            : [];
+                                      currentBindings.splice(bindingIndex, 1);
+                                      setMediaPlayerBindingSlotsByPageId(
+                                        (prev) => ({
+                                          ...prev,
+                                          [page.id]: Math.max(
+                                            currentBindings.length,
+                                            1,
+                                          ),
+                                        }),
+                                      );
+                                      return {
+                                        ...page,
+                                        homeAssistant: currentBindings[0],
+                                        homeAssistantBindings: currentBindings,
+                                      };
+                                    })
+                                  }
+                                  disabled={
+                                    editorMediaPlayerBindingSlotCount <= 1
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                              <div className={`${compactMutedPanelClass} px-4 py-3`}>
+                                <Switch
+                                  id={`${editorPage.id}-active-media-only`}
+                                  label="Active player only"
+                                  checked={
+                                    editorPage.mediaShowActiveOnly !== false
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    updateCurrentPage((page) => ({
+                                      ...page,
+                                      mediaShowActiveOnly: checked,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <Button
+                                onClick={() =>
+                                  setMediaPlayerBindingSlotsByPageId((prev) => ({
+                                    ...prev,
+                                    [editorPage.id]:
+                                      Math.min(
+                                        editorMediaPlayerBindingSlotCount + 1,
+                                        MAX_MEDIA_PLAYER_BINDINGS,
+                                      ),
+                                  }))
+                                }
+                                disabled={
+                                  editorMediaPlayerBindingSlotCount >=
+                                  MAX_MEDIA_PLAYER_BINDINGS
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                                Add Player
+                              </Button>
+                            </div>
+                          </div>
                         ) : (
                           <>
                             <Reorder.Group

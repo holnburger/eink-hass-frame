@@ -1047,6 +1047,7 @@ export function resolveHomeAssistantMediaPlayer(
 export function collectBoundEntityIds(
   pages: Array<{
     homeAssistant?: HomeAssistantBinding | undefined;
+    homeAssistantBindings?: HomeAssistantBinding[] | undefined;
     widgets: Array<{ homeAssistant?: HomeAssistantBinding | undefined }>;
   }>,
 ) {
@@ -1055,6 +1056,12 @@ export function collectBoundEntityIds(
     const pageEntityId = page.homeAssistant?.entityId?.trim();
     if (pageEntityId) {
       seen.add(pageEntityId);
+    }
+    for (const binding of page.homeAssistantBindings ?? []) {
+      const entityId = binding.entityId?.trim();
+      if (entityId) {
+        seen.add(entityId);
+      }
     }
     for (const widget of page.widgets) {
       const entityId = widget.homeAssistant?.entityId?.trim();

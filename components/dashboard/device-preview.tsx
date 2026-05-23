@@ -253,6 +253,41 @@ function getBoundEntityState(
   return entityId ? homeAssistantStates[entityId] : undefined;
 }
 
+function resolvePreviewMediaPlayer(
+  page: PageConfig | undefined,
+  homeAssistantStates: Record<string, HomeAssistantEntityState>,
+  homeAssistantUrl: string,
+) {
+  if (!page) {
+    return undefined;
+  }
+
+  const bindings =
+    page.homeAssistantBindings && page.homeAssistantBindings.length > 0
+      ? page.homeAssistantBindings
+      : page.homeAssistant
+        ? [page.homeAssistant]
+        : [];
+  const mediaPlayers = bindings.flatMap((binding) => {
+    const entityId = binding.entityId?.trim();
+    const media = resolveHomeAssistantMediaPlayer(
+      entityId ? homeAssistantStates[entityId] : undefined,
+      homeAssistantUrl,
+    );
+    return media ? [media] : [];
+  });
+
+  if (page.mediaShowActiveOnly === false) {
+    return mediaPlayers[0];
+  }
+
+  return (
+    mediaPlayers.find((media) => media.state === "playing") ??
+    mediaPlayers.find((media) => media.hasMedia) ??
+    mediaPlayers[0]
+  );
+}
+
 function getPreviewButtonEnabled(
   widget: WidgetConfig,
   entity: HomeAssistantEntityState | undefined,
@@ -1999,8 +2034,9 @@ export function DevicePreview({
   const pageEntity = activePage
     ? getBoundEntityState(activePage, homeAssistantStates)
     : undefined;
-  const mediaPreview = resolveHomeAssistantMediaPlayer(
-    pageEntity,
+  const mediaPreview = resolvePreviewMediaPlayer(
+    activePage,
+    homeAssistantStates,
     homeAssistantConfig.url,
   );
   const fallbackMediaMock = useMemo(

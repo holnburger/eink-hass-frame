@@ -280,7 +280,7 @@
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
-static const char *FIRMWARE_VERSION_NAME = "0.1.0";
+static const char *FIRMWARE_VERSION_NAME = "0.4.4";
 static const char *IMPROV_DEVICE_NAME = "M5PaperS3";
 static const uint8_t IMPROV_HEADER_BYTES[] = {'I', 'M', 'P', 'R', 'O', 'V'};
 
@@ -400,6 +400,7 @@ static bool widgetHasHomeAssistantBinding(const UiWidgetConfig &widget);
 static bool pageHasHomeAssistantBinding(int pageIndex);
 static bool thermostatWidgetShowsHistoryGraph(const UiWidgetConfig &widget);
 static bool textWidgetUsesMqttInput(const UiWidgetConfig &widget);
+static bool textWidgetUsesMqttNotify(const UiWidgetConfig &widget);
 static void normalizeTemperatureUnitLabel(const char *rawUnit, char *unitOut, size_t unitOutLen);
 static uint8_t thermostatModeBitForName(const char *rawMode);
 static uint8_t thermostatSupportedModeMask(JsonVariantConst hvacModesVariant);
@@ -613,6 +614,7 @@ typedef struct
   uint32_t lastCoverFetchMs;
   uint32_t lastPlaybackTickMs;
   uint8_t *coverPixels;
+  char entityId[96];
   char title[80];
   char artist[48];
   char stateLabel[24];
@@ -2718,12 +2720,50 @@ static bool textWidgetUsesMqttInput(const UiWidgetConfig &widget)
          widget.mqttName[0] != '\0';
 }
 
+static bool textWidgetUsesMqttNotify(const UiWidgetConfig &widget)
+{
+  return textWidgetUsesMqttInput(widget) &&
+         widget.mqttMode == UI_TEXT_MQTT_MODE_NOTIFY;
+}
+
 static bool pageHasHomeAssistantBinding(int pageIndex)
 {
   return pageIndex >= 0 &&
          pageIndex < UI_PAGE_COUNT &&
-         UI_PAGES[pageIndex].entityId != nullptr &&
-         UI_PAGES[pageIndex].entityId[0] != '\0';
+         ((UI_PAGES[pageIndex].entityId != nullptr &&
+           UI_PAGES[pageIndex].entityId[0] != '\0') ||
+          (UI_PAGES[pageIndex].pageType == UI_PAGE_MEDIA_PLAYER &&
+           UI_PAGES[pageIndex].mediaEntityCount > 0));
+}
+
+static const char *getMediaPageConfiguredEntityId(int pageIndex, int mediaIndex)
+{
+  if (pageIndex < 0 ||
+      pageIndex >= UI_PAGE_COUNT ||
+      mediaIndex < 0 ||
+      mediaIndex >= UI_PAGES[pageIndex].mediaEntityCount ||
+      mediaIndex >= UI_MAX_MEDIA_PLAYER_ENTITIES)
+  {
+    return "";
+  }
+
+  const char *entityId = UI_PAGES[pageIndex].mediaEntityIds[mediaIndex];
+  return entityId != nullptr ? entityId : "";
+}
+
+static const char *getMediaPageActiveEntityId(int pageIndex)
+{
+  if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
+  {
+    return "";
+  }
+
+  const MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+  if (state.entityId[0] != '\0')
+  {
+    return state.entityId;
+  }
+  return getMediaPageConfiguredEntityId(pageIndex, 0);
 }
 
 static bool activeWeatherPageUsesHomeAssistant()
@@ -4608,7 +4648,11 @@ static bool applyHomeAssistantHourlyForecastToWeatherPage(int pageIndex, JsonArr
   return changed;
 }
 
-static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateObject, bool redraw)
+static bool applyHomeAssistantStateToPage(
+    int pageIndex,
+    const char *entityId,
+    JsonObjectConst stateObject,
+    bool redraw)
 {
   if (!pageHasHomeAssistantBinding(pageIndex))
   {
@@ -4715,6 +4759,15 @@ static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateOb
   if (page.pageType == UI_PAGE_MEDIA_PLAYER)
   {
     MediaPageRuntimeState &state = mediaPageStates[pageIndex];
+    const bool showActiveOnly = page.mediaShowActiveOnly != 0;
+    if (!showActiveOnly)
+    {
+      const char *primaryEntityId = getMediaPageConfiguredEntityId(pageIndex, 0);
+      if (primaryEntityId[0] != '\0' && strcmp(primaryEntityId, entityId) != 0)
+      {
+        return false;
+      }
+    }
     const bool previousAvailable = state.available;
     const bool previousCoverAvailable = state.coverAvailable;
     const bool previousHasRenderableMedia = mediaPageHasRenderableMedia(pageIndex);
@@ -4755,6 +4808,23 @@ static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateOb
     const bool titleChanged = strcmp(state.title, title) != 0;
     const bool artistChanged = strcmp(state.artist, artist) != 0;
     const bool stateLabelChanged = strcmp(state.stateLabel, rawState) != 0;
+    MediaPageRuntimeState candidateState = state;
+    candidateState.available = true;
+    candidateState.elapsedSeconds = nextElapsed;
+    candidateState.durationSeconds = nextDuration;
+    candidateState.progress = nextProgress;
+    candidateState.playing = nextPlaying;
+    snprintf(candidateState.stateLabel, sizeof(candidateState.stateLabel), "%s", rawState);
+    const int nextActivityPriority = mediaStateActivityPriority(candidateState);
+    const int currentActivityPriority = mediaStateActivityPriority(state);
+    if (showActiveOnly &&
+        state.entityId[0] != '\0' &&
+        strcmp(state.entityId, entityId) != 0 &&
+        currentActivityPriority > 0 &&
+        currentActivityPriority >= nextActivityPriority)
+    {
+      return false;
+    }
     bool changed = availabilityChanged ||
                    playbackMetricsChanged ||
                    playingChanged ||
@@ -4764,6 +4834,7 @@ static bool applyHomeAssistantStateToPage(int pageIndex, JsonObjectConst stateOb
                    coverChanged;
 
     state.available = true;
+    snprintf(state.entityId, sizeof(state.entityId), "%s", entityId != nullptr ? entityId : "");
     state.elapsedSeconds = nextElapsed;
     state.durationSeconds = nextDuration;
     state.progress = nextProgress;
@@ -5112,9 +5183,26 @@ static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, Json
   bool changed = false;
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
-    if (pageHasHomeAssistantBinding(pageIndex) && strcmp(UI_PAGES[pageIndex].entityId, entityId) == 0)
+    bool pageEntityMatches = pageHasHomeAssistantBinding(pageIndex) &&
+                             UI_PAGES[pageIndex].entityId != nullptr &&
+                             UI_PAGES[pageIndex].entityId[0] != '\0' &&
+                             strcmp(UI_PAGES[pageIndex].entityId, entityId) == 0;
+    if (!pageEntityMatches && UI_PAGES[pageIndex].pageType == UI_PAGE_MEDIA_PLAYER)
     {
-      changed = applyHomeAssistantStateToPage(pageIndex, stateObject, redraw) || changed;
+      for (int mediaIndex = 0; mediaIndex < UI_PAGES[pageIndex].mediaEntityCount && mediaIndex < UI_MAX_MEDIA_PLAYER_ENTITIES; mediaIndex++)
+      {
+        const char *mediaEntityId = getMediaPageConfiguredEntityId(pageIndex, mediaIndex);
+        if (mediaEntityId[0] != '\0' && strcmp(mediaEntityId, entityId) == 0)
+        {
+          pageEntityMatches = true;
+          break;
+        }
+      }
+    }
+
+    if (pageEntityMatches)
+    {
+      changed = applyHomeAssistantStateToPage(pageIndex, entityId, stateObject, redraw) || changed;
     }
     else
     {
@@ -5254,7 +5342,7 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
     return;
   }
 
-  String entityIds[UI_PAGE_COUNT * (UI_MAX_WIDGETS_PER_PAGE + 1)];
+  String entityIds[UI_PAGE_COUNT * (UI_MAX_WIDGETS_PER_PAGE + UI_MAX_MEDIA_PLAYER_ENTITIES + 1)];
   int entityCount = 0;
   String weatherPageEntityIds[UI_PAGE_COUNT];
   int weatherPageEntityCount = 0;
@@ -5267,18 +5355,45 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
   {
     if (pageHasHomeAssistantBinding(pageIndex))
     {
-      bool alreadyAdded = false;
-      for (int index = 0; index < entityCount; index++)
+      if (UI_PAGES[pageIndex].pageType == UI_PAGE_MEDIA_PLAYER)
       {
-        if (entityIds[index] == UI_PAGES[pageIndex].entityId)
+        for (int mediaIndex = 0; mediaIndex < UI_PAGES[pageIndex].mediaEntityCount && mediaIndex < UI_MAX_MEDIA_PLAYER_ENTITIES; mediaIndex++)
         {
-          alreadyAdded = true;
-          break;
+          const char *mediaEntityId = getMediaPageConfiguredEntityId(pageIndex, mediaIndex);
+          if (mediaEntityId[0] == '\0')
+          {
+            continue;
+          }
+          bool alreadyAdded = false;
+          for (int index = 0; index < entityCount; index++)
+          {
+            if (entityIds[index] == mediaEntityId)
+            {
+              alreadyAdded = true;
+              break;
+            }
+          }
+          if (!alreadyAdded)
+          {
+            entityIds[entityCount++] = mediaEntityId;
+          }
         }
       }
-      if (!alreadyAdded)
+      else
       {
-        entityIds[entityCount++] = UI_PAGES[pageIndex].entityId;
+        bool alreadyAdded = false;
+        for (int index = 0; index < entityCount; index++)
+        {
+          if (entityIds[index] == UI_PAGES[pageIndex].entityId)
+          {
+            alreadyAdded = true;
+            break;
+          }
+        }
+        if (!alreadyAdded)
+        {
+          entityIds[entityCount++] = UI_PAGES[pageIndex].entityId;
+        }
       }
 
       if (UI_PAGES[pageIndex].pageType == UI_PAGE_WEATHER_FOCUS)
@@ -5585,13 +5700,14 @@ static bool callHomeAssistantServiceForPage(int pageIndex, const char *service)
     return false;
   }
 
-  const String domain = getEntityDomainString(page.entityId);
+  const char *mediaEntityId = getMediaPageActiveEntityId(pageIndex);
+  const String domain = getEntityDomainString(mediaEntityId);
   if (domain != "media_player")
   {
     return false;
   }
 
-  const String payload = String("{\"entity_id\":\"") + page.entityId + "\"}";
+  const String payload = String("{\"entity_id\":\"") + mediaEntityId + "\"}";
   String responseBody;
   int statusCode = 0;
   const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
@@ -6916,13 +7032,55 @@ static bool clearRetainedMqttTopic(const String &topic)
   return mqttClient.connected() ? mqttClient.publish(topic.c_str(), "", true) : false;
 }
 
-static bool mqttTextDiscoveryRegistryContains(const String &registry, const String &name)
+static String getMqttTextWidgetDiscoveryComponent(const UiWidgetConfig &widget)
+{
+  return textWidgetUsesMqttNotify(widget) ? String("notify") : String("text");
+}
+
+static String getMqttTextWidgetDiscoveryObjectSuffix(const String &component, const String &name)
+{
+  return component + "_" + name;
+}
+
+static String getMqttTextWidgetDiscoveryRegistryEntry(const String &component, const String &name)
+{
+  return component + ":" + name;
+}
+
+static bool parseMqttTextDiscoveryRegistryEntry(
+    const String &entry,
+    String &component,
+    String &name)
+{
+  const int separator = entry.indexOf(':');
+  if (separator < 0)
+  {
+    component = "text";
+    name = entry;
+  }
+  else
+  {
+    component = entry.substring(0, separator);
+    name = entry.substring(separator + 1);
+  }
+
+  component.trim();
+  name.trim();
+  if (component != "text" && component != "notify")
+  {
+    component = "text";
+  }
+  return name.length() > 0;
+}
+
+static bool mqttTextDiscoveryRegistryContains(const String &registry, const String &component, const String &name)
 {
   if (name.length() == 0)
   {
     return false;
   }
 
+  const String expectedEntry = getMqttTextWidgetDiscoveryRegistryEntry(component, name);
   int start = 0;
   while (start <= registry.length())
   {
@@ -6934,7 +7092,7 @@ static bool mqttTextDiscoveryRegistryContains(const String &registry, const Stri
 
     String entry = registry.substring(start, end);
     entry.trim();
-    if (entry == name)
+    if (entry == expectedEntry)
     {
       return true;
     }
@@ -6949,9 +7107,9 @@ static bool mqttTextDiscoveryRegistryContains(const String &registry, const Stri
   return false;
 }
 
-static void appendMqttTextDiscoveryRegistryName(String &registry, const String &name)
+static void appendMqttTextDiscoveryRegistryName(String &registry, const String &component, const String &name)
 {
-  if (name.length() == 0 || mqttTextDiscoveryRegistryContains(registry, name))
+  if (name.length() == 0 || mqttTextDiscoveryRegistryContains(registry, component, name))
   {
     return;
   }
@@ -6960,7 +7118,7 @@ static void appendMqttTextDiscoveryRegistryName(String &registry, const String &
   {
     registry += '\n';
   }
-  registry += name;
+  registry += getMqttTextWidgetDiscoveryRegistryEntry(component, name);
 }
 
 static String buildMqttTextWidgetDiscoveryRegistry()
@@ -6976,7 +7134,10 @@ static String buildMqttTextWidgetDiscoveryRegistry()
         continue;
       }
 
-      appendMqttTextDiscoveryRegistryName(registry, String(widget.mqttName));
+      appendMqttTextDiscoveryRegistryName(
+          registry,
+          getMqttTextWidgetDiscoveryComponent(widget),
+          String(widget.mqttName));
     }
   }
   return registry;
@@ -7025,14 +7186,17 @@ static bool clearStaleMqttTextWidgetDiscovery(const String &currentRegistry)
       end = previousRegistry.length();
     }
 
-    String name = previousRegistry.substring(start, end);
-    name.trim();
-    if (name.length() > 0 && !mqttTextDiscoveryRegistryContains(currentRegistry, name))
+    String entry = previousRegistry.substring(start, end);
+    entry.trim();
+    String component;
+    String name;
+    if (parseMqttTextDiscoveryRegistryEntry(entry, component, name) &&
+        !mqttTextDiscoveryRegistryContains(currentRegistry, component, name))
     {
-      const String objectSuffix = String("text_") + name;
-      if (!clearMqttDiscoveryTopic(getMqttDiscoveryTopic("text", objectSuffix.c_str())))
+      const String objectSuffix = getMqttTextWidgetDiscoveryObjectSuffix(component, name);
+      if (!clearMqttDiscoveryTopic(getMqttDiscoveryTopic(component.c_str(), objectSuffix.c_str())))
       {
-        setLastMqttError(String("clear_text_discovery_failed_") + name);
+        setLastMqttError(String("clear_") + component + "_discovery_failed_" + name);
         success = false;
       }
 
@@ -7475,21 +7639,40 @@ static bool publishMqttDiscoveryConfig()
       }
 
       StaticJsonDocument<768> textDoc;
-      const String objectSuffix = String("text_") + widget.mqttName;
+      const String component = getMqttTextWidgetDiscoveryComponent(widget);
+      const String objectSuffix = getMqttTextWidgetDiscoveryObjectSuffix(component, String(widget.mqttName));
       const String displayName = getMqttTextWidgetDiscoveryName(widget);
-      populateMqttDiscoveryDocument(
-          textDoc,
-          objectSuffix.c_str(),
-          displayName.c_str(),
-          getMqttTextWidgetStateTopic(pageIndex, widgetIndex));
-      textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
-      textDoc["icon"] = "mdi:form-textbox";
-      textDoc["mode"] = "text";
-      textDoc["default_entity_id"] = String("text.") + widget.mqttName;
-
-      if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic("text", objectSuffix.c_str()), textDoc))
+      if (component == "notify")
       {
-        setLastMqttError(String("discovery_text_failed_") + widget.mqttName);
+        const String objectId = String(getDeviceSlug()) + "_" + objectSuffix;
+        textDoc["name"] = displayName;
+        textDoc["object_id"] = objectId;
+        textDoc["unique_id"] = objectId;
+        textDoc["availability_topic"] = getMqttTopic("availability");
+        textDoc["payload_available"] = MQTT_AVAILABILITY_ONLINE;
+        textDoc["payload_not_available"] = MQTT_AVAILABILITY_OFFLINE;
+        populateMqttDiscoveryDevice(textDoc.createNestedObject("device"));
+      }
+      else
+      {
+        populateMqttDiscoveryDocument(
+            textDoc,
+            objectSuffix.c_str(),
+            displayName.c_str(),
+            getMqttTextWidgetStateTopic(pageIndex, widgetIndex));
+        textDoc["mode"] = "text";
+      }
+      textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
+      if (component == "notify")
+      {
+        textDoc["command_template"] = "{{ message }}";
+      }
+      textDoc["icon"] = "mdi:form-textbox";
+      textDoc["default_entity_id"] = component + "." + widget.mqttName;
+
+      if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic(component.c_str(), objectSuffix.c_str()), textDoc))
+      {
+        setLastMqttError(String("discovery_") + component + "_failed_" + widget.mqttName);
         success = false;
       }
     }

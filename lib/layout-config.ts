@@ -82,6 +82,7 @@ export type WidgetConfig = {
   type: WidgetType;
   label: string;
   mqttExpose?: boolean;
+  mqttMode?: TextWidgetMqttMode;
   mqttName?: string;
   clockStyle?: ClockStyle;
   showSeconds?: boolean;
@@ -101,6 +102,8 @@ export type PageConfig = {
   name: string;
   type: PageType;
   homeAssistant?: HomeAssistantBinding;
+  homeAssistantBindings?: HomeAssistantBinding[];
+  mediaShowActiveOnly?: boolean;
   widgets: WidgetConfig[];
 };
 
@@ -127,6 +130,8 @@ export const WIDGET_OPTIONS: Array<{ type: WidgetType; label: string }> = [
 ];
 
 export const TEXT_WIDGET_MQTT_NAME_PATTERN = /^[a-z0-9_]+$/;
+export const TEXT_WIDGET_MQTT_MODES = ["text", "notify"] as const;
+export type TextWidgetMqttMode = (typeof TEXT_WIDGET_MQTT_MODES)[number];
 
 function clampPercent(value: unknown, fallback = 50) {
   const parsed = Number(value);
@@ -209,6 +214,23 @@ export function isValidTextWidgetMqttName(value: unknown): value is string {
 export function getTextWidgetMqttEntityId(name: unknown) {
   const normalizedName = normalizeTextWidgetMqttName(name);
   return normalizedName.length > 0 ? `text.${normalizedName}` : "";
+}
+
+export function normalizeTextWidgetMqttMode(
+  value: unknown,
+): TextWidgetMqttMode {
+  return value === "notify" ? "notify" : "text";
+}
+
+export function getTextWidgetMqttEntityIdForMode(
+  name: unknown,
+  mode: unknown,
+) {
+  const normalizedName = normalizeTextWidgetMqttName(name);
+  if (normalizedName.length === 0) {
+    return "";
+  }
+  return `${normalizeTextWidgetMqttMode(mode)}.${normalizedName}`;
 }
 
 export function getDefaultWidgetLabel(type: WidgetType, index = 0) {
@@ -299,6 +321,7 @@ export function createWidget(type: WidgetType, index = 0): WidgetConfig {
       ...base,
       label: "Welcome home",
       mqttExpose: false,
+      mqttMode: "text",
       mqttName: "",
     };
   }
@@ -343,6 +366,8 @@ export function createPageOfType(
             : `Page ${index + 1}`,
     type,
     homeAssistant: undefined,
+    homeAssistantBindings: undefined,
+    mediaShowActiveOnly: isMediaPlayer ? true : undefined,
     widgets:
       isWeatherFocus || isMediaPlayer
         ? []
@@ -473,6 +498,7 @@ function normalizeWidget(
 
   if (type === "text") {
     normalized.mqttExpose = Boolean(candidate.mqttExpose);
+    normalized.mqttMode = normalizeTextWidgetMqttMode(candidate.mqttMode);
     normalized.mqttName = normalizeTextWidgetMqttName(candidate.mqttName);
   }
 
@@ -616,11 +642,34 @@ export function normalizeBuildConfig(input: unknown): BuildConfig {
           const homeAssistant = normalizeHomeAssistantBinding(
             rawPage.homeAssistant,
           );
+          const homeAssistantBindings = Array.isArray(
+            rawPage.homeAssistantBindings,
+          )
+            ? rawPage.homeAssistantBindings
+                .map(normalizeHomeAssistantBinding)
+                .filter(
+                  (binding): binding is HomeAssistantBinding =>
+                    binding !== undefined,
+                )
+            : [];
+          const normalizedHomeAssistantBindings =
+            type === "media-player"
+              ? homeAssistantBindings.length > 0
+                ? homeAssistantBindings
+                : homeAssistant
+                  ? [homeAssistant]
+                  : []
+              : undefined;
           return {
             id,
             name,
             type,
             homeAssistant,
+            homeAssistantBindings: normalizedHomeAssistantBindings,
+            mediaShowActiveOnly:
+              type === "media-player"
+                ? rawPage.mediaShowActiveOnly !== false
+                : undefined,
             widgets,
           };
         })
