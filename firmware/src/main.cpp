@@ -280,7 +280,7 @@
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
-static const char *FIRMWARE_VERSION_NAME = "0.4.5";
+static const char *FIRMWARE_VERSION_NAME = "0.4.6";
 static const char *IMPROV_DEVICE_NAME = "M5PaperS3";
 static const uint8_t IMPROV_HEADER_BYTES[] = {'I', 'M', 'P', 'R', 'O', 'V'};
 
@@ -4670,6 +4670,26 @@ static bool applyHomeAssistantStateToPage(
   if (page.pageType == UI_PAGE_WEATHER_FOCUS)
   {
     WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+    if (strcmp(rawState, "unavailable") == 0 ||
+        strcmp(rawState, "unknown") == 0 ||
+        strcmp(rawState, "none") == 0)
+    {
+      const bool changed =
+          state.available ||
+          state.supportsDailyForecast ||
+          state.supportsHourlyForecast ||
+          strcmp(state.condition, rawState) != 0;
+      state.available = false;
+      state.supportsDailyForecast = false;
+      state.supportsHourlyForecast = false;
+      snprintf(state.condition, sizeof(state.condition), "%s", rawState);
+      if (changed && redraw && pageIndex == currentPageIndex)
+      {
+        renderActivePage();
+      }
+      return changed;
+    }
+
     bool changed = false;
     float numericValue = 0.0f;
     int nextTemp = state.temperature;
@@ -5237,6 +5257,44 @@ static bool applyHomeAssistantStateToMatchingBindings(const char *entityId, Json
   return changed;
 }
 
+static bool markHomeAssistantEntityUnavailable(const char *entityId, bool redraw)
+{
+  if (entityId == nullptr || entityId[0] == '\0')
+  {
+    return false;
+  }
+
+  bool changed = false;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    const UiPageConfig &page = UI_PAGES[pageIndex];
+    if (page.pageType != UI_PAGE_WEATHER_FOCUS ||
+        !pageHasHomeAssistantBinding(pageIndex) ||
+        strcmp(page.entityId, entityId) != 0)
+    {
+      continue;
+    }
+
+    WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+    const bool pageChanged =
+        state.available ||
+        state.supportsDailyForecast ||
+        state.supportsHourlyForecast ||
+        strcmp(state.condition, "unavailable") != 0;
+    state.available = false;
+    state.supportsDailyForecast = false;
+    state.supportsHourlyForecast = false;
+    snprintf(state.condition, sizeof(state.condition), "unavailable");
+    changed = pageChanged || changed;
+    if (pageChanged && redraw && pageIndex == currentPageIndex)
+    {
+      renderActivePage();
+    }
+  }
+
+  return changed;
+}
+
 static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw, bool optional = false)
 {
   if (entityId == nullptr || entityId[0] == '\0')
@@ -5254,6 +5312,7 @@ static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw, boo
   }
   if (statusCode != HTTP_CODE_OK)
   {
+    markHomeAssistantEntityUnavailable(entityId, redraw);
     if (!optional || statusCode != HTTP_CODE_NOT_FOUND)
     {
       snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_%d", statusCode);
@@ -5889,11 +5948,11 @@ static void ensureHomeAssistantSocket()
   homeAssistantSocket.onEvent(handleHomeAssistantSocketEvent);
   if (homeAssistantUrl.secure)
   {
-    homeAssistantSocket.beginSSL(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str());
+    homeAssistantSocket.beginSSL(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str(), "", "");
   }
   else
   {
-    homeAssistantSocket.begin(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str());
+    homeAssistantSocket.begin(homeAssistantUrl.host.c_str(), homeAssistantUrl.port, wsPath.c_str(), "");
   }
   homeAssistantSocket.setReconnectInterval(5000);
   homeAssistantSocket.enableHeartbeat(15000, 3000, 2);
