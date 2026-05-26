@@ -1,12 +1,12 @@
 services:
   eink-hass-frame:
-    image: ${EINK_HASS_FRAME_DEV_IMAGE:-eink-hass-frame-dev:0.4.4}
+    image: ${EINK_HASS_FRAME_DEV_IMAGE:-eink-hass-frame-dev:0.4.5}
     build:
       context: .
       dockerfile: Dockerfile
       target: dev
       args:
-        BUILD_VERSION: ${EINK_HASS_FRAME_BUILD_VERSION:-0.4.4}
+        BUILD_VERSION: ${EINK_HASS_FRAME_BUILD_VERSION:-0.4.5}
     ports:
       - "3000:3000"
     environment:

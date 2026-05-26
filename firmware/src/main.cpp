@@ -280,7 +280,7 @@
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
-static const char *FIRMWARE_VERSION_NAME = "0.4.4";
+static const char *FIRMWARE_VERSION_NAME = "0.4.5";
 static const char *IMPROV_DEVICE_NAME = "M5PaperS3";
 static const uint8_t IMPROV_HEADER_BYTES[] = {'I', 'M', 'P', 'R', 'O', 'V'};
 
@@ -383,6 +383,8 @@ static constexpr int PAPERS3_USB_DET_THRESHOLD_MV = 200;
 static constexpr float PAPERS3_BATTERY_DIVIDER_RATIO = 2.0f;
 static const int WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
 static const int WEATHER_FOCUS_HOURLY_POINT_COUNT = 12;
+static constexpr int WEATHER_FEATURE_FORECAST_DAILY = 1 << 0;
+static constexpr int WEATHER_FEATURE_FORECAST_HOURLY = 1 << 1;
 static const int THERMOSTAT_HISTORY_POINT_COUNT = 24;
 static const size_t TEXT_WIDGET_VALUE_MAX_BYTES = 192;
 static constexpr uint8_t THERMOSTAT_MODE_BIT_OFF = 1 << 0;
@@ -590,6 +592,8 @@ typedef struct
   bool hasHumidity;
   bool hasWind;
   bool hasPressure;
+  bool supportsDailyForecast;
+  bool supportsHourlyForecast;
   char condition[32];
   uint8_t forecastCount;
   WeatherForecastRuntime forecast[WEATHER_FOCUS_FORECAST_DAY_COUNT];
@@ -4685,9 +4689,18 @@ static bool applyHomeAssistantStateToPage(
 
     char nextCondition[sizeof(state.condition)];
     snprintf(nextCondition, sizeof(nextCondition), "%s", rawState);
+    const int supportedFeatures = attributes["supported_features"] | -1;
+    const bool nextSupportsDailyForecast =
+        supportedFeatures < 0 ||
+        (supportedFeatures & WEATHER_FEATURE_FORECAST_DAILY) != 0;
+    const bool nextSupportsHourlyForecast =
+        supportedFeatures < 0 ||
+        (supportedFeatures & WEATHER_FEATURE_FORECAST_HOURLY) != 0;
     changed = state.temperature != nextTemp ||
               strcmp(state.temperatureUnit, nextTempUnit) != 0 ||
-              strcmp(state.condition, nextCondition) != 0;
+              strcmp(state.condition, nextCondition) != 0 ||
+              state.supportsDailyForecast != nextSupportsDailyForecast ||
+              state.supportsHourlyForecast != nextSupportsHourlyForecast;
 
     char nextFeelsLikeText[sizeof(state.feelsLikeText)];
     bool nextHasFeelsLike =
@@ -4734,6 +4747,8 @@ static bool applyHomeAssistantStateToPage(
               strcmp(state.pressureText, nextHasPressure ? nextPressureText : "") != 0;
 
     state.available = true;
+    state.supportsDailyForecast = nextSupportsDailyForecast;
+    state.supportsHourlyForecast = nextSupportsHourlyForecast;
     state.temperature = nextTemp;
     snprintf(state.temperatureUnit, sizeof(state.temperatureUnit), "%s", nextTempUnit);
     snprintf(state.condition, sizeof(state.condition), "%s", nextCondition);
@@ -5289,9 +5304,38 @@ static bool applyHomeAssistantForecastToMatchingWeatherPages(const char *entityI
   return changed;
 }
 
+static bool weatherEntityHasMatchingPageThatSupportsForecast(const char *entityId, const char *forecastType)
+{
+  if (entityId == nullptr || entityId[0] == '\0' || !entityIdHasDomain(entityId, "weather"))
+  {
+    return false;
+  }
+
+  const bool hourlyForecast = forecastType != nullptr && strcmp(forecastType, "hourly") == 0;
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    const UiPageConfig &page = UI_PAGES[pageIndex];
+    if (page.pageType != UI_PAGE_WEATHER_FOCUS ||
+        !pageHasHomeAssistantBinding(pageIndex) ||
+        strcmp(page.entityId, entityId) != 0)
+    {
+      continue;
+    }
+
+    const WeatherPageRuntimeState &state = weatherPageStates[pageIndex];
+    if (state.available &&
+        (hourlyForecast ? state.supportsHourlyForecast : state.supportsDailyForecast))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static bool fetchHomeAssistantWeatherForecast(const char *entityId, const char *forecastType, bool redraw)
 {
-  if (entityId == nullptr || entityId[0] == '\0')
+  if (!weatherEntityHasMatchingPageThatSupportsForecast(entityId, forecastType))
   {
     return false;
   }

@@ -4,6 +4,8 @@ static void initializeWidgetStates()
   {
     weatherPagePhases[pageIndex] = pageIndex % (int)(sizeof(WEATHER_FRAMES) / sizeof(WEATHER_FRAMES[0]));
     memset(&weatherPageStates[pageIndex], 0, sizeof(weatherPageStates[pageIndex]));
+    weatherPageStates[pageIndex].supportsDailyForecast = true;
+    weatherPageStates[pageIndex].supportsHourlyForecast = true;
     memset(&mediaPageStates[pageIndex], 0, sizeof(mediaPageStates[pageIndex]));
     for (int widgetIndex = 0; widgetIndex < UI_MAX_WIDGETS_PER_PAGE; widgetIndex++)
     {
