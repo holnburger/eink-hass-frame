@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -44,5 +46,6 @@ firmware/include/generated_*
 next-env.d.ts
 
 # pio build files
+/.platformio/
 firmware/.pio
 firmware/.platformio-local

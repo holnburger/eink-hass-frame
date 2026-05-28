@@ -44,8 +44,8 @@ test("renders the configurator for an active device", async ({ page }) => {
 
   const fontSelect = page.getByRole("combobox", { name: "Font" });
   await fontSelect.click();
-  await page.getByRole("option", { name: "7 Segment" }).click();
-  await expect(fontSelect).toContainText("7 Segment");
+  await page.getByRole("option", { name: "Mono" }).click();
+  await expect(fontSelect).toContainText("Mono");
   await expect(page.getByLabel("Preview clock time")).toBeVisible();
   await expect
     .poll(() =>
@@ -53,11 +53,13 @@ test("renders the configurator for an active device", async ({ page }) => {
         .getByLabel("Preview clock time")
         .evaluate((node) => window.getComputedStyle(node).fontFamily),
     )
-    .toContain("Seven Segment");
+    .toContain("monospace");
 
   const toggle = page.getByRole("switch", { name: "Preview mode: Light" });
   await toggle.click();
-  await expect(page.getByRole("switch", { name: "Preview mode: Dark" })).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Preview mode: Dark" }),
+  ).toBeVisible();
 
   const bordersToggle = page.getByRole("switch", {
     name: "Widget borders: Shown",

@@ -209,7 +209,7 @@ async function runCommand(command: string, args: string[], cwd: string) {
   });
 }
 
-async function createGeneratedConfig(
+export async function createGeneratedConfig(
   payload: BuildPayload,
   buildId: string,
   deviceHomeAssistantConfig: {

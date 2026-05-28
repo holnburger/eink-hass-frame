@@ -14,9 +14,9 @@ Status values:
 
 | ID | Status | Title |
 | --- | --- | --- |
-| RF-001 | Not started | Separate test runners and clean tracked local artifacts |
-| RF-002 | Not started | Add contract characterization tests for layout normalization |
-| RF-003 | Not started | Add contract characterization tests for generated firmware config |
+| RF-001 | Done | Separate test runners and clean tracked local artifacts |
+| RF-002 | Done | Add contract characterization tests for layout normalization |
+| RF-003 | Done | Add contract characterization tests for generated firmware config |
 | RF-004 | Not started | Extract firmware build route services |
 | RF-005 | Not started | Centralize server-side device host and OTA helpers |
 | RF-006 | Not started | Extract dashboard state hooks from `app/page.tsx` |
@@ -31,7 +31,7 @@ Status values:
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -65,9 +65,19 @@ Definition of done:
 - Local generated report/state files are no longer tracked.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-28.
+- Added `test` and `test:unit` scripts so Bun unit tests run through `bun test lib scripts`.
+- Renamed the Playwright spec to `tests/home.e2e.ts` and configured Playwright to match `*.e2e.ts`, so raw `bun test` no longer imports Playwright specs.
+- Updated the e2e font-selection assertion to use the current `Mono` font option.
+- Added ignores for `/.platformio/`, `/playwright-report/`, and `/test-results/`.
+- Removed `.platformio/.cache/telemetry.json`, `.platformio/appstate.json`, `playwright-report/index.html`, and `test-results/.last-run.json` from the Git index only; the local files remain on disk.
+- Verification: `bun test lib scripts` passed, `bun run test:unit` passed, raw `bun test` passed, `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning, `bun run test:e2e` passed, and `git status --short` shows the generated artifact removals plus the RF-001 edits.
+
 ## RF-002 Add Contract Characterization Tests For Layout Normalization
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -98,9 +108,16 @@ Definition of done:
 - No production behavior changes.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-28.
+- Added `lib/layout-config.test.ts` characterization coverage for `createWidget`, `createPageOfType`, `normalizeBuildConfig`, text widget MQTT name/mode normalization, legacy single-page migration, page/widget limits, weather/media no-widget page rules, overview/standard button-switch conversion, and media-player `homeAssistant` to `homeAssistantBindings` fallback.
+- No production behavior changes.
+- Verification: `bun test lib` passed with 14 tests, and `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning.
+
 ## RF-003 Add Contract Characterization Tests For Generated Firmware Config
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -129,6 +146,14 @@ Definition of done:
 - Generated config contract has tests that fail on accidental ABI drift.
 - No PlatformIO build is required for the tests.
 - Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-28.
+- Exported the existing `createGeneratedConfig` helper from `app/api/firmware/build/route.ts` as the minimal test seam.
+- Added `app/api/firmware/build/route.test.ts` characterization coverage for generated firmware header defines, page/widget enum values, text MQTT mode enum values, `UiWidgetConfig` and `UiPageConfig` field order, page/widget initializer order, text MQTT fields, media player entity arrays capped at four, and Home Assistant URL/token escaping.
+- No PlatformIO build is required by these tests.
+- Verification: `bun test lib app scripts` passed with 19 tests, and `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning.
 
 ## RF-004 Extract Firmware Build Route Services
 
