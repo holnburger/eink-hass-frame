@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { createGeneratedConfig } from "@/app/api/firmware/build/route";
+import {
+  collectExposedTextWidgets,
+  createGeneratedConfig,
+  findDuplicateExposedTextWidgets,
+  findInvalidExposedTextWidgets,
+  getMissingDeviceHomeAssistantRequirements,
+  summarizeCommandLog,
+} from "@/lib/server/firmware-build";
 
 describe("createGeneratedConfig", () => {
   test("generates stable firmware header enums and struct field order", async () => {
@@ -244,5 +251,138 @@ describe("createGeneratedConfig", () => {
       '  {UI_PAGE_MEDIA_PLAYER, "Media", 0, "media_player.legacy", 4, 1, {"media_player.one", "media_player.two", "media_player.three", "media_player.four"}, {{UI_WIDGET_NONE, "", "", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, 0, UI_TEXT_MQTT_MODE_TEXT, "", ""}, {UI_WIDGET_NONE, "", "", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, 0, UI_TEXT_MQTT_MODE_TEXT, "", ""}, {UI_WIDGET_NONE, "", "", 0, 0, 100, 0, UI_CLOCK_DIGITAL, 1, 0, 0, 0, 0, UI_TEXT_MQTT_MODE_TEXT, "", ""}}}',
     );
     expect(header).not.toContain("media_player.five");
+  });
+});
+
+describe("firmware build validation helpers", () => {
+  test("collects and validates exposed MQTT text widgets", () => {
+    const widgets = collectExposedTextWidgets({
+      pages: [
+        {
+          name: "Main",
+          widgets: [
+            {
+              id: "first",
+              type: "text",
+              label: "First",
+              mqttExpose: true,
+              mqttMode: "notify",
+              mqttName: "shared_name",
+            },
+            {
+              id: "second",
+              type: "text",
+              label: "Second",
+              mqttExpose: true,
+              mqttMode: "text",
+              mqttName: "shared_name",
+            },
+            {
+              id: "missing",
+              type: "text",
+              label: "Missing",
+              mqttExpose: true,
+              mqttName: "",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(widgets).toEqual([
+      {
+        pageName: "Main",
+        widgetId: "first",
+        widgetLabel: "First",
+        mqttName: "shared_name",
+        mqttMode: "notify",
+        entityId: "notify.shared_name",
+      },
+      {
+        pageName: "Main",
+        widgetId: "second",
+        widgetLabel: "Second",
+        mqttName: "shared_name",
+        mqttMode: "text",
+        entityId: "text.shared_name",
+      },
+      {
+        pageName: "Main",
+        widgetId: "missing",
+        widgetLabel: "Missing",
+        mqttName: "",
+        mqttMode: "text",
+        entityId: "",
+      },
+    ]);
+    expect(findInvalidExposedTextWidgets(widgets).map((widget) => widget.widgetId)).toEqual([
+      "missing",
+    ]);
+    expect(findDuplicateExposedTextWidgets(widgets)).toEqual([]);
+
+    const duplicateWidgets = collectExposedTextWidgets({
+      pages: [
+        {
+          name: "Main",
+          widgets: [
+            {
+              id: "first",
+              type: "text",
+              label: "First",
+              mqttExpose: true,
+              mqttMode: "text",
+              mqttName: "shared_name",
+            },
+            {
+              id: "second",
+              type: "text",
+              label: "Second",
+              mqttExpose: true,
+              mqttMode: "text",
+              mqttName: "shared_name",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      findDuplicateExposedTextWidgets(duplicateWidgets).map(
+        (widget) => widget.widgetId,
+      ),
+    ).toEqual(["first", "second"]);
+  });
+
+  test("reports missing device Home Assistant build requirements", () => {
+    expect(
+      getMissingDeviceHomeAssistantRequirements({ url: "", token: "" }),
+    ).toEqual([
+      "device Home Assistant local address",
+      "device long-lived access token",
+    ]);
+    expect(
+      getMissingDeviceHomeAssistantRequirements({
+        url: "http://homeassistant.local:8123",
+        token: "token",
+      }),
+    ).toEqual([]);
+  });
+
+  test("summarizes command logs around priority failure lines", () => {
+    expect(
+      summarizeCommandLog(
+        [
+          "setup",
+          "\u001B[31merror: first failure\u001B[0m",
+          "context",
+          "fatal: final failure",
+        ].join("\n"),
+        1,
+      ),
+    ).toBe("fatal: final failure");
+
+    expect(summarizeCommandLog(["one", "two", "three"].join("\n"), 2)).toBe(
+      "two\nthree",
+    );
   });
 });

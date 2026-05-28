@@ -17,8 +17,8 @@ Status values:
 | RF-001 | Done | Separate test runners and clean tracked local artifacts |
 | RF-002 | Done | Add contract characterization tests for layout normalization |
 | RF-003 | Done | Add contract characterization tests for generated firmware config |
-| RF-004 | Not started | Extract firmware build route services |
-| RF-005 | Not started | Centralize server-side device host and OTA helpers |
+| RF-004 | Done | Extract firmware build route services |
+| RF-005 | Done | Centralize server-side device host and OTA helpers |
 | RF-006 | Not started | Extract dashboard state hooks from `app/page.tsx` |
 | RF-007 | Not started | Extract editor components from `app/page.tsx` |
 | RF-008 | Not started | Extract preview pure helpers and fix preview lint warning |
@@ -157,7 +157,7 @@ Completion notes:
 
 ## RF-004 Extract Firmware Build Route Services
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -192,9 +192,18 @@ Definition of done:
 - Firmware build still exports the same artifacts.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-28.
+- Added `lib/server/firmware-build.ts` for the build payload type, generated firmware config output, text widget MQTT collection/validation helpers, device Home Assistant requirement checks, command log summarization, PlatformIO runtime setup, firmware asset generation, command execution, and artifact export.
+- Updated `app/api/firmware/build/route.ts` to focus on request parsing, validation response mapping, build stage response mapping, and success metadata.
+- Updated `app/api/firmware/build/route.test.ts` to import generated config helpers from the service module and cover the extracted text widget validation, missing Home Assistant requirement, and command log summary helpers.
+- Preserved `/api/firmware/build` response stages, status codes, artifact names, PlatformIO environment `m5papers3`, generated header ABI, text widget MQTT entity semantics, and local/add-on artifact paths.
+- Verification: `bun test lib app scripts` passed with 22 tests, `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning, `bun run build` passed, and `cd firmware && pio run -e m5papers3` passed.
+
 ## RF-005 Centralize Server-Side Device Host And OTA Helpers
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -224,6 +233,15 @@ Definition of done:
 - Unit tests cover helper behavior.
 - OTA response shapes and statuses remain compatible.
 - Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-28.
+- Added `lib/server/device-proxy.ts` for device host normalization, host allow-listing, loopback detection, host port stripping, device URL creation, timeout fetches, and device response body truncation.
+- Updated `app/api/device/health/route.ts` and `app/api/device/ota/route.ts` to use the shared helpers while preserving response shapes, statuses, direct upload behavior, legacy URL fallback behavior, and loopback-host safeguards.
+- Added `lib/server/device-proxy.test.ts` coverage for current host normalization/validation strictness, loopback detection, host port stripping, device URL creation, and body truncation.
+- Verification: `bun test lib app` passed with 24 tests, `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning, and `bun run build` passed.
+- Manual dry-run check: `POST /api/device/ota` with `dryRun: true` returned `ok: true`, `uploadReady: false`, the expected missing-artifact message, and a LAN firmware URL. Positive `uploadReady: true` dry-run was skipped because `.firmware-artifacts/firmware.bin` is not present in the local artifacts directory.
 
 ## RF-006 Extract Dashboard State Hooks From `app/page.tsx`
 

@@ -5,6 +5,15 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 
 import { resolveAppPath } from "@/lib/app-path";
+import {
+  fetchWithTimeout,
+  getDeviceHttpUrl,
+  getHostWithoutPort,
+  isAllowedDeviceHost,
+  isLoopbackHost,
+  normalizeDeviceHost,
+  readTruncatedDeviceBody,
+} from "@/lib/server/device-proxy";
 import { getArtifactsDir } from "@/lib/server/firmware-artifacts";
 import { detectIngressPathFromHeaders } from "@/lib/server/ingress";
 
@@ -19,19 +28,6 @@ type OtaProxyPayload = {
 const OTA_TIMEOUT_MS = 180000;
 const DIRECT_UPLOAD_ENDPOINT = "/api/ota/upload";
 const LEGACY_OTA_ENDPOINT = "/api/ota";
-
-function normalizeDeviceHost(raw: string) {
-  return raw.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-}
-
-function isAllowedHost(host: string) {
-  return /^([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+$/.test(host) || /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
-}
-
-function isLoopbackHost(host: string) {
-  const normalized = host.toLowerCase();
-  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
-}
 
 function resolveFirmwareUrl(request: Request) {
   const rawHost = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim();
@@ -48,7 +44,7 @@ function resolveFirmwareUrl(request: Request) {
     };
   }
 
-  const hostWithoutPort = rawHost.replace(/:\d+$/, "");
+  const hostWithoutPort = getHostWithoutPort(rawHost);
   if (isLoopbackHost(hostWithoutPort)) {
     return {
       ok: false as const,
@@ -77,20 +73,6 @@ async function readFirmwareArtifact() {
   }
 }
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs = OTA_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-      cache: "no-store",
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function sendDirectUpload(deviceHost: string) {
   const artifact = await readFirmwareArtifact();
   if (!artifact.ok) {
@@ -110,15 +92,19 @@ async function sendDirectUpload(deviceHost: string) {
   const body = Buffer.concat([multipartHeader, artifact.firmware, multipartFooter]);
 
   try {
-    const response = await fetchWithTimeout(`http://${deviceHost}${DIRECT_UPLOAD_ENDPOINT}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    const response = await fetchWithTimeout(
+      getDeviceHttpUrl(deviceHost, DIRECT_UPLOAD_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
       },
-      body,
-    });
+      OTA_TIMEOUT_MS,
+    );
 
-    const bodyText = await response.text().catch(() => "");
+    const bodyText = await readTruncatedDeviceBody(response);
     if (response.ok) {
       return {
         ok: true as const,
@@ -147,13 +133,17 @@ async function sendDirectUpload(deviceHost: string) {
 
 async function sendLegacyUrlOta(deviceHost: string, firmwareUrl: string) {
   try {
-    const response = await fetchWithTimeout(`http://${deviceHost}${LEGACY_OTA_ENDPOINT}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firmwareUrl }),
-    });
+    const response = await fetchWithTimeout(
+      getDeviceHttpUrl(deviceHost, LEGACY_OTA_ENDPOINT),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firmwareUrl }),
+      },
+      OTA_TIMEOUT_MS,
+    );
 
-    const bodyText = await response.text().catch(() => "");
+    const bodyText = await readTruncatedDeviceBody(response);
     if (response.ok) {
       return {
         ok: true as const,
@@ -181,7 +171,7 @@ export async function POST(request: Request) {
   const payload = ((await request.json().catch(() => ({}))) ?? {}) as OtaProxyPayload;
   const deviceHost = normalizeDeviceHost(payload.deviceIp ?? "");
 
-  if (!deviceHost || !isAllowedHost(deviceHost)) {
+  if (!deviceHost || !isAllowedDeviceHost(deviceHost)) {
     return NextResponse.json({ ok: false, error: "Invalid device IP/host." }, { status: 400 });
   }
 
