@@ -280,7 +280,7 @@
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
-static const char *FIRMWARE_VERSION_NAME = "0.4.6";
+static const char *FIRMWARE_VERSION_NAME = "0.4.7";
 static const char *IMPROV_DEVICE_NAME = "M5PaperS3";
 static const uint8_t IMPROV_HEADER_BYTES[] = {'I', 'M', 'P', 'R', 'O', 'V'};
 
@@ -7338,7 +7338,7 @@ static String getMqttTextWidgetStateTopic(int pageIndex, int widgetIndex)
   return getMqttTopic(suffix.c_str());
 }
 
-static String getMqttTextWidgetCommandTopic(int pageIndex, int widgetIndex)
+static String getMqttTextWidgetCommandTopic(int pageIndex, int widgetIndex, bool legacyTextTopic = false)
 {
   if (pageIndex < 0 || pageIndex >= UI_PAGE_COUNT)
   {
@@ -7351,7 +7351,8 @@ static String getMqttTextWidgetCommandTopic(int pageIndex, int widgetIndex)
     return String();
   }
 
-  const String suffix = String("widgets/text/") + widget.mqttName + "/set";
+  const String component = !legacyTextTopic && textWidgetUsesMqttNotify(widget) ? "notify" : "text";
+  const String suffix = String("widgets/") + component + "/" + widget.mqttName + "/set";
   return getMqttTopic(suffix.c_str());
 }
 
@@ -7441,6 +7442,31 @@ static void publishMqttTextWidgetStates()
   }
 }
 
+static String normalizeMqttTextWidgetCommandPayload(const String &payload)
+{
+  DynamicJsonDocument document(512);
+  const DeserializationError error = deserializeJson(document, payload);
+  if (error)
+  {
+    return payload;
+  }
+
+  if (document.is<const char *>())
+  {
+    return String(document.as<const char *>());
+  }
+
+  JsonObjectConst object = document.as<JsonObjectConst>();
+  const char *message = object["message"] | "";
+  if (message[0] != '\0')
+  {
+    return String(message);
+  }
+
+  const char *nestedMessage = object["data"]["message"] | "";
+  return nestedMessage[0] != '\0' ? String(nestedMessage) : payload;
+}
+
 static bool handleMqttTextWidgetCommand(const String &topic, const String &payload)
 {
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
@@ -7453,9 +7479,15 @@ static bool handleMqttTextWidgetCommand(const String &topic, const String &paylo
         continue;
       }
 
-      if (topic == getMqttTextWidgetCommandTopic(pageIndex, widgetIndex))
+      if (topic == getMqttTextWidgetCommandTopic(pageIndex, widgetIndex) ||
+          topic == getMqttTextWidgetCommandTopic(pageIndex, widgetIndex, true))
       {
-        applyMqttTextWidgetValue(pageIndex, widgetIndex, payload, true, true);
+        applyMqttTextWidgetValue(
+            pageIndex,
+            widgetIndex,
+            normalizeMqttTextWidgetCommandPayload(payload),
+            true,
+            true);
         return true;
       }
     }
@@ -8122,6 +8154,12 @@ static bool ensureMqttConnected()
       subscribed =
           mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex).c_str()) &&
           subscribed;
+      if (textWidgetUsesMqttNotify(widget))
+      {
+        subscribed =
+            mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex, true).c_str()) &&
+            subscribed;
+      }
     }
   }
 
