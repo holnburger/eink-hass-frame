@@ -1,13 +1,13 @@
 services:
   eink-hass-frame:
-    image: ${EINK_HASS_FRAME_IMAGE:-ghcr.io/holnburger/eink-hass-frame:0.4.8}
+    image: ${EINK_HASS_FRAME_IMAGE:-ghcr.io/holnburger/eink-hass-frame:0.9.0}
     pull_policy: missing
     build:
       context: .
       dockerfile: Dockerfile
       target: runner
       args:
-        BUILD_VERSION: ${EINK_HASS_FRAME_BUILD_VERSION:-0.4.8}
+        BUILD_VERSION: ${EINK_HASS_FRAME_BUILD_VERSION:-0.9.0}
     ports:
       - "3000:3000"
     environment:
