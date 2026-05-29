@@ -19,10 +19,10 @@ Status values:
 | RF-003 | Done | Add contract characterization tests for generated firmware config |
 | RF-004 | Done | Extract firmware build route services |
 | RF-005 | Done | Centralize server-side device host and OTA helpers |
-| RF-006 | Not started | Extract dashboard state hooks from `app/page.tsx` |
-| RF-007 | Not started | Extract editor components from `app/page.tsx` |
-| RF-008 | Not started | Extract preview pure helpers and fix preview lint warning |
-| RF-009 | Not started | Split preview pages and widgets into focused modules |
+| RF-006 | Done | Extract dashboard state hooks from `app/page.tsx` |
+| RF-007 | Done | Extract editor components from `app/page.tsx` |
+| RF-008 | Done | Extract preview pure helpers and fix preview lint warning |
+| RF-009 | Done | Split preview pages and widgets into focused modules |
 | RF-010 | Not started | Extract firmware pure utilities from `main.cpp` |
 | RF-011 | Not started | Introduce firmware MQTT module boundary |
 | RF-012 | Not started | Introduce firmware Home Assistant module boundary |
@@ -245,7 +245,7 @@ Completion notes:
 
 ## RF-006 Extract Dashboard State Hooks From `app/page.tsx`
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -283,9 +283,18 @@ Definition of done:
 - Existing onboarding and active-device Playwright flows still pass.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added focused hooks for runtime info and ingress path resolution, legacy Home Assistant session config migration, saved device persistence/active-device state, Home Assistant live-state polling, MQTT text-widget entity validation, and layout editor state/mutations.
+- Kept browser storage keys unchanged: `hass.darkMode`, `hass.layout.hideWidgetBorders`, `hass.layout.font`, `hass.layout.pages`, `hass.layout.fullRefreshEvery`, `hass.homeAssistant`, `hass.savedDevices`, and `hass.activeDeviceId`.
+- Preserved Home Assistant add-on/Supervisor fallback behavior, `/api/runtime-info` lookup behavior, `/api/home-assistant/states` polling at 5000 ms, and `/api/home-assistant/entity-presence` validation debounce at 350 ms.
+- Added hook-adjacent characterization tests for the persisted saved-device shape and text-widget MQTT validation entity IDs, empty names, and duplicate layout names.
+- Verification: `bun test lib hooks app` passed with 28 tests, `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning, `bun run build` passed, and `bun run test:e2e` passed with 3 tests after freeing port 3000.
+
 ## RF-007 Extract Editor Components From `app/page.tsx`
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -319,9 +328,17 @@ Definition of done:
 - Existing Playwright editor flows pass.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `components/dashboard/layout-editor-card.tsx` and moved the editor render tree, `SliderIconPickerDialog`, `EditablePageTab`, `EditableWidgetCard`, page controls, widget controls, media-player binding controls, drag/reorder UI, and text-widget validation UI out of `app/page.tsx`.
+- Kept the existing layout model mutations, page/widget conversion behavior, media-player binding behavior, Home Assistant entity picker props, supported-domain filtering, drag/reorder semantics, and text-widget validation display behavior unchanged.
+- `app/page.tsx` now wires dashboard hooks and renders top-level page sections while delegating editor UI to `LayoutEditorCard`.
+- Verification: `bun run lint` passed with the pre-existing `components/dashboard/device-preview.tsx` unused `darkMode` warning, `bun run build` passed, and `bun run test:e2e` passed with 3 tests.
+
 ## RF-008 Extract Preview Pure Helpers And Fix Preview Lint Warning
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -358,9 +375,17 @@ Definition of done:
 - Visual output is intended to be unchanged.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `components/dashboard/preview-helpers.ts` for weather condition icon mapping, weather daily/hourly fallback data, thermostat history fallback data, media title truncation, rain chance mapping, and temperature point labels.
+- Added focused tests in `components/dashboard/preview-helpers.test.ts` covering extracted helper behavior and existing fallback output shapes.
+- Removed the unused `darkMode` prop from `PreviewOverviewWeather`, clearing the known `device-preview.tsx` lint warning without changing the rendered overview weather layout.
+- Verification: `bun test lib components` passed with 25 tests, `bun run lint` passed with no warnings, `bun run build` passed, and `bun run test:e2e` passed with 3 tests.
+
 ## RF-009 Split Preview Pages And Widgets Into Focused Modules
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -396,6 +421,14 @@ Definition of done:
 - Component files have focused responsibilities.
 - Existing preview-related Playwright checks pass.
 - Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `components/dashboard/preview/page-renderer.tsx` for preview page and widget rendering, including overview pages, weather-focus pages, media-player pages, standard page widgets, and their private preview subcomponents.
+- Reduced `components/dashboard/device-preview.tsx` to the device shell, active-page clamping, page header, and preview navigation controls; it now delegates active page content to `PreviewPageRenderer`.
+- Kept preview props, active-page navigation, Home Assistant state resolution, media-player fallback behavior, weather fallback behavior, widget rendering decisions, and visual output intended to be unchanged.
+- Verification: `bun test lib components` passed with 25 tests, `bun run lint` passed, `bun run build` passed, and `bun run test:e2e` passed with 3 tests.
 
 ## RF-010 Extract Firmware Pure Utilities From `main.cpp`
 
