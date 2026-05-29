@@ -7800,7 +7800,7 @@ static bool publishMqttDiscoveryConfig()
       textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
       if (component == "notify")
       {
-        textDoc["command_template"] = "{{ message }}";
+        textDoc["command_template"] = "{{ value }}";
       }
       textDoc["icon"] = "mdi:form-textbox";
       textDoc["default_entity_id"] = component + "." + widget.mqttName;
