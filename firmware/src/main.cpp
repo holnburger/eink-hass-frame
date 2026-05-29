@@ -30,7 +30,11 @@
 #endif
 
 #include "device_config.h"
+#include "device_web_helpers.h"
+#include "firmware_utils.h"
 #include "generated_ui_config.h"
+#include "home_assistant_helpers.h"
+#include "mqtt_helpers.h"
 #if __has_include("generated_mdi_icons.h")
 #include "generated_mdi_icons.h"
 #define UI_MDI_ICONS_AVAILABLE 1
@@ -326,15 +330,6 @@ static bool improvProvisioningActive = false;
 static uint8_t improvPacketBuffer[256];
 static size_t improvPacketLength = 0;
 static size_t improvExpectedLength = 0;
-
-struct ParsedUrl
-{
-  bool valid;
-  bool secure;
-  uint16_t port;
-  String host;
-  String basePath;
-};
 
 struct MqttConfig
 {
@@ -661,130 +656,10 @@ static bool isPointInRectExpanded(int x, int y, const BB_RECT &rect, int pad)
   return isPointInRect(x, y, expanded);
 }
 
-static String normalizeDisplayText(const char *text)
-{
-  return text == nullptr ? "" : String(text);
-}
-
 static void getDisplayStringBox(const char *text, BB_RECT *bounds)
 {
   const String normalized = normalizeDisplayText(text);
   display.getStringBox(normalized.c_str(), bounds);
-}
-
-static size_t utf8CodepointLength(const char *text)
-{
-  if (text == nullptr || text[0] == '\0')
-  {
-    return 0;
-  }
-
-  const uint8_t lead = static_cast<uint8_t>(text[0]);
-  if (lead < 0x80)
-  {
-    return 1;
-  }
-  if ((lead & 0xE0) == 0xC0 && text[1] != '\0' && (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80)
-  {
-    return 2;
-  }
-  if ((lead & 0xF0) == 0xE0 &&
-      text[1] != '\0' &&
-      text[2] != '\0' &&
-      (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80 &&
-      (static_cast<uint8_t>(text[2]) & 0xC0) == 0x80)
-  {
-    return 3;
-  }
-  if ((lead & 0xF8) == 0xF0 &&
-      text[1] != '\0' &&
-      text[2] != '\0' &&
-      text[3] != '\0' &&
-      (static_cast<uint8_t>(text[1]) & 0xC0) == 0x80 &&
-      (static_cast<uint8_t>(text[2]) & 0xC0) == 0x80 &&
-      (static_cast<uint8_t>(text[3]) & 0xC0) == 0x80)
-  {
-    return 4;
-  }
-  return 1;
-}
-
-static size_t utf8CharacterCount(const char *text)
-{
-  if (text == nullptr)
-  {
-    return 0;
-  }
-
-  size_t count = 0;
-  for (size_t offset = 0; text[offset] != '\0';)
-  {
-    const size_t charLen = utf8CodepointLength(text + offset);
-    offset += charLen > 0 ? charLen : 1;
-    count++;
-  }
-  return count;
-}
-
-static size_t copyUtf8Prefix(const char *input, size_t maxChars, char *output, size_t outputLen)
-{
-  if (outputLen == 0)
-  {
-    return 0;
-  }
-
-  output[0] = '\0';
-  if (input == nullptr || maxChars == 0)
-  {
-    return 0;
-  }
-
-  const size_t maxBytes = outputLen - 1;
-  size_t bytesWritten = 0;
-  size_t charsWritten = 0;
-  while (input[bytesWritten] != '\0' && charsWritten < maxChars)
-  {
-    const size_t charLen = utf8CodepointLength(input + bytesWritten);
-    if (charLen == 0 || bytesWritten + charLen > maxBytes)
-    {
-      break;
-    }
-    memcpy(output + bytesWritten, input + bytesWritten, charLen);
-    bytesWritten += charLen;
-    charsWritten++;
-  }
-  output[bytesWritten] = '\0';
-  return charsWritten;
-}
-
-static void copyUtf8StringToBuffer(const String &input, char *output, size_t outputLen)
-{
-  if (outputLen == 0)
-  {
-    return;
-  }
-
-  output[0] = '\0';
-  const char *raw = input.c_str();
-  if (raw == nullptr || raw[0] == '\0')
-  {
-    return;
-  }
-
-  const size_t maxBytes = outputLen - 1;
-  size_t bytesWritten = 0;
-  while (raw[bytesWritten] != '\0')
-  {
-    const size_t charLen = utf8CodepointLength(raw + bytesWritten);
-    if (charLen == 0 || bytesWritten + charLen > maxBytes)
-    {
-      break;
-    }
-
-    memcpy(output + bytesWritten, raw + bytesWritten, charLen);
-    bytesWritten += charLen;
-  }
-  output[bytesWritten] = '\0';
 }
 
 static int centeredX(const char *text)
@@ -1625,27 +1500,6 @@ static void drawSevenSegmentColon(int x, int y, int w, int h, int thickness)
   int bottomY = y + ((2 * h) / 3) - (dotSize / 2);
   display.fillRect(cx, topY, dotSize, dotSize, uiMonoInk());
   display.fillRect(cx, bottomY, dotSize, dotSize, uiMonoInk());
-}
-
-static int clampInt(int value, int minValue, int maxValue)
-{
-  if (value < minValue)
-  {
-    return minValue;
-  }
-  if (value > maxValue)
-  {
-    return maxValue;
-  }
-  return value;
-}
-
-static void formatTemperatureTenths(int valueTenths, char *out, size_t outLen)
-{
-  const int absValue = abs(valueTenths);
-  const int whole = absValue / 10;
-  const int fraction = absValue % 10;
-  snprintf(out, outLen, "%s%d.%d", valueTenths < 0 ? "-" : "", whole, fraction);
 }
 
 static WidgetRuntimeState &getWidgetState(int pageIndex, int widgetIndex)
@@ -2840,29 +2694,6 @@ static bool advanceMediaPagePlaybackClock(int pageIndex, uint32_t nowMs)
          reachedEnd;
 }
 
-static String getEntityDomainString(const char *entityId)
-{
-  if (entityId == nullptr || entityId[0] == '\0')
-  {
-    return "";
-  }
-  String domain = entityId;
-  const int separator = domain.indexOf('.');
-  return separator > 0 ? domain.substring(0, separator) : "";
-}
-
-static bool entityIdHasDomain(const char *entityId, const char *domain)
-{
-  if (entityId == nullptr || domain == nullptr)
-  {
-    return false;
-  }
-
-  const size_t domainLength = strlen(domain);
-  return strncmp(entityId, domain, domainLength) == 0 &&
-         entityId[domainLength] == '.';
-}
-
 static bool widgetUsesCoverDomain(const UiWidgetConfig &widget)
 {
   return entityIdHasDomain(widget.entityId, "cover");
@@ -2914,108 +2745,6 @@ static bool coverStateIsOpenLike(const char *rawState)
          (strcmp(rawState, "open") == 0 ||
           strcmp(rawState, "opening") == 0 ||
           strcmp(rawState, "closing") == 0);
-}
-
-static bool parseHomeAssistantUrl(const char *rawUrl, ParsedUrl &parsed)
-{
-  parsed = {false, false, 0, "", ""};
-  if (rawUrl == nullptr || rawUrl[0] == '\0')
-  {
-    return false;
-  }
-
-  String url = rawUrl;
-  url.trim();
-  if (url.length() == 0)
-  {
-    return false;
-  }
-
-  if (url.endsWith("/"))
-  {
-    url.remove(url.length() - 1);
-  }
-
-  if (url.startsWith("https://"))
-  {
-    parsed.secure = true;
-    parsed.port = 443;
-    url.remove(0, 8);
-  }
-  else if (url.startsWith("http://"))
-  {
-    parsed.secure = false;
-    parsed.port = 80;
-    url.remove(0, 7);
-  }
-  else
-  {
-    return false;
-  }
-
-  const int slashIndex = url.indexOf('/');
-  String hostPort = slashIndex >= 0 ? url.substring(0, slashIndex) : url;
-  parsed.basePath = slashIndex >= 0 ? url.substring(slashIndex) : "";
-  if (parsed.basePath.endsWith("/"))
-  {
-    parsed.basePath.remove(parsed.basePath.length() - 1);
-  }
-
-  const int colonIndex = hostPort.indexOf(':');
-  if (colonIndex >= 0)
-  {
-    parsed.host = hostPort.substring(0, colonIndex);
-    const int parsedPort = hostPort.substring(colonIndex + 1).toInt();
-    if (parsedPort > 0 && parsedPort <= 65535)
-    {
-      parsed.port = static_cast<uint16_t>(parsedPort);
-    }
-  }
-  else
-  {
-    parsed.host = hostPort;
-  }
-
-  parsed.valid = parsed.host.length() > 0;
-  return parsed.valid;
-}
-
-static String joinBasePathAndSuffix(const String &basePath, const String &suffix)
-{
-  if (basePath.length() == 0)
-  {
-    return suffix;
-  }
-  if (suffix.startsWith("/"))
-  {
-    return basePath + suffix;
-  }
-  return basePath + "/" + suffix;
-}
-
-static String getHomeAssistantBaseUrl()
-{
-  const char *scheme = homeAssistantUrl.secure ? "https://" : "http://";
-  String url = String(scheme) + homeAssistantUrl.host;
-  const bool usingDefaultPort =
-      (homeAssistantUrl.secure && homeAssistantUrl.port == 443) ||
-      (!homeAssistantUrl.secure && homeAssistantUrl.port == 80);
-  if (!usingDefaultPort)
-  {
-    url += ":";
-    url += homeAssistantUrl.port;
-  }
-  return url;
-}
-
-static String getHomeAssistantApiUrl(const String &suffix)
-{
-  return getHomeAssistantBaseUrl() + joinBasePathAndSuffix(homeAssistantUrl.basePath, suffix);
-}
-
-static String getHomeAssistantWebSocketPath()
-{
-  return joinBasePathAndSuffix(homeAssistantUrl.basePath, "/api/websocket");
 }
 
 static uint8_t *allocateMediaCoverBuffer(size_t size)
@@ -3092,7 +2821,7 @@ static bool resolveMediaCoverUrl(const char *rawCoverUrl, String &resolvedUrl, b
     return false;
   }
 
-  const String homeAssistantBaseUrl = getHomeAssistantBaseUrl();
+  const String homeAssistantBaseUrl = getHomeAssistantBaseUrl(homeAssistantUrl);
   if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://"))
   {
     resolvedUrl = coverUrl;
@@ -5112,10 +4841,11 @@ static bool fetchHomeAssistantThermostatHistory(const char *entityId, bool redra
   String responseBody;
   int statusCode = 0;
   const String requestUrl = getHomeAssistantApiUrl(
+      homeAssistantUrl,
       String("/api/history/period/") + startIso +
-      "?filter_entity_id=" + entityId +
-      "&end_time=" + endIso +
-      "&significant_changes_only=0");
+          "?filter_entity_id=" + entityId +
+          "&end_time=" + endIso +
+          "&significant_changes_only=0");
   if (!homeAssistantRequest("GET", requestUrl, "", responseBody, statusCode))
   {
     return false;
@@ -5304,7 +5034,7 @@ static bool fetchHomeAssistantEntityState(const char *entityId, bool redraw, boo
 
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl(String("/api/states/") + entityId);
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, String("/api/states/") + entityId);
   if (!homeAssistantRequest("GET", requestUrl, "", responseBody, statusCode))
   {
     snprintf(lastHomeAssistantError, sizeof(lastHomeAssistantError), "HA_HTTP_BEGIN_FAILED");
@@ -5401,7 +5131,7 @@ static bool fetchHomeAssistantWeatherForecast(const char *entityId, const char *
 
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl("/api/services/weather/get_forecasts?return_response");
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, "/api/services/weather/get_forecasts?return_response");
   const String payload = String("{\"entity_id\":\"") + entityId + "\",\"type\":\"" + (forecastType != nullptr ? forecastType : "daily") + "\"}";
   if (!homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode))
   {
@@ -5702,7 +5432,7 @@ static bool callHomeAssistantServiceForWidget(int pageIndex, int widgetIndex)
 
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + serviceDomain + "/" + service);
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, String("/api/services/") + serviceDomain + "/" + service);
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -5735,7 +5465,7 @@ static bool callHomeAssistantClimateModeForWidget(int pageIndex, int widgetIndex
   String responseBody;
   int statusCode = 0;
   const String payload = String("{\"entity_id\":\"") + widget.entityId + "\",\"hvac_mode\":\"" + hvacMode + "\"}";
-  const String requestUrl = getHomeAssistantApiUrl("/api/services/climate/set_hvac_mode");
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, "/api/services/climate/set_hvac_mode");
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -5779,7 +5509,7 @@ static bool callHomeAssistantToggleForSliderWidget(int pageIndex, int widgetInde
   const String payload = String("{\"entity_id\":\"") + widget.entityId + "\"}";
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + serviceDomain + "/" + service);
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, String("/api/services/") + serviceDomain + "/" + service);
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -5813,7 +5543,7 @@ static bool callHomeAssistantServiceForPage(int pageIndex, const char *service)
   const String payload = String("{\"entity_id\":\"") + mediaEntityId + "\"}";
   String responseBody;
   int statusCode = 0;
-  const String requestUrl = getHomeAssistantApiUrl(String("/api/services/") + domain + "/" + service);
+  const String requestUrl = getHomeAssistantApiUrl(homeAssistantUrl, String("/api/services/") + domain + "/" + service);
   const bool requestOk = homeAssistantRequest("POST", requestUrl, payload, responseBody, statusCode);
   if (!requestOk || statusCode < 200 || statusCode >= 300)
   {
@@ -5943,7 +5673,7 @@ static void ensureHomeAssistantSocket()
     return;
   }
 
-  const String wsPath = getHomeAssistantWebSocketPath();
+  const String wsPath = getHomeAssistantWebSocketPath(homeAssistantUrl);
   homeAssistantSocket.disconnect();
   homeAssistantSocket.onEvent(handleHomeAssistantSocketEvent);
   if (homeAssistantUrl.secure)
@@ -6600,90 +6330,6 @@ static void renderStatusScreen(const char *title, const char *line1, const char 
 #endif
 }
 
-static String extractJsonString(const String &json, const char *key)
-{
-  const String keyPattern = String("\"") + key + "\"";
-  const int keyPos = json.indexOf(keyPattern);
-  if (keyPos < 0)
-  {
-    return "";
-  }
-
-  const int colonPos = json.indexOf(':', keyPos + keyPattern.length());
-  if (colonPos < 0)
-  {
-    return "";
-  }
-
-  const int valueStart = json.indexOf('"', colonPos + 1);
-  if (valueStart < 0)
-  {
-    return "";
-  }
-
-  int valueEnd = valueStart + 1;
-  bool escaped = false;
-  while (valueEnd < json.length())
-  {
-    const char ch = json[valueEnd];
-    if (ch == '\\' && !escaped)
-    {
-      escaped = true;
-      valueEnd++;
-      continue;
-    }
-    if (ch == '"' && !escaped)
-    {
-      break;
-    }
-    escaped = false;
-    valueEnd++;
-  }
-
-  if (valueEnd >= json.length())
-  {
-    return "";
-  }
-
-  String parsed = json.substring(valueStart + 1, valueEnd);
-  parsed.replace("\\/", "/");
-  parsed.replace("\\\"", "\"");
-  parsed.replace("\\\\", "\\");
-  return parsed;
-}
-
-static String htmlEscape(const String &value)
-{
-  String escaped;
-  escaped.reserve(value.length() + 16);
-  for (size_t index = 0; index < value.length(); index++)
-  {
-    const char ch = value[index];
-    switch (ch)
-    {
-    case '&':
-      escaped += "&amp;";
-      break;
-    case '<':
-      escaped += "&lt;";
-      break;
-    case '>':
-      escaped += "&gt;";
-      break;
-    case '"':
-      escaped += "&quot;";
-      break;
-    case '\'':
-      escaped += "&#39;";
-      break;
-    default:
-      escaped += ch;
-      break;
-    }
-  }
-  return escaped;
-}
-
 static void setLastMqttError(const String &message)
 {
   snprintf(lastMqttError, sizeof(lastMqttError), "%s", message.c_str());
@@ -6692,38 +6338,6 @@ static void setLastMqttError(const String &message)
 static void clearLastMqttError()
 {
   lastMqttError[0] = '\0';
-}
-
-static String normalizeTopicPath(const String &rawValue)
-{
-  String value = rawValue;
-  value.trim();
-  while (value.startsWith("/"))
-  {
-    value.remove(0, 1);
-  }
-  while (value.endsWith("/"))
-  {
-    value.remove(value.length() - 1);
-  }
-  return value;
-}
-
-static uint16_t parsePortOrDefault(const String &rawValue, uint16_t fallback)
-{
-  const String value = rawValue;
-  if (value.length() == 0)
-  {
-    return fallback;
-  }
-
-  char *endPtr = nullptr;
-  const long parsed = strtol(value.c_str(), &endPtr, 10);
-  if (endPtr == value.c_str() || *endPtr != '\0' || parsed <= 0 || parsed > 65535)
-  {
-    return fallback;
-  }
-  return static_cast<uint16_t>(parsed);
 }
 
 static String normalizeMqttHost(const String &rawValue, uint16_t &portInOut)
@@ -6763,29 +6377,6 @@ static String normalizeMqttHost(const String &rawValue, uint16_t &portInOut)
 
   host.trim();
   return host;
-}
-
-static bool parseBooleanPayload(const String &rawPayload, bool currentValue, bool &parsedValue)
-{
-  String payload = rawPayload;
-  payload.trim();
-  payload.toLowerCase();
-  if (payload == "1" || payload == "true" || payload == "on" || payload == "enable" || payload == "enabled")
-  {
-    parsedValue = true;
-    return true;
-  }
-  if (payload == "0" || payload == "false" || payload == "off" || payload == "disable" || payload == "disabled")
-  {
-    parsedValue = false;
-    return true;
-  }
-  if (payload == "toggle")
-  {
-    parsedValue = !currentValue;
-    return true;
-  }
-  return false;
 }
 
 static String getDeviceSlug()
@@ -6961,11 +6552,6 @@ static int getBatteryLevelPercent()
   return estimateBatteryLevelPercent(getBatteryVoltageMv());
 }
 
-static String normalizeDiagnosticText(const char *value)
-{
-  return (value != nullptr && value[0] != '\0') ? String(value) : String("ok");
-}
-
 static bool mqttConfigured()
 {
   return mqttConfig.enabled && mqttConfig.host.length() > 0;
@@ -7138,90 +6724,6 @@ static bool clearRetainedMqttTopic(const String &topic)
 static String getMqttTextWidgetDiscoveryComponent(const UiWidgetConfig &widget)
 {
   return textWidgetUsesMqttNotify(widget) ? String("notify") : String("text");
-}
-
-static String getMqttTextWidgetDiscoveryObjectSuffix(const String &component, const String &name)
-{
-  return component + "_" + name;
-}
-
-static String getMqttTextWidgetDiscoveryRegistryEntry(const String &component, const String &name)
-{
-  return component + ":" + name;
-}
-
-static bool parseMqttTextDiscoveryRegistryEntry(
-    const String &entry,
-    String &component,
-    String &name)
-{
-  const int separator = entry.indexOf(':');
-  if (separator < 0)
-  {
-    component = "text";
-    name = entry;
-  }
-  else
-  {
-    component = entry.substring(0, separator);
-    name = entry.substring(separator + 1);
-  }
-
-  component.trim();
-  name.trim();
-  if (component != "text" && component != "notify")
-  {
-    component = "text";
-  }
-  return name.length() > 0;
-}
-
-static bool mqttTextDiscoveryRegistryContains(const String &registry, const String &component, const String &name)
-{
-  if (name.length() == 0)
-  {
-    return false;
-  }
-
-  const String expectedEntry = getMqttTextWidgetDiscoveryRegistryEntry(component, name);
-  int start = 0;
-  while (start <= registry.length())
-  {
-    int end = registry.indexOf('\n', start);
-    if (end < 0)
-    {
-      end = registry.length();
-    }
-
-    String entry = registry.substring(start, end);
-    entry.trim();
-    if (entry == expectedEntry)
-    {
-      return true;
-    }
-
-    if (end >= registry.length())
-    {
-      break;
-    }
-    start = end + 1;
-  }
-
-  return false;
-}
-
-static void appendMqttTextDiscoveryRegistryName(String &registry, const String &component, const String &name)
-{
-  if (name.length() == 0 || mqttTextDiscoveryRegistryContains(registry, component, name))
-  {
-    return;
-  }
-
-  if (registry.length() > 0 && registry[registry.length() - 1] != '\n')
-  {
-    registry += '\n';
-  }
-  registry += getMqttTextWidgetDiscoveryRegistryEntry(component, name);
 }
 
 static String buildMqttTextWidgetDiscoveryRegistry()
@@ -7440,31 +6942,6 @@ static void publishMqttTextWidgetStates()
           true);
     }
   }
-}
-
-static String normalizeMqttTextWidgetCommandPayload(const String &payload)
-{
-  DynamicJsonDocument document(512);
-  const DeserializationError error = deserializeJson(document, payload);
-  if (error)
-  {
-    return payload;
-  }
-
-  if (document.is<const char *>())
-  {
-    return String(document.as<const char *>());
-  }
-
-  JsonObjectConst object = document.as<JsonObjectConst>();
-  const char *message = object["message"] | "";
-  if (message[0] != '\0')
-  {
-    return String(message);
-  }
-
-  const char *nestedMessage = object["data"]["message"] | "";
-  return nestedMessage[0] != '\0' ? String(nestedMessage) : payload;
 }
 
 static bool handleMqttTextWidgetCommand(const String &topic, const String &payload)

@@ -23,11 +23,11 @@ Status values:
 | RF-007 | Done | Extract editor components from `app/page.tsx` |
 | RF-008 | Done | Extract preview pure helpers and fix preview lint warning |
 | RF-009 | Done | Split preview pages and widgets into focused modules |
-| RF-010 | Not started | Extract firmware pure utilities from `main.cpp` |
-| RF-011 | Not started | Introduce firmware MQTT module boundary |
-| RF-012 | Not started | Introduce firmware Home Assistant module boundary |
-| RF-013 | Not started | Introduce firmware OTA/webserver/provisioning boundaries |
-| RF-014 | Not started | Expand CI quality gates |
+| RF-010 | Done | Extract firmware pure utilities from `main.cpp` |
+| RF-011 | Done | Introduce firmware MQTT module boundary |
+| RF-012 | Done | Introduce firmware Home Assistant module boundary |
+| RF-013 | Done | Introduce firmware OTA/webserver/provisioning boundaries |
+| RF-014 | Done | Expand CI quality gates |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -432,7 +432,7 @@ Completion notes:
 
 ## RF-010 Extract Firmware Pure Utilities From `main.cpp`
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -463,9 +463,18 @@ Definition of done:
 - No runtime contracts are intentionally changed.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `firmware/src/firmware_utils.h` and `firmware/src/firmware_utils.cpp` for pure helper code previously embedded in `firmware/src/main.cpp`.
+- Moved display-safe text normalization, UTF-8 codepoint/count/copy helpers, integer clamping, tenths temperature formatting, MQTT topic path normalization, port parsing, boolean command payload parsing, and diagnostic text normalization.
+- Reviewed this first firmware slice for unnecessary duplicate utility code and branchy helper logic; kept behavior-equivalent parsing and normalization semantics rather than broadening accepted payloads or topic formats.
+- Preserved generated UI config consumption, firmware header ABI assumptions, display behavior, MQTT topic/payload contracts, and runtime control flow.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+
 ## RF-011 Introduce Firmware MQTT Module Boundary
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -496,9 +505,19 @@ Definition of done:
 - Manual test notes are recorded if automated verification is not feasible.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `firmware/src/mqtt_helpers.h` and `firmware/src/mqtt_helpers.cpp` as the first focused MQTT helper boundary.
+- Moved text-widget discovery object suffix construction, discovery registry entry parsing/deduplication/appending, and MQTT text-widget command payload normalization out of `firmware/src/main.cpp`.
+- Reviewed the extracted MQTT helper slice for unnecessary duplicate line-scanning and branch-heavy payload handling; kept exact discovery registry and notify/text payload semantics.
+- Preserved MQTT topic names, command payload handling, Home Assistant discovery object IDs/unique IDs, retained stale discovery cleanup behavior, device-local routes, and MQTT reconnect/subscription lifecycle.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual MQTT smoke test was not run because no hardware/broker session is available in this environment.
+
 ## RF-012 Introduce Firmware Home Assistant Module Boundary
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -528,9 +547,19 @@ Definition of done:
 - Existing HA behavior is manually verified or documented as unverified.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `firmware/src/home_assistant_helpers.h` and `firmware/src/home_assistant_helpers.cpp` as the first focused Home Assistant helper boundary.
+- Moved Home Assistant URL parsing, base/API/websocket URL construction, base-path joining, entity domain extraction, and entity-domain checks out of `firmware/src/main.cpp`.
+- Reviewed this helper slice for unnecessary duplicated entity-domain parsing and repeated URL assembly branches; kept request URLs, websocket path construction, entity matching semantics, service payloads, auth flow, subscription behavior, and polling intervals unchanged.
+- Preserved C-006 Home Assistant integration behavior and C-010 firmware runtime behavior.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual Home Assistant smoke test was not run because no hardware/Home Assistant session is available in this environment.
+
 ## RF-013 Introduce Firmware OTA/Webserver/Provisioning Boundaries
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -563,9 +592,19 @@ Definition of done:
 - Hardware-dependent verification status is documented.
 - Plan status and notes are updated.
 
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `firmware/src/device_web_helpers.h` and `firmware/src/device_web_helpers.cpp` as the first focused device-local web helper boundary.
+- Moved root-page HTML escaping and the legacy `/api/ota` JSON string-field extraction helper out of `firmware/src/main.cpp`.
+- Reviewed this helper slice for unnecessary branchy endpoint utility code; kept the exact escaping and legacy JSON extraction behavior instead of broadening request parsing.
+- Preserved device-local route paths and response shapes, direct OTA upload behavior, legacy URL OTA fallback behavior, Web Serial/Improv provisioning packet behavior, retry timing, and display status screen behavior.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual OTA dry-run/upload and Web Serial provisioning tests were not run because no hardware session is available in this environment.
+
 ## RF-014 Expand CI Quality Gates
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -599,6 +638,15 @@ Definition of done:
 - PR/push quality gates exist independently of image publishing.
 - Existing publish workflow still publishes expected tags.
 - Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-29.
+- Added `.github/workflows/ci.yml` with independent pull request and push gates for Bun dependency install, lint, unit tests, web build, and PlatformIO firmware compile.
+- Kept `.github/workflows/publish-images.yml` unchanged so runner/add-on image publishing, tags, build targets, and cache scopes remain intact.
+- Cached Bun download artifacts and PlatformIO package/platform caches without caching `node_modules` or firmware build output.
+- Verification: `bun run lint`, `bun run test:unit`, `bun run build`, and `cd firmware && pio run -e m5papers3` passed locally.
+- GitHub Actions dry-run was not available locally; workflow syntax and publish-workflow isolation were inspected manually.
 
 ## Plan Update Protocol
 
