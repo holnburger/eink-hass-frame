@@ -648,6 +648,13 @@ Completion notes:
 - Verification: `bun run lint`, `bun run test:unit`, `bun run build`, and `cd firmware && pio run -e m5papers3` passed locally.
 - GitHub Actions dry-run was not available locally; workflow syntax and publish-workflow isolation were inspected manually.
 
+Follow-up notes:
+
+- Updated on 2026-05-30 after the clean GitHub Actions firmware compile exposed missing ignored generated headers.
+- Added `scripts/prepare-firmware-build.ts` and `firmware:prepare` to generate `firmware/include/generated_ui_config.h` plus icon/media headers through the existing firmware build helpers before CI runs PlatformIO.
+- Updated CI cache steps to `actions/cache@v5`, which runs on Node.js 24, to address the Node 20 deprecation warning source.
+- Verification: `bun run firmware:prepare`, `cd firmware && pio run -e m5papers3 -t clean`, `cd firmware && pio run -e m5papers3`, `bun run lint`, `bun run test:unit`, and `bun run build` passed locally.
+
 ## Plan Update Protocol
 
 After completing a task:

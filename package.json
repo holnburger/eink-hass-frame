@@ -1,10 +1,11 @@
 {
   "name": "eink-hass-frame",
-  "version": "0.4.7",
+  "version": "0.9.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "firmware:prepare": "bun scripts/prepare-firmware-build.ts",
     "generate:mdi-icons": "node scripts/generate-mdi-icons.cjs",
     "generate:media-cover": "node scripts/generate-media-cover.cjs",
     "generate:weather-icons": "node scripts/generate-weather-icons.cjs",
