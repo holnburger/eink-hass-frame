@@ -67,7 +67,6 @@ static_assert((uint8_t)UI_LAYOUT_WIDGET_TEXT == (uint8_t)UI_WIDGET_TEXT, "layout
 static_assert((uint8_t)UI_LAYOUT_WIDGET_TITLE == (uint8_t)UI_WIDGET_TITLE, "layout widget type mapping changed");
 static_assert((uint8_t)UI_LAYOUT_CLOCK_DIGITAL == (uint8_t)UI_CLOCK_DIGITAL, "layout clock style mapping changed");
 static_assert((uint8_t)UI_LAYOUT_CLOCK_ANALOG == (uint8_t)UI_CLOCK_ANALOG, "layout clock style mapping changed");
-static_assert(UI_LAYOUT_MAX_WIDGETS_PER_PAGE >= UI_MAX_WIDGETS_PER_PAGE, "layout widget capacity changed");
 static_assert(UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT == WEATHER_FOCUS_FORECAST_DAY_COUNT, "weather focus forecast layout count changed");
 
 static UiLayoutFontProfile currentLayoutFontProfile()
@@ -147,6 +146,8 @@ static void layoutOverviewPage()
   const UiPageConfig &page = UI_PAGES[currentPageIndex];
   UiLayoutWidgetConfig layoutWidgets[UI_MAX_WIDGETS_PER_PAGE] = {};
   UiWidgetLayout widgetLayouts[UI_MAX_WIDGETS_PER_PAGE] = {};
+  int stackWidgetIndices[UI_MAX_WIDGETS_PER_PAGE] = {};
+  int stackWidgetHeights[UI_MAX_WIDGETS_PER_PAGE] = {};
   bool widgetVisible[UI_MAX_WIDGETS_PER_PAGE] = {};
   for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
   {
@@ -157,6 +158,9 @@ static void layoutOverviewPage()
   UiOverviewPageLayout layout = {};
   layout.widgets = widgetLayouts;
   layout.widgetCapacity = UI_MAX_WIDGETS_PER_PAGE;
+  layout.stackWidgetIndices = stackWidgetIndices;
+  layout.stackWidgetHeights = stackWidgetHeights;
+  layout.stackWidgetCapacity = UI_MAX_WIDGETS_PER_PAGE;
   const UiOverviewPageLayoutInput input = {
       display.width(),
       display.height(),

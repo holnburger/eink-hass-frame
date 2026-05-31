@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-static constexpr uint8_t UI_LAYOUT_MAX_WIDGETS_PER_PAGE = 8;
 static constexpr uint8_t UI_LAYOUT_OVERVIEW_MAX_BUTTONS = 6;
 static constexpr uint8_t UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
 
@@ -41,6 +40,9 @@ typedef struct
 {
   UiWidgetLayout *widgets;
   uint8_t widgetCapacity;
+  int *stackWidgetIndices;
+  int *stackWidgetHeights;
+  uint8_t stackWidgetCapacity;
   UiLayoutRect navLeft;
   UiLayoutRect navRight;
   UiLayoutRect debugIp;

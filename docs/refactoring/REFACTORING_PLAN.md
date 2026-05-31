@@ -38,6 +38,7 @@ Status values:
 | RF-022 | Done | Simplify firmware font selection and text helper branching |
 | RF-023 | Done | Standard firmware layout model |
 | RF-024 | Done | Overview and special-page firmware layout models |
+| RF-025 | Done | Generated widget capacity compatibility |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -1135,6 +1136,50 @@ Completion notes:
 - Verification: `pio run -e m5papers3` passed from `firmware/`, and `git diff --check` passed.
 - Static review: special-page formulas were moved verbatim into named helpers; overview hidden stack widgets still receive zeroed layout output; button widgets still participate in overview button rows without a visibility check, matching the previous behavior.
 - Manual overview/weather-focus/media-player display/touch smoke tests were not run because no hardware session is available in this environment.
+
+## RF-025 Generated Widget Capacity Compatibility
+
+Status: Done
+
+Goal:
+
+Fix the RF-024 layout helper so firmware builds remain compatible with generated configurations where `UI_MAX_WIDGETS_PER_PAGE` is greater than the helper's original internal assumption.
+
+Protected contracts:
+
+- C-002 Layout Model And Firmware Header ABI
+- C-010 Firmware Runtime Behavior
+- C-012 Firmware Maintainability And DRY Refactor Goal
+
+Implementation notes:
+
+- Remove hardcoded generic widget capacity ceilings from firmware-internal layout helpers.
+- Keep overview scratch storage caller-provided and sized by the generated `UI_MAX_WIDGETS_PER_PAGE` value.
+- Preserve overview button behavior, standard/special-page geometry, touch rectangles, generated UI ABI, and allocation-free helper behavior.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Static review for generated capacity handling
+
+Definition of done:
+
+- Firmware layout helpers do not hardcode a generic 8-widget ceiling.
+- Overview scratch storage is sized by the generated `UI_MAX_WIDGETS_PER_PAGE` value at the adapter boundary.
+- Local firmware build compiles and the original static assertion failure path is removed.
+
+Completion notes:
+
+- Completed on 2026-05-31.
+- Removed the refactor-only `UI_LAYOUT_MAX_WIDGETS_PER_PAGE` constant and the failing capacity static assertion from `firmware/src/ui/widget_layout.inc`.
+- Updated `cappedWidgetCount()` in `firmware/src/ui_layout_helpers.cpp` to respect caller-provided/generated capacity instead of an internal fixed ceiling.
+- Added caller-provided overview scratch arrays in `layoutOverviewPage()` and passed them through `UiOverviewPageLayout`, preserving allocation-free helper behavior without limiting generated widget capacity to 8.
+- Preserved generated UI ABI, page geometry formulas, touch rectangles, overview button handling, and zeroed hidden-widget layout output.
+- Size before RF-025, from RF-024 notes: hand-written firmware total `13726` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `263` lines, `firmware/src/ui_layout_helpers.h` `155` lines, `firmware/src/ui_layout_helpers.cpp` `1030` lines, PlatformIO flash used `1859733` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1860096` bytes.
+- Size after RF-025: hand-written firmware total `13735` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `267` lines, `firmware/src/ui_layout_helpers.h` `157` lines, `firmware/src/ui_layout_helpers.cpp` `1033` lines, PlatformIO flash used `1859813` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1860176` bytes.
+- Verification: `pio run -e m5papers3` passed from `firmware/`, and `git diff --check` passed.
+- Static review: no `UI_LAYOUT_MAX_WIDGETS_PER_PAGE` reference remains; overview stack scratch capacity now comes from `UI_MAX_WIDGETS_PER_PAGE` through the adapter. The exact larger user-generated config was not available locally.
 
 ## Plan Update Protocol
 

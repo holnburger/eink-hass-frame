@@ -138,13 +138,7 @@ static bool layoutWidgetVisible(const bool *visibleFlags, int widgetIndex)
 
 static int cappedWidgetCount(uint8_t widgetCount, uint8_t widgetCapacity)
 {
-  const int cappedByOutput =
-      widgetCount < widgetCapacity
-          ? widgetCount
-          : widgetCapacity;
-  return cappedByOutput < UI_LAYOUT_MAX_WIDGETS_PER_PAGE
-             ? cappedByOutput
-             : UI_LAYOUT_MAX_WIDGETS_PER_PAGE;
+  return widgetCount < widgetCapacity ? widgetCount : widgetCapacity;
 }
 
 static UiLayoutRect layoutNavLeftRect(bool showChrome, int displayHeight, int margin)
@@ -740,7 +734,16 @@ void computeOverviewPageLayout(
   }
 
   const int widgetCount = cappedWidgetCount(input.widgetCount, layoutOut.widgetCapacity);
-  int stackWidgetIndices[UI_LAYOUT_MAX_WIDGETS_PER_PAGE] = {};
+  const int stackWidgetCapacity =
+      layoutOut.stackWidgetCapacity < layoutOut.widgetCapacity
+          ? layoutOut.stackWidgetCapacity
+          : layoutOut.widgetCapacity;
+  const bool stackScratchAvailable =
+      layoutOut.stackWidgetIndices != nullptr &&
+      layoutOut.stackWidgetHeights != nullptr &&
+      stackWidgetCapacity > 0;
+  int *stackWidgetIndices = layoutOut.stackWidgetIndices;
+  int *widgetHeights = layoutOut.stackWidgetHeights;
   int stackWidgetCount = 0;
   int buttonWidgetIndices[UI_LAYOUT_OVERVIEW_MAX_BUTTONS] = {};
   int buttonWidgetCount = 0;
@@ -754,9 +757,10 @@ void computeOverviewPageLayout(
       buttonWidgetIndices[buttonWidgetCount++] = widgetIndex;
     }
     else if (
+        stackScratchAvailable &&
         overviewWidgetIsStackItem(widget) &&
         layoutWidgetVisible(input.widgetVisible, widgetIndex) &&
-        stackWidgetCount < UI_LAYOUT_MAX_WIDGETS_PER_PAGE)
+        stackWidgetCount < stackWidgetCapacity)
     {
       stackWidgetIndices[stackWidgetCount++] = widgetIndex;
     }
@@ -785,7 +789,6 @@ void computeOverviewPageLayout(
           : footerTop - OVERVIEW_STACK_BOTTOM_INSET;
   const int stackAreaHeight = stackBottom > stackTop ? stackBottom - stackTop : 0;
 
-  int widgetHeights[UI_LAYOUT_MAX_WIDGETS_PER_PAGE] = {};
   int totalStackHeight = 0;
   for (int index = 0; index < stackWidgetCount; index++)
   {
