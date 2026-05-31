@@ -39,6 +39,7 @@ Status values:
 | RF-023 | Done | Standard firmware layout model |
 | RF-024 | Done | Overview and special-page firmware layout models |
 | RF-025 | Done | Generated widget capacity compatibility |
+| RF-026 | Done | Release version bump |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -1180,6 +1181,46 @@ Completion notes:
 - Size after RF-025: hand-written firmware total `13735` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `267` lines, `firmware/src/ui_layout_helpers.h` `157` lines, `firmware/src/ui_layout_helpers.cpp` `1033` lines, PlatformIO flash used `1859813` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1860176` bytes.
 - Verification: `pio run -e m5papers3` passed from `firmware/`, and `git diff --check` passed.
 - Static review: no `UI_LAYOUT_MAX_WIDGETS_PER_PAGE` reference remains; overview stack scratch capacity now comes from `UI_MAX_WIDGETS_PER_PAGE` through the adapter. The exact larger user-generated config was not available locally.
+
+## RF-026 Release Version Bump
+
+Status: Done
+
+Goal:
+
+Bump the app/add-on/manifest and firmware runtime patch versions for the latest firmware layout fixes.
+
+Protected contracts:
+
+- C-004 Web Serial Manifest And First Flash
+- C-007 MQTT Topics, Payloads, And Discovery
+- C-009 Add-On, Docker, And Ingress Packaging
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Update only version string metadata.
+- Preserve manifest shape, artifact paths and offsets, add-on schema, MQTT topic names, and device-local behavior.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Static review of version references
+
+Definition of done:
+
+- App/add-on/manifest patch version is bumped consistently.
+- Firmware runtime version string is bumped consistently.
+- Manifest shape, artifact offsets, add-on schema, MQTT topic names, and device-local behavior remain unchanged.
+
+Completion notes:
+
+- Completed on 2026-05-31.
+- Bumped `package.json`, `config.yaml`, and the web serial firmware manifest version from `0.9.2` to `0.9.3`.
+- Bumped `FIRMWARE_VERSION_NAME` in `firmware/src/main.cpp` from `0.4.8` to `0.4.9`.
+- Verification: `pio run -e m5papers3` passed from `firmware/`, and `git diff --check` passed.
+- Firmware build size after RF-026: PlatformIO flash used `1859813` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1860176` bytes.
 
 ## Plan Update Protocol
 
