@@ -37,7 +37,7 @@ Status values:
 | RF-021 | Done | Rebalance firmware cleanup around maintainability and DRY |
 | RF-022 | Done | Simplify firmware font selection and text helper branching |
 | RF-023 | Done | Standard firmware layout model |
-| RF-024 | Not started | Overview and special-page firmware layout models |
+| RF-024 | Done | Overview and special-page firmware layout models |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -1089,7 +1089,7 @@ Completion notes:
 
 ## RF-024 Overview And Special-Page Firmware Layout Models
 
-Status: Not started
+Status: Done
 
 Goal:
 
@@ -1114,6 +1114,27 @@ Verification commands:
 - `git diff --check`
 - Hand-written firmware line-count command excluding generated headers and fonts
 - Manual display/touch smoke test when hardware is available
+
+Definition of done:
+
+- Overview, weather-focus, and media-player layout math is readable as pure geometry.
+- Existing page globals and `WidgetRuntimeState` remain the drawing/touch source of truth after adapter copy-back.
+- Special-page visual geometry, touch hit rectangles, page chrome rectangles, refresh behavior, and generated UI ABI are preserved.
+- Size signals and hardware-dependent verification status are recorded.
+
+Completion notes:
+
+- Completed on 2026-05-31.
+- Extended `firmware/src/ui_layout_helpers.h` and `firmware/src/ui_layout_helpers.cpp` with allocation-free, firmware-internal layout models for overview, weather-focus, and media-player pages.
+- Replaced the overview/weather-focus/media-player layout bodies in `firmware/src/ui/widget_layout.inc` with adapters that build generated-widget layout specs, call pure geometry helpers, and copy rectangles back into existing globals and `WidgetRuntimeState`.
+- Preserved overview stack widget filtering, overview button-row behavior, hidden stack-widget zeroing, weather-focus hero/stats/chart/timeline rectangles, media-player body/cover/progress/control rectangles, and page navigation rectangles.
+- Kept helper code independent from display calls, `String`, heap allocation, MQTT, Home Assistant, OTA, and webserver runtime state.
+- Size before RF-024, from RF-023 notes: hand-written firmware total `13521` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `691` lines, `firmware/src/ui_layout_helpers.h` `83` lines, `firmware/src/ui_layout_helpers.cpp` `469` lines, PlatformIO flash used `1858833` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1859200` bytes.
+- Size after RF-024: hand-written firmware total `13726` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `263` lines, `firmware/src/ui_layout_helpers.h` `155` lines, `firmware/src/ui_layout_helpers.cpp` `1030` lines, PlatformIO flash used `1859733` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1860096` bytes.
+- Source total and binary size increased modestly because special-page magic numbers are now named in pure helper code; the layout include itself is substantially smaller and easier to scan.
+- Verification: `pio run -e m5papers3` passed from `firmware/`, and `git diff --check` passed.
+- Static review: special-page formulas were moved verbatim into named helpers; overview hidden stack widgets still receive zeroed layout output; button widgets still participate in overview button rows without a visibility check, matching the previous behavior.
+- Manual overview/weather-focus/media-player display/touch smoke tests were not run because no hardware session is available in this environment.
 
 ## Plan Update Protocol
 

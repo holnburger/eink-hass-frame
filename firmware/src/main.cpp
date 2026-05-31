@@ -286,7 +286,7 @@
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static const char *FIRMWARE_DISPLAY_NAME = "M5PaperS3 FastEPD Firmware";
-static const char *FIRMWARE_VERSION_NAME = "0.4.7";
+static const char *FIRMWARE_VERSION_NAME = "0.4.8";
 static const char *IMPROV_DEVICE_NAME = "M5PaperS3";
 static const uint8_t IMPROV_HEADER_BYTES[] = {'I', 'M', 'P', 'R', 'O', 'V'};
 

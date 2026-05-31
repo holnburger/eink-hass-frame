@@ -51,524 +51,6 @@ static void initializeWidgetStates()
   }
 }
 
-static void computeClockLayout(const UiWidgetConfig &widget, WidgetRuntimeState &state)
-{
-  memset(state.digitRects, 0, sizeof(state.digitRects));
-  state.clockTimeRect = {0, 0, 0, 0};
-  state.secondsRect = {0, 0, 0, 0};
-  state.faceRect = {0, 0, 0, 0};
-
-  if (clockWidgetIsAnalog(widget))
-  {
-    const int faceSize = (state.contentRect.w < state.contentRect.h ? state.contentRect.w : state.contentRect.h);
-    const int inset = activePageIsOverview() ? 2 : 8;
-    state.faceRect = {
-        state.contentRect.x + ((state.contentRect.w - faceSize) / 2) + inset,
-        state.contentRect.y + ((state.contentRect.h - faceSize) / 2) + inset,
-        faceSize - (inset * 2),
-        faceSize - (inset * 2),
-    };
-    return;
-  }
-
-  const bool showSeconds = clockWidgetShowsSeconds(widget);
-  const int totalChars = showSeconds ? 8 : 5;
-  const int colonCount = showSeconds ? 2 : 1;
-  const int digitCount = showSeconds ? 6 : 4;
-  const int gap = getUiFontProfile() == UI_FONT_PROFILE_MONO ? 10 : 8;
-  const int colonW = getUiFontProfile() == UI_FONT_PROFILE_SERIF ? 18 : 16;
-  int digitW = (state.contentRect.w - (colonCount * colonW) - ((totalChars - 1) * gap)) / digitCount;
-  digitW = clampInt(digitW, 28, 58);
-  int digitH = state.contentRect.h - 10;
-  digitH = clampInt(digitH, 68, 150);
-
-  const int totalWidth = (digitCount * digitW) + (colonCount * colonW) + ((totalChars - 1) * gap);
-  int x = state.contentRect.x + ((state.contentRect.w - totalWidth) / 2);
-  const int y = state.contentRect.y + ((state.contentRect.h - digitH) / 2);
-
-  for (int i = 0; i < totalChars; i++)
-  {
-    const bool isColon = i == 2 || (showSeconds && i == 5);
-    const int symbolW = isColon ? colonW : digitW;
-    state.digitRects[i] = {x, y, symbolW, digitH};
-    x += symbolW + gap;
-  }
-
-  state.clockTimeRect = state.digitRects[0];
-  const int timeRight = state.digitRects[totalChars - 1].x + state.digitRects[totalChars - 1].w;
-  state.clockTimeRect.w = timeRight - state.clockTimeRect.x;
-  state.clockTimeRect.x -= 2;
-  state.clockTimeRect.y -= 2;
-  state.clockTimeRect.w += 4;
-  state.clockTimeRect.h += 4;
-  if (state.clockTimeRect.x < state.contentRect.x)
-  {
-    state.clockTimeRect.x = state.contentRect.x;
-  }
-  if (state.clockTimeRect.y < state.contentRect.y)
-  {
-    state.clockTimeRect.y = state.contentRect.y;
-  }
-  const int maxRight = state.contentRect.x + state.contentRect.w;
-  const int maxBottom = state.contentRect.y + state.contentRect.h;
-  if (state.clockTimeRect.x + state.clockTimeRect.w > maxRight)
-  {
-    state.clockTimeRect.w = maxRight - state.clockTimeRect.x;
-  }
-  if (state.clockTimeRect.y + state.clockTimeRect.h > maxBottom)
-  {
-    state.clockTimeRect.h = maxBottom - state.clockTimeRect.y;
-  }
-
-  if (showSeconds)
-  {
-    state.secondsRect = state.digitRects[6];
-    const int right = state.digitRects[7].x + state.digitRects[7].w;
-    state.secondsRect.w = right - state.secondsRect.x;
-    state.secondsRect.x -= 2;
-    state.secondsRect.y -= 2;
-    state.secondsRect.w += 4;
-    state.secondsRect.h += 4;
-    if (state.secondsRect.x < state.contentRect.x)
-    {
-      state.secondsRect.x = state.contentRect.x;
-    }
-    if (state.secondsRect.y < state.contentRect.y)
-    {
-      state.secondsRect.y = state.contentRect.y;
-    }
-    if (state.secondsRect.x + state.secondsRect.w > maxRight)
-    {
-      state.secondsRect.w = maxRight - state.secondsRect.x;
-    }
-    if (state.secondsRect.y + state.secondsRect.h > maxBottom)
-    {
-      state.secondsRect.h = maxBottom - state.secondsRect.y;
-    }
-  }
-}
-
-static void layoutWeatherFocusPage()
-{
-  const int width = display.width();
-  const int height = display.height();
-  const int margin = 22;
-  const int contentTop = showPageChrome() ? 24 : 20;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
-  const int contentHeight = footerTop - contentTop;
-  const int heroHeight = 300;
-  const int statsGap = 14;
-  const int statsHeight = 68;
-  const int chartGap = 12;
-  const int hourlyChartHeight = 190;
-  const int forecastGap = 12;
-
-  weatherFocusContentRect = {0, contentTop, width, contentHeight};
-  weatherFocusHeroRect = {margin, contentTop + 8, width - (margin * 2), heroHeight};
-  weatherFocusHeroIconRect = {weatherFocusHeroRect.x + 12, weatherFocusHeroRect.y + 36, 236, 236};
-  weatherFocusStatsRect = {
-      margin,
-      weatherFocusHeroRect.y + weatherFocusHeroRect.h + statsGap,
-      width - (margin * 2),
-      statsHeight,
-  };
-  weatherFocusTemperatureChartRect = {
-      margin,
-      weatherFocusStatsRect.y + weatherFocusStatsRect.h + chartGap,
-      width - (margin * 2),
-      hourlyChartHeight,
-  };
-  weatherFocusRainChartRect = {
-      0,
-      0,
-      0,
-      0,
-  };
-  weatherFocusTimelineRect = {
-      margin,
-      weatherFocusTemperatureChartRect.y + weatherFocusTemperatureChartRect.h + forecastGap,
-      width - (margin * 2),
-      footerTop - (weatherFocusTemperatureChartRect.y + weatherFocusTemperatureChartRect.h + forecastGap) - 8,
-  };
-
-  const int gap = 0;
-  const int cardWidth = weatherFocusTimelineRect.w / WEATHER_FOCUS_FORECAST_DAY_COUNT;
-  for (int index = 0; index < WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
-  {
-    const int cardX = weatherFocusTimelineRect.x + (cardWidth * index);
-    const int nextX =
-        index == (WEATHER_FOCUS_FORECAST_DAY_COUNT - 1)
-            ? weatherFocusTimelineRect.x + weatherFocusTimelineRect.w
-            : cardX + cardWidth;
-    weatherFocusForecastRects[index] = {
-        cardX,
-        weatherFocusTimelineRect.y,
-        nextX - cardX,
-        weatherFocusTimelineRect.h,
-    };
-  }
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {0, 0, 0, 0};
-}
-
-static int overviewContentWidgetHeight(const UiWidgetConfig &widget)
-{
-  if (widget.type == UI_WIDGET_WEATHER)
-  {
-    return 126;
-  }
-  if (widget.type == UI_WIDGET_PROGRESS)
-  {
-    return 92;
-  }
-  if (widget.type == UI_WIDGET_TEXT)
-  {
-    return 108;
-  }
-  return 0;
-}
-
-static int overviewMinimumContentWidgetHeight(const UiWidgetConfig &widget)
-{
-  if (widget.type == UI_WIDGET_WEATHER)
-  {
-    return 126;
-  }
-  if (widget.type == UI_WIDGET_PROGRESS)
-  {
-    return 80;
-  }
-  if (widget.type == UI_WIDGET_TEXT)
-  {
-    return 80;
-  }
-  return 0;
-}
-
-static void resetOverviewWidgetLayoutState(WidgetRuntimeState &state)
-{
-  state.cardRect = {0, 0, 0, 0};
-  state.contentRect = {0, 0, 0, 0};
-  state.controlRect = {0, 0, 0, 0};
-  state.secondaryRect = {0, 0, 0, 0};
-  state.tertiaryRect = {0, 0, 0, 0};
-  state.faceRect = {0, 0, 0, 0};
-  state.clockTimeRect = {0, 0, 0, 0};
-  state.secondsRect = {0, 0, 0, 0};
-  memset(state.digitRects, 0, sizeof(state.digitRects));
-  memset(state.actionRects, 0, sizeof(state.actionRects));
-}
-
-static bool isOverviewStackWidget(const UiWidgetConfig &widget)
-{
-  return widget.type == UI_WIDGET_CLOCK || widget.type == UI_WIDGET_TEXT || widget.type == UI_WIDGET_WEATHER || widget.type == UI_WIDGET_PROGRESS;
-}
-
-static int overviewPreferredClockHeight(const UiWidgetConfig &widget)
-{
-  return clockWidgetIsAnalog(widget) ? 300 : 212;
-}
-
-static int overviewMinimumClockHeight(const UiWidgetConfig &widget)
-{
-  return clockWidgetIsAnalog(widget) ? 216 : 164;
-}
-
-static int overviewPreferredStackWidgetHeight(const UiWidgetConfig &widget)
-{
-  if (widget.type == UI_WIDGET_CLOCK)
-  {
-    return overviewPreferredClockHeight(widget);
-  }
-  return overviewContentWidgetHeight(widget);
-}
-
-static int overviewMinimumStackWidgetHeight(const UiWidgetConfig &widget)
-{
-  if (widget.type == UI_WIDGET_CLOCK)
-  {
-    return overviewMinimumClockHeight(widget);
-  }
-  return overviewMinimumContentWidgetHeight(widget);
-}
-
-static void layoutOverviewContentWidget(int widgetIndex, int x, int y, int width, int height)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  state.cardRect = {x, y, width, height};
-  state.contentRect = state.cardRect;
-
-  if (widget.type == UI_WIDGET_WEATHER)
-  {
-    const int iconSize = clampInt(height - 38, 54, 68);
-    state.secondaryRect = {
-        state.cardRect.x + state.cardRect.w - iconSize - 8,
-        state.cardRect.y + ((state.cardRect.h - iconSize) / 2),
-        iconSize,
-        iconSize,
-    };
-    const int contentX = state.cardRect.x + 18;
-    const int contentRight = state.secondaryRect.x - 16;
-    state.contentRect = {
-        contentX,
-        state.cardRect.y + 14,
-        contentRight - contentX,
-        state.cardRect.h - 28,
-    };
-    if (state.contentRect.w < 0)
-    {
-      state.contentRect.w = 0;
-    }
-  }
-  else if (widget.type == UI_WIDGET_PROGRESS)
-  {
-    const int barWidth = width - 88;
-    const int clampedBarWidth = barWidth > 120 ? barWidth : 120;
-    state.controlRect = {
-        x + ((width - clampedBarWidth) / 2),
-        y + height - 20,
-        clampedBarWidth,
-        10,
-    };
-  }
-}
-
-static void layoutOverviewClockWidget(int widgetIndex, int x, int y, int width, int height)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-  state.cardRect = {x, y, width, height};
-  state.contentRect = state.cardRect;
-  computeClockLayout(widget, state);
-}
-
-static void layoutOverviewStackWidget(int widgetIndex, int x, int y, int width, int height)
-{
-  const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, widgetIndex);
-  if (widget.type == UI_WIDGET_CLOCK)
-  {
-    layoutOverviewClockWidget(widgetIndex, x, y, width, height);
-    return;
-  }
-  layoutOverviewContentWidget(widgetIndex, x, y, width, height);
-}
-
-static void computeOverviewButtonRows(int buttonWidgetCount, int buttonRowItemCounts[3], int &buttonRows)
-{
-  buttonRows = 0;
-  buttonRowItemCounts[0] = 0;
-  buttonRowItemCounts[1] = 0;
-  buttonRowItemCounts[2] = 0;
-
-  if (buttonWidgetCount >= 6)
-  {
-    buttonRows = 2;
-    buttonRowItemCounts[0] = 3;
-    buttonRowItemCounts[1] = 3;
-  }
-  else if (buttonWidgetCount == 5)
-  {
-    buttonRows = 2;
-    buttonRowItemCounts[0] = 3;
-    buttonRowItemCounts[1] = 2;
-  }
-  else if (buttonWidgetCount == 4)
-  {
-    buttonRows = 2;
-    buttonRowItemCounts[0] = 2;
-    buttonRowItemCounts[1] = 2;
-  }
-  else if (buttonWidgetCount == 3)
-  {
-    buttonRows = 1;
-    buttonRowItemCounts[0] = 3;
-  }
-  else if (buttonWidgetCount == 2)
-  {
-    buttonRows = 1;
-    buttonRowItemCounts[0] = 2;
-  }
-  else if (buttonWidgetCount == 1)
-  {
-    buttonRows = 1;
-    buttonRowItemCounts[0] = 1;
-  }
-}
-
-static void layoutOverviewPage()
-{
-  const int width = display.width();
-  const int height = display.height();
-  const int margin = 24;
-  const int contentTop = showPageChrome() ? 18 : 18;
-  const int footerTop = showPageChrome() ? (height - 64) : (height - 16);
-  const UiPageConfig &page = UI_PAGES[currentPageIndex];
-
-  int stackWidgetIndices[UI_MAX_WIDGETS_PER_PAGE];
-  int stackWidgetCount = 0;
-  int buttonWidgetIndices[6];
-  int buttonWidgetCount = 0;
-
-  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
-  {
-    WidgetRuntimeState &state = getWidgetState(currentPageIndex, widgetIndex);
-    resetOverviewWidgetLayoutState(state);
-
-    const UiWidgetConfig widget = page.widgets[widgetIndex];
-    if (widget.type == UI_WIDGET_BUTTON && buttonWidgetCount < 6)
-    {
-      buttonWidgetIndices[buttonWidgetCount++] = widgetIndex;
-    }
-    else if (
-        isOverviewStackWidget(widget) &&
-        widgetShouldBeVisible(currentPageIndex, widgetIndex) &&
-        stackWidgetCount < UI_MAX_WIDGETS_PER_PAGE)
-    {
-      stackWidgetIndices[stackWidgetCount++] = widgetIndex;
-    }
-  }
-
-  int buttonRowItemCounts[3] = {0, 0, 0};
-  int buttonRows = 0;
-  computeOverviewButtonRows(buttonWidgetCount, buttonRowItemCounts, buttonRows);
-
-  const int buttonSize = 84;
-  const int buttonGapX = 22;
-  const int buttonGapY = 18;
-  const int stackTop = contentTop + 8;
-  const int buttonBottomInset = 22;
-  const int contentToButtonGap = 24;
-  const int buttonGridHeight = buttonRows > 0 ? (buttonRows * buttonSize) + ((buttonRows - 1) * buttonGapY) : 0;
-  const int buttonBlockTop =
-      buttonRows > 0 ? footerTop - buttonGridHeight - buttonBottomInset : footerTop;
-  const int stackBottom =
-      (buttonRows > 0 ? buttonBlockTop - contentToButtonGap : footerTop - 8);
-  const int stackAreaHeight = stackBottom > stackTop ? stackBottom - stackTop : 0;
-
-  int widgetHeights[UI_MAX_WIDGETS_PER_PAGE];
-  memset(widgetHeights, 0, sizeof(widgetHeights));
-  int totalStackHeight = 0;
-  for (int index = 0; index < stackWidgetCount; index++)
-  {
-    const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, stackWidgetIndices[index]);
-    widgetHeights[index] = overviewPreferredStackWidgetHeight(widget);
-    totalStackHeight += widgetHeights[index];
-  }
-
-  if (stackAreaHeight > 0 && totalStackHeight > stackAreaHeight)
-  {
-    int overflow = totalStackHeight - stackAreaHeight;
-    for (int pass = 0; pass < 2 && overflow > 0; pass++)
-    {
-      for (int index = 0; index < stackWidgetCount && overflow > 0; index++)
-      {
-        const UiWidgetConfig widget = getWidgetConfig(currentPageIndex, stackWidgetIndices[index]);
-        const bool isClock = widget.type == UI_WIDGET_CLOCK;
-        if ((pass == 0 && isClock) || (pass == 1 && !isClock))
-        {
-          continue;
-        }
-
-        const int minimumHeight = overviewMinimumStackWidgetHeight(widget);
-        const int reducibleHeight = widgetHeights[index] - minimumHeight;
-        if (reducibleHeight <= 0)
-        {
-          continue;
-        }
-        const int reduction = reducibleHeight < overflow ? reducibleHeight : overflow;
-        widgetHeights[index] -= reduction;
-        totalStackHeight -= reduction;
-        overflow -= reduction;
-      }
-    }
-  }
-
-  if (stackWidgetCount > 0 && stackAreaHeight > 0)
-  {
-    const int gapCount = stackWidgetCount + 1;
-    const int totalGapSpace = totalStackHeight < stackAreaHeight ? stackAreaHeight - totalStackHeight : 0;
-    const int equalGap = gapCount > 0 ? totalGapSpace / gapCount : 0;
-    int currentY = stackTop + equalGap + ((totalGapSpace - (equalGap * gapCount)) / 2);
-
-    for (int index = 0; index < stackWidgetCount; index++)
-    {
-      if (widgetHeights[index] <= 0)
-      {
-        continue;
-      }
-      layoutOverviewStackWidget(
-          stackWidgetIndices[index],
-          margin,
-          currentY,
-          width - (margin * 2),
-          widgetHeights[index]);
-      currentY += widgetHeights[index] + equalGap;
-    }
-  }
-
-  if (buttonRows > 0)
-  {
-    int buttonIndex = 0;
-    for (int row = 0; row < buttonRows; row++)
-    {
-      const int itemsInRow = buttonRowItemCounts[row];
-      const int rowWidth = (itemsInRow * buttonSize) + ((itemsInRow - 1) * buttonGapX);
-      const int startX = (width - rowWidth) / 2;
-      const int y = buttonBlockTop + (row * (buttonSize + buttonGapY));
-      for (int col = 0; col < itemsInRow && buttonIndex < buttonWidgetCount; col++, buttonIndex++)
-      {
-        WidgetRuntimeState &state = getWidgetState(currentPageIndex, buttonWidgetIndices[buttonIndex]);
-        const int x = startX + (col * (buttonSize + buttonGapX));
-        state.cardRect = {x, y, buttonSize, buttonSize};
-        state.contentRect = state.cardRect;
-        state.controlRect = state.cardRect;
-      }
-    }
-  }
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {0, 0, 0, 0};
-}
-
-static void layoutMediaPlayerPage()
-{
-  const int width = display.width();
-  const int height = display.height();
-  const int margin = 24;
-  const int contentTop = showPageChrome() ? 24 : 20;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 16);
-  const int contentHeight = footerTop - contentTop;
-
-  mediaPlayerContentRect = {0, contentTop, width, contentHeight};
-
-  const int bodyWidth = 420;
-  const int bodyHeight = 560;
-  const int bodyX = (width - bodyWidth) / 2;
-  const int bodyY = contentTop + ((contentHeight - bodyHeight) / 2);
-  const int controlGap = 14;
-  const int prevButtonWidth = 48;
-  const int playPauseButtonWidth = 48;
-  const int nextButtonWidth = 48;
-  const int controlHeight = 48;
-  const int controlsTop = bodyY + 512;
-  const int controlsWidth = prevButtonWidth + playPauseButtonWidth + nextButtonWidth + (controlGap * 2);
-  const int controlsX = bodyX + ((bodyWidth - controlsWidth) / 2);
-  mediaPlayerBodyRect = {bodyX, bodyY, bodyWidth, bodyHeight};
-  mediaPlayerCoverRect = {bodyX + ((bodyWidth - 384) / 2), bodyY + 8, 384, 384};
-  mediaPlayerProgressRect = {bodyX + 14, bodyY + 492, bodyWidth - 28, 12};
-  mediaPlayerPrevButtonRect = {controlsX, controlsTop, prevButtonWidth, controlHeight};
-  mediaPlayerPlayPauseButtonRect = {controlsX + prevButtonWidth + controlGap, controlsTop, playPauseButtonWidth, controlHeight};
-  mediaPlayerNextButtonRect = {controlsX + prevButtonWidth + controlGap + playPauseButtonWidth + controlGap, controlsTop, nextButtonWidth, controlHeight};
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {0, 0, 0, 0};
-}
-
 static BB_RECT toDisplayRect(const UiLayoutRect &rect)
 {
   return BB_RECT{rect.x, rect.y, rect.w, rect.h};
@@ -585,6 +67,8 @@ static_assert((uint8_t)UI_LAYOUT_WIDGET_TEXT == (uint8_t)UI_WIDGET_TEXT, "layout
 static_assert((uint8_t)UI_LAYOUT_WIDGET_TITLE == (uint8_t)UI_WIDGET_TITLE, "layout widget type mapping changed");
 static_assert((uint8_t)UI_LAYOUT_CLOCK_DIGITAL == (uint8_t)UI_CLOCK_DIGITAL, "layout clock style mapping changed");
 static_assert((uint8_t)UI_LAYOUT_CLOCK_ANALOG == (uint8_t)UI_CLOCK_ANALOG, "layout clock style mapping changed");
+static_assert(UI_LAYOUT_MAX_WIDGETS_PER_PAGE >= UI_MAX_WIDGETS_PER_PAGE, "layout widget capacity changed");
+static_assert(UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT == WEATHER_FOCUS_FORECAST_DAY_COUNT, "weather focus forecast layout count changed");
 
 static UiLayoutFontProfile currentLayoutFontProfile()
 {
@@ -629,6 +113,94 @@ static void applyWidgetLayout(WidgetRuntimeState &state, const UiWidgetLayout &l
   {
     state.actionRects[index] = toDisplayRect(layout.actions[index]);
   }
+}
+
+static void layoutWeatherFocusPage()
+{
+  UiWeatherFocusPageLayout layout = {};
+  const UiPageChromeLayoutInput input = {
+      display.width(),
+      display.height(),
+      showPageChrome(),
+  };
+  computeWeatherFocusPageLayout(input, layout);
+
+  weatherFocusContentRect = toDisplayRect(layout.content);
+  weatherFocusHeroRect = toDisplayRect(layout.hero);
+  weatherFocusHeroIconRect = toDisplayRect(layout.heroIcon);
+  weatherFocusStatsRect = toDisplayRect(layout.stats);
+  weatherFocusTemperatureChartRect = toDisplayRect(layout.temperatureChart);
+  weatherFocusRainChartRect = toDisplayRect(layout.rainChart);
+  weatherFocusTimelineRect = toDisplayRect(layout.timeline);
+  for (int index = 0; index < WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
+  {
+    weatherFocusForecastRects[index] = toDisplayRect(layout.forecast[index]);
+  }
+
+  navLeftRect = toDisplayRect(layout.navLeft);
+  navRightRect = toDisplayRect(layout.navRight);
+  debugIpRect = toDisplayRect(layout.debugIp);
+}
+
+static void layoutOverviewPage()
+{
+  const UiPageConfig &page = UI_PAGES[currentPageIndex];
+  UiLayoutWidgetConfig layoutWidgets[UI_MAX_WIDGETS_PER_PAGE] = {};
+  UiWidgetLayout widgetLayouts[UI_MAX_WIDGETS_PER_PAGE] = {};
+  bool widgetVisible[UI_MAX_WIDGETS_PER_PAGE] = {};
+  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
+  {
+    layoutWidgets[widgetIndex] = toLayoutWidgetConfig(page.widgets[widgetIndex]);
+    widgetVisible[widgetIndex] = widgetShouldBeVisible(currentPageIndex, widgetIndex);
+  }
+
+  UiOverviewPageLayout layout = {};
+  layout.widgets = widgetLayouts;
+  layout.widgetCapacity = UI_MAX_WIDGETS_PER_PAGE;
+  const UiOverviewPageLayoutInput input = {
+      display.width(),
+      display.height(),
+      showPageChrome(),
+      currentLayoutFontProfile(),
+      page.widgetCount,
+      layoutWidgets,
+      widgetVisible,
+  };
+  computeOverviewPageLayout(input, layout);
+
+  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
+  {
+    applyWidgetLayout(
+        getWidgetState(currentPageIndex, widgetIndex),
+        layout.widgets[widgetIndex]);
+  }
+
+  navLeftRect = toDisplayRect(layout.navLeft);
+  navRightRect = toDisplayRect(layout.navRight);
+  debugIpRect = toDisplayRect(layout.debugIp);
+}
+
+static void layoutMediaPlayerPage()
+{
+  UiMediaPlayerPageLayout layout = {};
+  const UiPageChromeLayoutInput input = {
+      display.width(),
+      display.height(),
+      showPageChrome(),
+  };
+  computeMediaPlayerPageLayout(input, layout);
+
+  mediaPlayerContentRect = toDisplayRect(layout.content);
+  mediaPlayerBodyRect = toDisplayRect(layout.body);
+  mediaPlayerCoverRect = toDisplayRect(layout.cover);
+  mediaPlayerProgressRect = toDisplayRect(layout.progress);
+  mediaPlayerPrevButtonRect = toDisplayRect(layout.prevButton);
+  mediaPlayerPlayPauseButtonRect = toDisplayRect(layout.playPauseButton);
+  mediaPlayerNextButtonRect = toDisplayRect(layout.nextButton);
+
+  navLeftRect = toDisplayRect(layout.navLeft);
+  navRightRect = toDisplayRect(layout.navRight);
+  debugIpRect = toDisplayRect(layout.debugIp);
 }
 
 static void layoutStandardPage()

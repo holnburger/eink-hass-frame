@@ -8,15 +8,16 @@ static constexpr int STANDARD_PAGE_TOP_NO_CHROME = 28;
 static constexpr int STANDARD_PAGE_FOOTER_WITH_CHROME_OFFSET = 78;
 static constexpr int STANDARD_PAGE_FOOTER_NO_CHROME_OFFSET = 20;
 static constexpr int STANDARD_PAGE_WIDGET_GAP = 16;
-static constexpr int STANDARD_PAGE_NAV_Y_OFFSET = 67;
-static constexpr int STANDARD_PAGE_NAV_SIZE = 48;
-static constexpr int STANDARD_PAGE_NAV_LEFT_OFFSET = 1;
-static constexpr int STANDARD_PAGE_NAV_RIGHT_OFFSET = 47;
+static constexpr int PAGE_NAV_Y_OFFSET = 67;
+static constexpr int PAGE_NAV_SIZE = 48;
+static constexpr int PAGE_NAV_LEFT_OFFSET = 1;
+static constexpr int PAGE_NAV_RIGHT_OFFSET = 47;
 static constexpr int STANDARD_CARD_HORIZONTAL_PADDING = 18;
 static constexpr int STANDARD_CARD_DEFAULT_CONTENT_TOP = 52;
 static constexpr int STANDARD_CARD_DEFAULT_CONTENT_BOTTOM_PADDING = 18;
 static constexpr int STANDARD_CLOCK_CONTENT_TOP = 50;
 static constexpr int STANDARD_CLOCK_CONTENT_BOTTOM_PADDING = 18;
+static constexpr int STANDARD_ANALOG_CLOCK_INSET = 8;
 static constexpr int STANDARD_PROGRESS_BAR_BOTTOM_OFFSET = 21;
 static constexpr int STANDARD_PROGRESS_BAR_HEIGHT = 9;
 static constexpr int STANDARD_SWITCH_WIDTH = 96;
@@ -30,6 +31,72 @@ static constexpr int STANDARD_THERMOSTAT_BUTTON_SIZE = 26;
 static constexpr int STANDARD_THERMOSTAT_BUTTON_GAP = 8;
 static constexpr int STANDARD_THERMOSTAT_HISTORY_BUTTON_TOP_OFFSET = 44;
 static constexpr int STANDARD_THERMOSTAT_BUTTON_BOTTOM_OFFSET = 11;
+
+static constexpr int OVERVIEW_PAGE_MARGIN = 24;
+static constexpr int OVERVIEW_CONTENT_TOP = 18;
+static constexpr int OVERVIEW_FOOTER_WITH_CHROME_OFFSET = 64;
+static constexpr int OVERVIEW_FOOTER_NO_CHROME_OFFSET = 16;
+static constexpr int OVERVIEW_STACK_TOP_OFFSET = 8;
+static constexpr int OVERVIEW_BUTTON_SIZE = 84;
+static constexpr int OVERVIEW_BUTTON_GAP_X = 22;
+static constexpr int OVERVIEW_BUTTON_GAP_Y = 18;
+static constexpr int OVERVIEW_BUTTON_BOTTOM_INSET = 22;
+static constexpr int OVERVIEW_CONTENT_TO_BUTTON_GAP = 24;
+static constexpr int OVERVIEW_STACK_BOTTOM_INSET = 8;
+static constexpr int OVERVIEW_WEATHER_HEIGHT = 126;
+static constexpr int OVERVIEW_PROGRESS_HEIGHT = 92;
+static constexpr int OVERVIEW_TEXT_HEIGHT = 108;
+static constexpr int OVERVIEW_CONTENT_MIN_HEIGHT = 80;
+static constexpr int OVERVIEW_ANALOG_CLOCK_HEIGHT = 300;
+static constexpr int OVERVIEW_DIGITAL_CLOCK_HEIGHT = 212;
+static constexpr int OVERVIEW_ANALOG_CLOCK_MIN_HEIGHT = 216;
+static constexpr int OVERVIEW_DIGITAL_CLOCK_MIN_HEIGHT = 164;
+static constexpr int OVERVIEW_ANALOG_CLOCK_INSET = 2;
+static constexpr int OVERVIEW_WEATHER_ICON_HEIGHT_OFFSET = 38;
+static constexpr int OVERVIEW_WEATHER_ICON_MIN_SIZE = 54;
+static constexpr int OVERVIEW_WEATHER_ICON_MAX_SIZE = 68;
+static constexpr int OVERVIEW_WEATHER_ICON_RIGHT_OFFSET = 8;
+static constexpr int OVERVIEW_WEATHER_HORIZONTAL_PADDING = 18;
+static constexpr int OVERVIEW_WEATHER_CONTENT_TOP = 14;
+static constexpr int OVERVIEW_WEATHER_ICON_GAP = 16;
+static constexpr int OVERVIEW_PROGRESS_BAR_WIDTH_OFFSET = 88;
+static constexpr int OVERVIEW_PROGRESS_BAR_MIN_WIDTH = 120;
+static constexpr int OVERVIEW_PROGRESS_BAR_BOTTOM_OFFSET = 20;
+static constexpr int OVERVIEW_PROGRESS_BAR_HEIGHT = 10;
+
+static constexpr int WEATHER_FOCUS_MARGIN = 22;
+static constexpr int WEATHER_FOCUS_TOP_WITH_CHROME = 24;
+static constexpr int WEATHER_FOCUS_TOP_NO_CHROME = 20;
+static constexpr int WEATHER_FOCUS_FOOTER_WITH_CHROME_OFFSET = 78;
+static constexpr int WEATHER_FOCUS_FOOTER_NO_CHROME_OFFSET = 16;
+static constexpr int WEATHER_FOCUS_HERO_TOP_OFFSET = 8;
+static constexpr int WEATHER_FOCUS_HERO_HEIGHT = 300;
+static constexpr int WEATHER_FOCUS_HERO_ICON_X_OFFSET = 12;
+static constexpr int WEATHER_FOCUS_HERO_ICON_Y_OFFSET = 36;
+static constexpr int WEATHER_FOCUS_HERO_ICON_SIZE = 236;
+static constexpr int WEATHER_FOCUS_STATS_GAP = 14;
+static constexpr int WEATHER_FOCUS_STATS_HEIGHT = 68;
+static constexpr int WEATHER_FOCUS_CHART_GAP = 12;
+static constexpr int WEATHER_FOCUS_HOURLY_CHART_HEIGHT = 190;
+static constexpr int WEATHER_FOCUS_FORECAST_GAP = 12;
+static constexpr int WEATHER_FOCUS_TIMELINE_BOTTOM_INSET = 8;
+
+static constexpr int MEDIA_PLAYER_MARGIN = 24;
+static constexpr int MEDIA_PLAYER_TOP_WITH_CHROME = 24;
+static constexpr int MEDIA_PLAYER_TOP_NO_CHROME = 20;
+static constexpr int MEDIA_PLAYER_FOOTER_WITH_CHROME_OFFSET = 78;
+static constexpr int MEDIA_PLAYER_FOOTER_NO_CHROME_OFFSET = 16;
+static constexpr int MEDIA_PLAYER_BODY_WIDTH = 420;
+static constexpr int MEDIA_PLAYER_BODY_HEIGHT = 560;
+static constexpr int MEDIA_PLAYER_COVER_SIZE = 384;
+static constexpr int MEDIA_PLAYER_COVER_TOP_OFFSET = 8;
+static constexpr int MEDIA_PLAYER_PROGRESS_X_OFFSET = 14;
+static constexpr int MEDIA_PLAYER_PROGRESS_TOP_OFFSET = 492;
+static constexpr int MEDIA_PLAYER_PROGRESS_HEIGHT = 12;
+static constexpr int MEDIA_PLAYER_CONTROL_GAP = 14;
+static constexpr int MEDIA_PLAYER_CONTROL_WIDTH = 48;
+static constexpr int MEDIA_PLAYER_CONTROL_HEIGHT = 48;
+static constexpr int MEDIA_PLAYER_CONTROLS_TOP_OFFSET = 512;
 
 static int layoutClampInt(int value, int minValue, int maxValue)
 {
@@ -64,9 +131,46 @@ static bool layoutThermostatShowsHistoryGraph(const UiLayoutWidgetConfig &widget
   return widget.type == UI_LAYOUT_WIDGET_THERMOSTAT && widget.showHistoryGraph;
 }
 
-static bool layoutWidgetVisible(const UiStandardPageLayoutInput &input, int widgetIndex)
+static bool layoutWidgetVisible(const bool *visibleFlags, int widgetIndex)
 {
-  return input.widgetVisible == nullptr || input.widgetVisible[widgetIndex];
+  return visibleFlags == nullptr || visibleFlags[widgetIndex];
+}
+
+static int cappedWidgetCount(uint8_t widgetCount, uint8_t widgetCapacity)
+{
+  const int cappedByOutput =
+      widgetCount < widgetCapacity
+          ? widgetCount
+          : widgetCapacity;
+  return cappedByOutput < UI_LAYOUT_MAX_WIDGETS_PER_PAGE
+             ? cappedByOutput
+             : UI_LAYOUT_MAX_WIDGETS_PER_PAGE;
+}
+
+static UiLayoutRect layoutNavLeftRect(bool showChrome, int displayHeight, int margin)
+{
+  return showChrome
+             ? UiLayoutRect{
+                   margin - PAGE_NAV_LEFT_OFFSET,
+                   displayHeight - PAGE_NAV_Y_OFFSET,
+                   PAGE_NAV_SIZE,
+                   PAGE_NAV_SIZE}
+             : UiLayoutRect{0, 0, 0, 0};
+}
+
+static UiLayoutRect layoutNavRightRect(
+    bool showChrome,
+    int displayWidth,
+    int displayHeight,
+    int margin)
+{
+  return showChrome
+             ? UiLayoutRect{
+                   displayWidth - margin - PAGE_NAV_RIGHT_OFFSET,
+                   displayHeight - PAGE_NAV_Y_OFFSET,
+                   PAGE_NAV_SIZE,
+                   PAGE_NAV_SIZE}
+             : UiLayoutRect{0, 0, 0, 0};
 }
 
 static int standardWidgetWeight(const UiLayoutWidgetConfig &widget)
@@ -186,9 +290,10 @@ static void inflateRect(UiLayoutRect &rect, int amount)
   rect.h += amount * 2;
 }
 
-static void computeStandardClockLayout(
+static void computeClockLayout(
     const UiLayoutWidgetConfig &widget,
     UiLayoutFontProfile fontProfile,
+    int analogInset,
     UiWidgetLayout &layout)
 {
   memset(layout.digits, 0, sizeof(layout.digits));
@@ -199,12 +304,11 @@ static void computeStandardClockLayout(
   if (layoutClockWidgetIsAnalog(widget))
   {
     const int faceSize = layoutMinInt(layout.content.w, layout.content.h);
-    const int inset = 8;
     layout.face = {
-        layout.content.x + ((layout.content.w - faceSize) / 2) + inset,
-        layout.content.y + ((layout.content.h - faceSize) / 2) + inset,
-        faceSize - (inset * 2),
-        faceSize - (inset * 2),
+        layout.content.x + ((layout.content.w - faceSize) / 2) + analogInset,
+        layout.content.y + ((layout.content.h - faceSize) / 2) + analogInset,
+        faceSize - (analogInset * 2),
+        faceSize - (analogInset * 2),
     };
     return;
   }
@@ -273,7 +377,7 @@ static void computeStandardWidgetLayout(
         STANDARD_CLOCK_CONTENT_TOP,
         STANDARD_CARD_HORIZONTAL_PADDING,
         STANDARD_CLOCK_CONTENT_BOTTOM_PADDING);
-    computeStandardClockLayout(widget, fontProfile, layout);
+    computeClockLayout(widget, fontProfile, STANDARD_ANALOG_CLOCK_INSET, layout);
   }
   else if (widget.type == UI_LAYOUT_WIDGET_WEATHER)
   {
@@ -382,10 +486,7 @@ void computeStandardPageLayout(
     return;
   }
 
-  const int widgetCount =
-      input.widgetCount < layoutOut.widgetCapacity
-          ? input.widgetCount
-          : layoutOut.widgetCapacity;
+  const int widgetCount = cappedWidgetCount(input.widgetCount, layoutOut.widgetCapacity);
   const int topY = input.showChrome ? STANDARD_PAGE_TOP_WITH_CHROME : STANDARD_PAGE_TOP_NO_CHROME;
   const int footerTop =
       input.showChrome
@@ -400,7 +501,7 @@ void computeStandardPageLayout(
   int visibleWidgetCount = 0;
   for (int widgetIndex = 0; widgetIndex < widgetCount; widgetIndex++)
   {
-    if (layoutWidgetVisible(input, widgetIndex))
+    if (layoutWidgetVisible(input.widgetVisible, widgetIndex))
     {
       totalWeight += standardWidgetWeight(input.widgets[widgetIndex]);
       visibleWidgetCount++;
@@ -418,7 +519,7 @@ void computeStandardPageLayout(
 
   for (int widgetIndex = 0; widgetIndex < widgetCount; widgetIndex++)
   {
-    if (!layoutWidgetVisible(input, widgetIndex))
+    if (!layoutWidgetVisible(input.widgetVisible, widgetIndex))
     {
       continue;
     }
@@ -449,21 +550,481 @@ void computeStandardPageLayout(
     visibleWidgetIndex++;
   }
 
-  layoutOut.navLeft =
+  layoutOut.navLeft = layoutNavLeftRect(input.showChrome, input.displayHeight, STANDARD_PAGE_MARGIN);
+  layoutOut.navRight = layoutNavRightRect(
+      input.showChrome,
+      input.displayWidth,
+      input.displayHeight,
+      STANDARD_PAGE_MARGIN);
+  layoutOut.debugIp = {0, 0, 0, 0};
+}
+
+static bool overviewWidgetIsStackItem(const UiLayoutWidgetConfig &widget)
+{
+  return widget.type == UI_LAYOUT_WIDGET_CLOCK ||
+         widget.type == UI_LAYOUT_WIDGET_TEXT ||
+         widget.type == UI_LAYOUT_WIDGET_WEATHER ||
+         widget.type == UI_LAYOUT_WIDGET_PROGRESS;
+}
+
+static int overviewContentWidgetHeight(const UiLayoutWidgetConfig &widget)
+{
+  switch (widget.type)
+  {
+  case UI_LAYOUT_WIDGET_WEATHER:
+    return OVERVIEW_WEATHER_HEIGHT;
+  case UI_LAYOUT_WIDGET_PROGRESS:
+    return OVERVIEW_PROGRESS_HEIGHT;
+  case UI_LAYOUT_WIDGET_TEXT:
+    return OVERVIEW_TEXT_HEIGHT;
+  default:
+    return 0;
+  }
+}
+
+static int overviewMinimumContentWidgetHeight(const UiLayoutWidgetConfig &widget)
+{
+  switch (widget.type)
+  {
+  case UI_LAYOUT_WIDGET_WEATHER:
+    return OVERVIEW_WEATHER_HEIGHT;
+  case UI_LAYOUT_WIDGET_PROGRESS:
+  case UI_LAYOUT_WIDGET_TEXT:
+    return OVERVIEW_CONTENT_MIN_HEIGHT;
+  default:
+    return 0;
+  }
+}
+
+static int overviewPreferredClockHeight(const UiLayoutWidgetConfig &widget)
+{
+  return layoutClockWidgetIsAnalog(widget)
+             ? OVERVIEW_ANALOG_CLOCK_HEIGHT
+             : OVERVIEW_DIGITAL_CLOCK_HEIGHT;
+}
+
+static int overviewMinimumClockHeight(const UiLayoutWidgetConfig &widget)
+{
+  return layoutClockWidgetIsAnalog(widget)
+             ? OVERVIEW_ANALOG_CLOCK_MIN_HEIGHT
+             : OVERVIEW_DIGITAL_CLOCK_MIN_HEIGHT;
+}
+
+static int overviewPreferredStackWidgetHeight(const UiLayoutWidgetConfig &widget)
+{
+  return widget.type == UI_LAYOUT_WIDGET_CLOCK
+             ? overviewPreferredClockHeight(widget)
+             : overviewContentWidgetHeight(widget);
+}
+
+static int overviewMinimumStackWidgetHeight(const UiLayoutWidgetConfig &widget)
+{
+  return widget.type == UI_LAYOUT_WIDGET_CLOCK
+             ? overviewMinimumClockHeight(widget)
+             : overviewMinimumContentWidgetHeight(widget);
+}
+
+static void computeOverviewContentWidgetLayout(
+    const UiLayoutWidgetConfig &widget,
+    int x,
+    int y,
+    int width,
+    int height,
+    UiWidgetLayout &layout)
+{
+  layout.card = {x, y, width, height};
+  layout.content = layout.card;
+
+  if (widget.type == UI_LAYOUT_WIDGET_WEATHER)
+  {
+    const int iconSize = layoutClampInt(
+        height - OVERVIEW_WEATHER_ICON_HEIGHT_OFFSET,
+        OVERVIEW_WEATHER_ICON_MIN_SIZE,
+        OVERVIEW_WEATHER_ICON_MAX_SIZE);
+    layout.secondary = {
+        layout.card.x + layout.card.w - iconSize - OVERVIEW_WEATHER_ICON_RIGHT_OFFSET,
+        layout.card.y + ((layout.card.h - iconSize) / 2),
+        iconSize,
+        iconSize,
+    };
+    const int contentX = layout.card.x + OVERVIEW_WEATHER_HORIZONTAL_PADDING;
+    const int contentRight = layout.secondary.x - OVERVIEW_WEATHER_ICON_GAP;
+    layout.content = {
+        contentX,
+        layout.card.y + OVERVIEW_WEATHER_CONTENT_TOP,
+        contentRight - contentX,
+        layout.card.h - (OVERVIEW_WEATHER_CONTENT_TOP * 2),
+    };
+    if (layout.content.w < 0)
+    {
+      layout.content.w = 0;
+    }
+  }
+  else if (widget.type == UI_LAYOUT_WIDGET_PROGRESS)
+  {
+    const int barWidth = width - OVERVIEW_PROGRESS_BAR_WIDTH_OFFSET;
+    const int clampedBarWidth =
+        barWidth > OVERVIEW_PROGRESS_BAR_MIN_WIDTH
+            ? barWidth
+            : OVERVIEW_PROGRESS_BAR_MIN_WIDTH;
+    layout.control = {
+        x + ((width - clampedBarWidth) / 2),
+        y + height - OVERVIEW_PROGRESS_BAR_BOTTOM_OFFSET,
+        clampedBarWidth,
+        OVERVIEW_PROGRESS_BAR_HEIGHT,
+    };
+  }
+}
+
+static void computeOverviewStackWidgetLayout(
+    const UiLayoutWidgetConfig &widget,
+    int x,
+    int y,
+    int width,
+    int height,
+    UiLayoutFontProfile fontProfile,
+    UiWidgetLayout &layout)
+{
+  if (widget.type == UI_LAYOUT_WIDGET_CLOCK)
+  {
+    layout.card = {x, y, width, height};
+    layout.content = layout.card;
+    computeClockLayout(widget, fontProfile, OVERVIEW_ANALOG_CLOCK_INSET, layout);
+    return;
+  }
+
+  computeOverviewContentWidgetLayout(widget, x, y, width, height, layout);
+}
+
+static void computeOverviewButtonRows(
+    int buttonWidgetCount,
+    int buttonRowItemCounts[3],
+    int &buttonRows)
+{
+  static const uint8_t ROW_ITEM_COUNTS[UI_LAYOUT_OVERVIEW_MAX_BUTTONS + 1][3] = {
+      {0, 0, 0},
+      {1, 0, 0},
+      {2, 0, 0},
+      {3, 0, 0},
+      {2, 2, 0},
+      {3, 2, 0},
+      {3, 3, 0},
+  };
+
+  const int cappedButtonCount =
+      buttonWidgetCount > UI_LAYOUT_OVERVIEW_MAX_BUTTONS
+          ? UI_LAYOUT_OVERVIEW_MAX_BUTTONS
+          : buttonWidgetCount;
+  buttonRows = cappedButtonCount >= 4 ? 2 : (cappedButtonCount > 0 ? 1 : 0);
+  for (int index = 0; index < 3; index++)
+  {
+    buttonRowItemCounts[index] = ROW_ITEM_COUNTS[cappedButtonCount][index];
+  }
+}
+
+void computeOverviewPageLayout(
+    const UiOverviewPageLayoutInput &input,
+    UiOverviewPageLayout &layoutOut)
+{
+  if (layoutOut.widgets != nullptr && layoutOut.widgetCapacity > 0)
+  {
+    memset(layoutOut.widgets, 0, sizeof(UiWidgetLayout) * layoutOut.widgetCapacity);
+  }
+  layoutOut.navLeft = {0, 0, 0, 0};
+  layoutOut.navRight = {0, 0, 0, 0};
+  layoutOut.debugIp = {0, 0, 0, 0};
+
+  if (input.widgets == nullptr || layoutOut.widgets == nullptr)
+  {
+    return;
+  }
+
+  const int widgetCount = cappedWidgetCount(input.widgetCount, layoutOut.widgetCapacity);
+  int stackWidgetIndices[UI_LAYOUT_MAX_WIDGETS_PER_PAGE] = {};
+  int stackWidgetCount = 0;
+  int buttonWidgetIndices[UI_LAYOUT_OVERVIEW_MAX_BUTTONS] = {};
+  int buttonWidgetCount = 0;
+
+  for (int widgetIndex = 0; widgetIndex < widgetCount; widgetIndex++)
+  {
+    const UiLayoutWidgetConfig &widget = input.widgets[widgetIndex];
+    if (widget.type == UI_LAYOUT_WIDGET_BUTTON &&
+        buttonWidgetCount < UI_LAYOUT_OVERVIEW_MAX_BUTTONS)
+    {
+      buttonWidgetIndices[buttonWidgetCount++] = widgetIndex;
+    }
+    else if (
+        overviewWidgetIsStackItem(widget) &&
+        layoutWidgetVisible(input.widgetVisible, widgetIndex) &&
+        stackWidgetCount < UI_LAYOUT_MAX_WIDGETS_PER_PAGE)
+    {
+      stackWidgetIndices[stackWidgetCount++] = widgetIndex;
+    }
+  }
+
+  int buttonRowItemCounts[3] = {0, 0, 0};
+  int buttonRows = 0;
+  computeOverviewButtonRows(buttonWidgetCount, buttonRowItemCounts, buttonRows);
+
+  const int footerTop =
       input.showChrome
-          ? UiLayoutRect{
-                STANDARD_PAGE_MARGIN - STANDARD_PAGE_NAV_LEFT_OFFSET,
-                input.displayHeight - STANDARD_PAGE_NAV_Y_OFFSET,
-                STANDARD_PAGE_NAV_SIZE,
-                STANDARD_PAGE_NAV_SIZE}
-          : UiLayoutRect{0, 0, 0, 0};
-  layoutOut.navRight =
+          ? (input.displayHeight - OVERVIEW_FOOTER_WITH_CHROME_OFFSET)
+          : (input.displayHeight - OVERVIEW_FOOTER_NO_CHROME_OFFSET);
+  const int stackTop = OVERVIEW_CONTENT_TOP + OVERVIEW_STACK_TOP_OFFSET;
+  const int buttonGridHeight =
+      buttonRows > 0
+          ? (buttonRows * OVERVIEW_BUTTON_SIZE) + ((buttonRows - 1) * OVERVIEW_BUTTON_GAP_Y)
+          : 0;
+  const int buttonBlockTop =
+      buttonRows > 0
+          ? footerTop - buttonGridHeight - OVERVIEW_BUTTON_BOTTOM_INSET
+          : footerTop;
+  const int stackBottom =
+      buttonRows > 0
+          ? buttonBlockTop - OVERVIEW_CONTENT_TO_BUTTON_GAP
+          : footerTop - OVERVIEW_STACK_BOTTOM_INSET;
+  const int stackAreaHeight = stackBottom > stackTop ? stackBottom - stackTop : 0;
+
+  int widgetHeights[UI_LAYOUT_MAX_WIDGETS_PER_PAGE] = {};
+  int totalStackHeight = 0;
+  for (int index = 0; index < stackWidgetCount; index++)
+  {
+    const UiLayoutWidgetConfig &widget = input.widgets[stackWidgetIndices[index]];
+    widgetHeights[index] = overviewPreferredStackWidgetHeight(widget);
+    totalStackHeight += widgetHeights[index];
+  }
+
+  if (stackAreaHeight > 0 && totalStackHeight > stackAreaHeight)
+  {
+    int overflow = totalStackHeight - stackAreaHeight;
+    for (int pass = 0; pass < 2 && overflow > 0; pass++)
+    {
+      for (int index = 0; index < stackWidgetCount && overflow > 0; index++)
+      {
+        const UiLayoutWidgetConfig &widget = input.widgets[stackWidgetIndices[index]];
+        const bool isClock = widget.type == UI_LAYOUT_WIDGET_CLOCK;
+        if ((pass == 0 && isClock) || (pass == 1 && !isClock))
+        {
+          continue;
+        }
+
+        const int minimumHeight = overviewMinimumStackWidgetHeight(widget);
+        const int reducibleHeight = widgetHeights[index] - minimumHeight;
+        if (reducibleHeight <= 0)
+        {
+          continue;
+        }
+        const int reduction = reducibleHeight < overflow ? reducibleHeight : overflow;
+        widgetHeights[index] -= reduction;
+        totalStackHeight -= reduction;
+        overflow -= reduction;
+      }
+    }
+  }
+
+  if (stackWidgetCount > 0 && stackAreaHeight > 0)
+  {
+    const int gapCount = stackWidgetCount + 1;
+    const int totalGapSpace = totalStackHeight < stackAreaHeight ? stackAreaHeight - totalStackHeight : 0;
+    const int equalGap = gapCount > 0 ? totalGapSpace / gapCount : 0;
+    int currentY = stackTop + equalGap + ((totalGapSpace - (equalGap * gapCount)) / 2);
+
+    for (int index = 0; index < stackWidgetCount; index++)
+    {
+      if (widgetHeights[index] <= 0)
+      {
+        continue;
+      }
+      const int widgetIndex = stackWidgetIndices[index];
+      computeOverviewStackWidgetLayout(
+          input.widgets[widgetIndex],
+          OVERVIEW_PAGE_MARGIN,
+          currentY,
+          input.displayWidth - (OVERVIEW_PAGE_MARGIN * 2),
+          widgetHeights[index],
+          input.fontProfile,
+          layoutOut.widgets[widgetIndex]);
+      currentY += widgetHeights[index] + equalGap;
+    }
+  }
+
+  if (buttonRows > 0)
+  {
+    int buttonIndex = 0;
+    for (int row = 0; row < buttonRows; row++)
+    {
+      const int itemsInRow = buttonRowItemCounts[row];
+      const int rowWidth =
+          (itemsInRow * OVERVIEW_BUTTON_SIZE) +
+          ((itemsInRow - 1) * OVERVIEW_BUTTON_GAP_X);
+      const int startX = (input.displayWidth - rowWidth) / 2;
+      const int y = buttonBlockTop + (row * (OVERVIEW_BUTTON_SIZE + OVERVIEW_BUTTON_GAP_Y));
+
+      for (int col = 0; col < itemsInRow && buttonIndex < buttonWidgetCount; col++, buttonIndex++)
+      {
+        const int widgetIndex = buttonWidgetIndices[buttonIndex];
+        const int x = startX + (col * (OVERVIEW_BUTTON_SIZE + OVERVIEW_BUTTON_GAP_X));
+        layoutOut.widgets[widgetIndex].card = {x, y, OVERVIEW_BUTTON_SIZE, OVERVIEW_BUTTON_SIZE};
+        layoutOut.widgets[widgetIndex].content = layoutOut.widgets[widgetIndex].card;
+        layoutOut.widgets[widgetIndex].control = layoutOut.widgets[widgetIndex].card;
+      }
+    }
+  }
+
+  layoutOut.navLeft = layoutNavLeftRect(input.showChrome, input.displayHeight, OVERVIEW_PAGE_MARGIN);
+  layoutOut.navRight = layoutNavRightRect(
+      input.showChrome,
+      input.displayWidth,
+      input.displayHeight,
+      OVERVIEW_PAGE_MARGIN);
+  layoutOut.debugIp = {0, 0, 0, 0};
+}
+
+void computeWeatherFocusPageLayout(
+    const UiPageChromeLayoutInput &input,
+    UiWeatherFocusPageLayout &layoutOut)
+{
+  memset(&layoutOut, 0, sizeof(layoutOut));
+
+  const int contentTop =
       input.showChrome
-          ? UiLayoutRect{
-                input.displayWidth - STANDARD_PAGE_MARGIN - STANDARD_PAGE_NAV_RIGHT_OFFSET,
-                input.displayHeight - STANDARD_PAGE_NAV_Y_OFFSET,
-                STANDARD_PAGE_NAV_SIZE,
-                STANDARD_PAGE_NAV_SIZE}
-          : UiLayoutRect{0, 0, 0, 0};
+          ? WEATHER_FOCUS_TOP_WITH_CHROME
+          : WEATHER_FOCUS_TOP_NO_CHROME;
+  const int footerTop =
+      input.showChrome
+          ? (input.displayHeight - WEATHER_FOCUS_FOOTER_WITH_CHROME_OFFSET)
+          : (input.displayHeight - WEATHER_FOCUS_FOOTER_NO_CHROME_OFFSET);
+  const int contentHeight = footerTop - contentTop;
+
+  layoutOut.content = {0, contentTop, input.displayWidth, contentHeight};
+  layoutOut.hero = {
+      WEATHER_FOCUS_MARGIN,
+      contentTop + WEATHER_FOCUS_HERO_TOP_OFFSET,
+      input.displayWidth - (WEATHER_FOCUS_MARGIN * 2),
+      WEATHER_FOCUS_HERO_HEIGHT,
+  };
+  layoutOut.heroIcon = {
+      layoutOut.hero.x + WEATHER_FOCUS_HERO_ICON_X_OFFSET,
+      layoutOut.hero.y + WEATHER_FOCUS_HERO_ICON_Y_OFFSET,
+      WEATHER_FOCUS_HERO_ICON_SIZE,
+      WEATHER_FOCUS_HERO_ICON_SIZE,
+  };
+  layoutOut.stats = {
+      WEATHER_FOCUS_MARGIN,
+      layoutOut.hero.y + layoutOut.hero.h + WEATHER_FOCUS_STATS_GAP,
+      input.displayWidth - (WEATHER_FOCUS_MARGIN * 2),
+      WEATHER_FOCUS_STATS_HEIGHT,
+  };
+  layoutOut.temperatureChart = {
+      WEATHER_FOCUS_MARGIN,
+      layoutOut.stats.y + layoutOut.stats.h + WEATHER_FOCUS_CHART_GAP,
+      input.displayWidth - (WEATHER_FOCUS_MARGIN * 2),
+      WEATHER_FOCUS_HOURLY_CHART_HEIGHT,
+  };
+  layoutOut.rainChart = {0, 0, 0, 0};
+  layoutOut.timeline = {
+      WEATHER_FOCUS_MARGIN,
+      layoutOut.temperatureChart.y + layoutOut.temperatureChart.h + WEATHER_FOCUS_FORECAST_GAP,
+      input.displayWidth - (WEATHER_FOCUS_MARGIN * 2),
+      footerTop -
+          (layoutOut.temperatureChart.y + layoutOut.temperatureChart.h + WEATHER_FOCUS_FORECAST_GAP) -
+          WEATHER_FOCUS_TIMELINE_BOTTOM_INSET,
+  };
+
+  const int cardWidth =
+      layoutOut.timeline.w / UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT;
+  for (int index = 0; index < UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT; index++)
+  {
+    const int cardX = layoutOut.timeline.x + (cardWidth * index);
+    const int nextX =
+        index == (UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT - 1)
+            ? layoutOut.timeline.x + layoutOut.timeline.w
+            : cardX + cardWidth;
+    layoutOut.forecast[index] = {
+        cardX,
+        layoutOut.timeline.y,
+        nextX - cardX,
+        layoutOut.timeline.h,
+    };
+  }
+
+  layoutOut.navLeft = layoutNavLeftRect(input.showChrome, input.displayHeight, WEATHER_FOCUS_MARGIN);
+  layoutOut.navRight = layoutNavRightRect(
+      input.showChrome,
+      input.displayWidth,
+      input.displayHeight,
+      WEATHER_FOCUS_MARGIN);
+  layoutOut.debugIp = {0, 0, 0, 0};
+}
+
+void computeMediaPlayerPageLayout(
+    const UiPageChromeLayoutInput &input,
+    UiMediaPlayerPageLayout &layoutOut)
+{
+  memset(&layoutOut, 0, sizeof(layoutOut));
+
+  const int contentTop =
+      input.showChrome
+          ? MEDIA_PLAYER_TOP_WITH_CHROME
+          : MEDIA_PLAYER_TOP_NO_CHROME;
+  const int footerTop =
+      input.showChrome
+          ? (input.displayHeight - MEDIA_PLAYER_FOOTER_WITH_CHROME_OFFSET)
+          : (input.displayHeight - MEDIA_PLAYER_FOOTER_NO_CHROME_OFFSET);
+  const int contentHeight = footerTop - contentTop;
+  const int bodyX = (input.displayWidth - MEDIA_PLAYER_BODY_WIDTH) / 2;
+  const int bodyY = contentTop + ((contentHeight - MEDIA_PLAYER_BODY_HEIGHT) / 2);
+  const int controlsTop = bodyY + MEDIA_PLAYER_CONTROLS_TOP_OFFSET;
+  const int controlsWidth =
+      (MEDIA_PLAYER_CONTROL_WIDTH * 3) + (MEDIA_PLAYER_CONTROL_GAP * 2);
+  const int controlsX = bodyX + ((MEDIA_PLAYER_BODY_WIDTH - controlsWidth) / 2);
+
+  layoutOut.content = {0, contentTop, input.displayWidth, contentHeight};
+  layoutOut.body = {
+      bodyX,
+      bodyY,
+      MEDIA_PLAYER_BODY_WIDTH,
+      MEDIA_PLAYER_BODY_HEIGHT,
+  };
+  layoutOut.cover = {
+      bodyX + ((MEDIA_PLAYER_BODY_WIDTH - MEDIA_PLAYER_COVER_SIZE) / 2),
+      bodyY + MEDIA_PLAYER_COVER_TOP_OFFSET,
+      MEDIA_PLAYER_COVER_SIZE,
+      MEDIA_PLAYER_COVER_SIZE,
+  };
+  layoutOut.progress = {
+      bodyX + MEDIA_PLAYER_PROGRESS_X_OFFSET,
+      bodyY + MEDIA_PLAYER_PROGRESS_TOP_OFFSET,
+      MEDIA_PLAYER_BODY_WIDTH - (MEDIA_PLAYER_PROGRESS_X_OFFSET * 2),
+      MEDIA_PLAYER_PROGRESS_HEIGHT,
+  };
+  layoutOut.prevButton = {
+      controlsX,
+      controlsTop,
+      MEDIA_PLAYER_CONTROL_WIDTH,
+      MEDIA_PLAYER_CONTROL_HEIGHT,
+  };
+  layoutOut.playPauseButton = {
+      controlsX + MEDIA_PLAYER_CONTROL_WIDTH + MEDIA_PLAYER_CONTROL_GAP,
+      controlsTop,
+      MEDIA_PLAYER_CONTROL_WIDTH,
+      MEDIA_PLAYER_CONTROL_HEIGHT,
+  };
+  layoutOut.nextButton = {
+      controlsX +
+          MEDIA_PLAYER_CONTROL_WIDTH +
+          MEDIA_PLAYER_CONTROL_GAP +
+          MEDIA_PLAYER_CONTROL_WIDTH +
+          MEDIA_PLAYER_CONTROL_GAP,
+      controlsTop,
+      MEDIA_PLAYER_CONTROL_WIDTH,
+      MEDIA_PLAYER_CONTROL_HEIGHT,
+  };
+  layoutOut.navLeft = layoutNavLeftRect(input.showChrome, input.displayHeight, MEDIA_PLAYER_MARGIN);
+  layoutOut.navRight = layoutNavRightRect(
+      input.showChrome,
+      input.displayWidth,
+      input.displayHeight,
+      MEDIA_PLAYER_MARGIN);
   layoutOut.debugIp = {0, 0, 0, 0};
 }

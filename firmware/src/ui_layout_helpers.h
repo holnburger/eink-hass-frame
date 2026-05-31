@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+static constexpr uint8_t UI_LAYOUT_MAX_WIDGETS_PER_PAGE = 8;
+static constexpr uint8_t UI_LAYOUT_OVERVIEW_MAX_BUTTONS = 6;
+static constexpr uint8_t UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT = 3;
+
 typedef struct
 {
   int x;
@@ -32,6 +36,44 @@ typedef struct
   UiLayoutRect navRight;
   UiLayoutRect debugIp;
 } UiStandardPageLayout;
+
+typedef struct
+{
+  UiWidgetLayout *widgets;
+  uint8_t widgetCapacity;
+  UiLayoutRect navLeft;
+  UiLayoutRect navRight;
+  UiLayoutRect debugIp;
+} UiOverviewPageLayout;
+
+typedef struct
+{
+  UiLayoutRect content;
+  UiLayoutRect hero;
+  UiLayoutRect heroIcon;
+  UiLayoutRect stats;
+  UiLayoutRect temperatureChart;
+  UiLayoutRect rainChart;
+  UiLayoutRect timeline;
+  UiLayoutRect forecast[UI_LAYOUT_WEATHER_FOCUS_FORECAST_DAY_COUNT];
+  UiLayoutRect navLeft;
+  UiLayoutRect navRight;
+  UiLayoutRect debugIp;
+} UiWeatherFocusPageLayout;
+
+typedef struct
+{
+  UiLayoutRect content;
+  UiLayoutRect body;
+  UiLayoutRect cover;
+  UiLayoutRect progress;
+  UiLayoutRect prevButton;
+  UiLayoutRect playPauseButton;
+  UiLayoutRect nextButton;
+  UiLayoutRect navLeft;
+  UiLayoutRect navRight;
+  UiLayoutRect debugIp;
+} UiMediaPlayerPageLayout;
 
 enum UiLayoutWidgetType : uint8_t
 {
@@ -78,6 +120,36 @@ typedef struct
   const bool *widgetVisible;
 } UiStandardPageLayoutInput;
 
+typedef struct
+{
+  int displayWidth;
+  int displayHeight;
+  bool showChrome;
+  UiLayoutFontProfile fontProfile;
+  uint8_t widgetCount;
+  const UiLayoutWidgetConfig *widgets;
+  const bool *widgetVisible;
+} UiOverviewPageLayoutInput;
+
+typedef struct
+{
+  int displayWidth;
+  int displayHeight;
+  bool showChrome;
+} UiPageChromeLayoutInput;
+
 void computeStandardPageLayout(
     const UiStandardPageLayoutInput &input,
     UiStandardPageLayout &layoutOut);
+
+void computeOverviewPageLayout(
+    const UiOverviewPageLayoutInput &input,
+    UiOverviewPageLayout &layoutOut);
+
+void computeWeatherFocusPageLayout(
+    const UiPageChromeLayoutInput &input,
+    UiWeatherFocusPageLayout &layoutOut);
+
+void computeMediaPlayerPageLayout(
+    const UiPageChromeLayoutInput &input,
+    UiMediaPlayerPageLayout &layoutOut);

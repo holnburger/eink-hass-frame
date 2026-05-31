@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       name: "M5PaperS3 FastEPD Firmware",
-      version: "0.9.1",
+      version: "0.9.2",
       improv: true,
       new_install_improv_wait_time: 30,
       // removed because it is currently only added via mqtt and not an official home assistant integration
