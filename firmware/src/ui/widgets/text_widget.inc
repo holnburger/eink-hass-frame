@@ -14,48 +14,15 @@ static size_t trimTextWidgetTrailingWhitespace(char *text)
   return length;
 }
 
-static const void *getTextWidgetDisplayFont()
-{
-  switch (getUiFontProfile())
-  {
-  case UI_FONT_PROFILE_SERIF:
-#if UI_IBM_PLEX_SERIF_18_AVAILABLE
-    return IBMPlexSerif_18;
-#elif UI_IBM_PLEX_SERIF_16_AVAILABLE
-    return IBMPlexSerif_16;
-#endif
-    break;
-  case UI_FONT_PROFILE_MONO:
-#if UI_IBM_PLEX_MONO_18_AVAILABLE
-    return IBMPlexMono_18;
-#elif UI_IBM_PLEX_MONO_16_AVAILABLE
-    return IBMPlexMono_16;
-#endif
-    break;
-  case UI_FONT_PROFILE_SYSTEM:
-  default:
-#if UI_INTER_18_AVAILABLE
-    return Inter_Regular_18;
-#elif UI_INTER_16_AVAILABLE
-    return Inter_Regular_16;
-#elif UI_ROBOTO_REGULAR_20_AVAILABLE
-    return Roboto_Regular_20;
-#endif
-    break;
-  }
-
-  return getUiTextFont(UI_TEXT_BODY);
-}
-
 static int textWidgetLineWidth(const char *text)
 {
-  const void *font = getTextWidgetDisplayFont();
+  const void *font = getUiTextWidgetFont();
   return font != nullptr ? customFontTextWidth(font, text) : textWidthForRole(text, UI_TEXT_BODY);
 }
 
 static void drawTextWidgetLine(const char *text, int x, int topY)
 {
-  const void *font = getTextWidgetDisplayFont();
+  const void *font = getUiTextWidgetFont();
   if (font != nullptr)
   {
     drawCustomTextAtTop(font, text, x, topY);

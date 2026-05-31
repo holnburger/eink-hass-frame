@@ -272,3 +272,27 @@ Primary files:
 - `.dockerignore`
 - `playwright.config.ts`
 - `.github/workflows/*`
+
+## C-012 Firmware Maintainability And DRY Refactor Goal
+
+Refactoring goal:
+
+- Firmware cleanup refactors should make the code easier to read, reason about, and safely modify. Clean structure, named responsibilities, and DRY behavior are the primary goals.
+- Prefer named helpers, small fixed data tables, and single-source selection or formatting logic when they remove repeated branch-heavy code without hiding behavior. Font selection, theme/display text selection, topic construction, and root-page rendering are explicit candidates for this treatment.
+- Treat source line counts and firmware binary size as review signals to record and explain, not hard pass/fail gates. A small increase can be acceptable when it buys clearer structure, and a smaller patch is not acceptable if it becomes cryptic or harder to maintain.
+- Avoid line-count games: do not minify HTML, CSS, or C++ formatting; do not pack unrelated work into one-liners; and do not add indirection whose only benefit is fewer lines.
+- For firmware cleanup tasks, record before/after size signals when practical:
+  - total hand-written firmware lines under `firmware/src` and `firmware/include`, excluding generated headers and fonts
+  - `firmware/src/main.cpp` line count
+  - PlatformIO firmware binary size from `cd firmware && pio run -e m5papers3`
+- If a readability refactor reduces `main.cpp` but increases total hand-written firmware lines or binary size, record the tradeoff and add a focused follow-up only when the growth appears to come from avoidable duplication, branch sprawl, or helper overhead.
+- Keep memory use conservative; avoid heap-heavy abstractions in firmware refactors.
+- Contract-preserving readability and DRY improvements must not change MQTT, OTA, Home Assistant, display refresh, provisioning, Web Serial, or device-local endpoint behavior.
+
+Primary files:
+
+- `docs/refactoring/REFACTORING_PLAN.md`
+- `firmware/src/main.cpp`
+- `firmware/src/**/*.cpp`
+- `firmware/src/**/*.h`
+- `firmware/src/ui/**/*.inc`

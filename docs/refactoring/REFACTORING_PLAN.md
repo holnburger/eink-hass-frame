@@ -28,6 +28,14 @@ Status values:
 | RF-012 | Done | Introduce firmware Home Assistant module boundary |
 | RF-013 | Done | Introduce firmware OTA/webserver/provisioning boundaries |
 | RF-014 | Done | Expand CI quality gates |
+| RF-015 | Done | Shrink firmware MQTT discovery and command code |
+| RF-016 | Done | Consolidate firmware Home Assistant entity sync and state mapping |
+| RF-017 | Done | Centralize firmware HTTP, binary download, and OTA helpers |
+| RF-018 | Done | Extract device web page rendering helpers |
+| RF-019 | Done | Extract firmware display, text, and media-cover helpers |
+| RF-020 | Done | Flatten touch handling and main loop orchestration |
+| RF-021 | Done | Rebalance firmware cleanup around maintainability and DRY |
+| RF-022 | Done | Simplify firmware font selection and text helper branching |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -654,6 +662,375 @@ Follow-up notes:
 - Added `scripts/prepare-firmware-build.ts` and `firmware:prepare` to generate `firmware/include/generated_ui_config.h` plus icon/media headers through the existing firmware build helpers before CI runs PlatformIO.
 - Updated CI cache steps to `actions/cache@v5`, which runs on Node.js 24, to address the Node 20 deprecation warning source.
 - Verification: `bun run firmware:prepare`, `cd firmware && pio run -e m5papers3 -t clean`, `cd firmware && pio run -e m5papers3`, `bun run lint`, `bun run test:unit`, and `bun run build` passed locally.
+
+## RF-015 Shrink Firmware MQTT Discovery And Command Code
+
+Status: Done
+
+Goal:
+
+Reduce the repeated MQTT discovery, telemetry, subscription, and command-handling code in `firmware/src/main.cpp` while preserving every topic, payload, retained message, discovery document, and reconnect behavior.
+
+Protected contracts:
+
+- C-007 MQTT Topics, Payloads, And Discovery
+- C-008 Device-Local Web And Automation Endpoints
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Build on `firmware/src/mqtt_helpers.*`; do not replace the existing `PubSubClient` lifecycle in the same patch.
+- Convert repeated binary sensor and sensor discovery publishing calls into small fixed `static const` spec arrays plus shared publish loops.
+- Keep text widget discovery special-cases explicit: `text` and `notify` components, default entity IDs, legacy text command subscriptions, retained state topics, and stale discovery cleanup.
+- Extract topic/state helpers only when their output is preserved exactly.
+- Avoid heap-heavy abstractions and avoid changing MQTT reconnect timing, last-will behavior, or retained telemetry publishing.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual MQTT smoke test when hardware and a broker are available
+
+Definition of done:
+
+- MQTT discovery and command code is visibly smaller and less repetitive.
+- `firmware/src/main.cpp` delegates more MQTT formatting/publishing detail to helpers.
+- MQTT contract differences are not intentional.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Added fixed MQTT discovery spec structs and shared publishing loops for binary sensors and sensors.
+- Extracted text widget discovery publishing into a named helper while preserving `text`, `notify`, default entity IDs, command topics, retained state topics, and legacy notify text subscriptions.
+- Extracted retained legacy discovery cleanup and command-topic subscription loops.
+- Preserved MQTT topic names, payloads, Home Assistant discovery payload fields, retained stale discovery cleanup, reconnect/last-will behavior, device-local route behavior, and firmware runtime behavior.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual MQTT smoke test was not run because no hardware/broker session is available in this environment.
+
+## RF-016 Consolidate Firmware Home Assistant Entity Sync And State Mapping
+
+Status: Done
+
+Goal:
+
+Reduce duplicated Home Assistant entity collection, de-duplication, widget state mapping, forecast handling, thermostat history handling, and service-call setup without changing Home Assistant behavior.
+
+Protected contracts:
+
+- C-006 Home Assistant Integration
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Add a fixed-capacity unique entity list helper for the repeated entity ID collection loops in `syncAllHomeAssistantEntityStates`.
+- Keep media player pages, weather focus pages, companion hourly sensors, widget bindings, and thermostat history requests in the same sync order unless a test or manual note justifies otherwise.
+- Split large state-application branches into focused internal helpers for switch/button, progress, slider, thermostat, weather, weather-focus page, media-player page, and history mapping.
+- Preserve websocket auth/subscribe behavior, polling intervals, service payloads, weather forecast request payloads, and thermostat mode semantics.
+- Keep ArduinoJson document sizes and stack/heap usage conservative.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual Home Assistant smoke test when hardware and a Home Assistant instance are available
+
+Definition of done:
+
+- Home Assistant sync and state mapping read as named steps instead of one long mixed block.
+- Entity de-duplication logic is centralized.
+- Home Assistant contracts are preserved or explicitly documented as unverified where hardware is unavailable.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Added a fixed-capacity `UniqueEntityList` helper to centralize Home Assistant entity de-duplication while preserving first-seen request order.
+- Extracted weather hourly companion sensor ID collection into a named helper and kept companion sensor entity ID shapes unchanged.
+- Split widget state mapping into focused helpers for switch/button, progress, slider, thermostat, and weather widgets.
+- Preserved Home Assistant entity sync order, weather forecast request order, optional hourly companion sensor requests, thermostat history requests, widget state mapping semantics, polling/websocket behavior, and conservative fixed-capacity storage.
+- Verification: `cd firmware && pio run -e m5papers3` passed, and `git diff --check` passed.
+- Manual Home Assistant smoke test was not run because no hardware/Home Assistant session is available in this environment.
+
+## RF-017 Centralize Firmware HTTP, Binary Download, And OTA Helpers
+
+Status: Done
+
+Goal:
+
+Remove duplicated HTTP setup, secure/insecure request branching, binary body streaming, and OTA transfer handling while keeping OTA and media-cover behavior compatible.
+
+Protected contracts:
+
+- C-005 OTA Update Flow
+- C-006 Home Assistant Integration
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Extract a small HTTP helper layer for timeout setup, optional Bearer auth, secure/insecure client selection, and response status handling.
+- Share binary body streaming paths used by media cover download and URL OTA where practical, while preserving current size limits, timeout values, and failure strings.
+- Keep direct multipart OTA upload flow unchanged except for extracting upload state helpers if needed.
+- Preserve OTA status screens, reboot delays, direct upload preference, and legacy URL OTA fallback behavior.
+- Avoid changing TLS verification policy in this refactor; security behavior can be a separate approved contract-changing task later.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual OTA URL fallback and direct upload test when hardware is available
+- Manual media-cover download check when Home Assistant media entities are available
+
+Definition of done:
+
+- HTTP and OTA transfer logic has fewer duplicated secure/insecure branches.
+- Existing OTA and media-cover behaviors compile and remain contract-compatible.
+- Hardware-dependent verification status is recorded.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Added a shared HTTP setup helper for timeout setup and secure/insecure client selection, plus a shared Home Assistant authorization header helper.
+- Updated media-cover binary downloads and Home Assistant API requests to use the shared HTTP setup path while preserving existing insecure HTTPS behavior.
+- Extracted legacy URL OTA streaming into a named helper while preserving direct upload behavior, OTA timeout, progress logging, error strings, and reboot/status-screen behavior.
+- Kept legacy URL OTA on the plain-client path; HTTPS behavior was not broadened in this refactor.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual OTA and media-cover smoke tests were not run because no hardware/Home Assistant session is available in this environment.
+
+## RF-018 Extract Device Web Page Rendering Helpers
+
+Status: Done
+
+Goal:
+
+Move the on-device root page HTML construction and repeated response helpers out of `firmware/src/main.cpp` while preserving all device-local endpoint paths and response shapes.
+
+Protected contracts:
+
+- C-005 OTA Update Flow
+- C-008 Device-Local Web And Automation Endpoints
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Extend `firmware/src/device_web_helpers.*` with root-page rendering helpers and small append helpers.
+- Keep `handleRoot`, `handleMqttConfigSave`, `handlePageControl`, `handleDarkModeControl`, OTA handlers, and automation switch handlers behaviorally unchanged.
+- Preserve the root page's MQTT setup form, page controls, dark mode controls, topic display, OTA guidance, notice/error query handling, and HTML escaping.
+- Do not change route registration or HTTP status codes in this task.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual checks of `GET /`, `GET /api/health`, `POST /api/mqtt`, `POST /api/page`, `POST /api/dark-mode`, `POST /api/ota`, `POST /api/ota/upload`, and `/api/automation-switch` when hardware is available
+
+Definition of done:
+
+- Device web page assembly no longer dominates `main.cpp`.
+- Device-local route contracts are preserved.
+- Manual endpoint verification status is recorded.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Added `DeviceRootPageContext` and `renderDeviceRootPage` in `firmware/src/device_web_helpers.*`.
+- Reduced `handleRoot` to collecting live firmware state, building escaped page options, and sending the rendered page.
+- Preserved the device root page MQTT setup form, page controls, dark mode controls, topic display, OTA guidance, notice/error query behavior, HTML escaping, route path, and response status/content type.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual device-local endpoint checks were not run because no hardware session is available in this environment.
+
+## RF-019 Extract Firmware Display, Text, And Media-Cover Helpers
+
+Status: Done
+
+Goal:
+
+Separate display text/font utilities, shared drawing helpers, icon/weather rendering helpers, and media-cover decode/cache helpers from the main firmware orchestration.
+
+Protected contracts:
+
+- C-002 Layout Model And Firmware Header ABI
+- C-006 Home Assistant Integration
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Extract in thin slices: text/font helpers first, then dither/icon/weather helpers, then media-cover download/decode/cache helpers.
+- Keep generated UI config consumption, custom font fallback order, text truncation behavior, gray/mono theme helpers, and FastEPD mode usage unchanged.
+- Keep media-cover buffer size, PSRAM fallback allocation, JPEG decode crop/scale behavior, and cover fetch backoff unchanged.
+- Avoid moving widget/page `.inc` rendering code until shared dependencies are clearly separated.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual display smoke test when hardware is available, covering standard, overview, weather-focus, media-player, and dark mode pages
+
+Definition of done:
+
+- Shared drawing and media-cover helpers live behind focused internal module boundaries.
+- Page/widget rendering output is intended to be unchanged.
+- Display refresh and memory-use contracts are preserved.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Added `firmware/src/media_cover_helpers.h` and `firmware/src/media_cover_helpers.cpp`.
+- Moved PSRAM-aware media-cover buffer allocation, packed 4-bpp buffer fill/write helpers, ordered gray quantization, and JPEG magic detection out of `firmware/src/main.cpp`.
+- Kept media-cover buffer size, packed pixel format, ordered dithering matrix, PSRAM fallback allocation behavior, JPEG decode crop/scale behavior, and cover fetch backoff unchanged.
+- Left the highly coupled FastEPD text/font and page/widget rendering helpers in `main.cpp` for a future smaller display-only task rather than broadening this patch.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual display smoke test was not run because no hardware session is available in this environment.
+
+## RF-020 Flatten Touch Handling And Main Loop Orchestration
+
+Status: Done
+
+Goal:
+
+Make touch input and the main loop read as small named steps while preserving all timing, refresh, navigation, widget action, network, MQTT, and Home Assistant behavior.
+
+Protected contracts:
+
+- C-007 MQTT Topics, Payloads, And Discovery
+- C-008 Device-Local Web And Automation Endpoints
+- C-010 Firmware Runtime Behavior
+
+Implementation notes:
+
+- Split touch mapping, navigation hits, media-player hits, switch/button hits, slider hits, and thermostat hits into small internal helpers.
+- Keep touch coordinate mappings, debounce timing, expanded hit padding, optimistic redraw behavior, touch-idle full refresh scheduling, and serial log messages compatible.
+- Split `loop()` into named steps for serial provisioning, connected network services, Wi-Fi retry, webserver polling, and display loop.
+- Preserve Wi-Fi retry timing, MQTT telemetry interval, MQTT loop error handling, Home Assistant websocket loop, and Home Assistant polling intervals.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- Manual touch smoke test when hardware is available, covering page navigation, media controls, switch/button, slider, thermostat mode, and thermostat temperature controls
+- Manual Wi-Fi reconnect/MQTT/Home Assistant loop observation when hardware is available
+
+Definition of done:
+
+- Touch handling and `loop()` orchestration are easier to scan without changing behavior.
+- Timing-sensitive behavior remains documented and preserved.
+- Hardware-dependent verification status is recorded.
+- Plan status and notes are updated.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Extracted page navigation touch handling and media-player touch handling into named helpers while preserving coordinate mappings, debounce timing, hit padding, optimistic redraw behavior, idle refresh scheduling, service calls, MQTT page-state publishing, and serial log message shapes.
+- Split the main `loop()` into named steps for connected network services, Wi-Fi retry, device webserver polling, and display loop execution.
+- Preserved Wi-Fi retry timing, MQTT reconnect/loop/error handling, telemetry interval, Home Assistant websocket loop, Home Assistant polling intervals, and display loop order.
+- Verification: `cd firmware && pio run -e m5papers3` passed.
+- Manual touch, Wi-Fi reconnect, MQTT, and Home Assistant smoke tests were not run because no hardware/broker/Home Assistant session is available in this environment.
+
+Size check notes:
+
+- Baseline before RF-017 through RF-020, after RF-015/RF-016: hand-written firmware total `12839` lines, `firmware/src/main.cpp` `8905` lines, firmware binary `1804381` bytes.
+- After RF-017 through RF-020: hand-written firmware total `12943` lines, `firmware/src/main.cpp` `8728` lines, firmware binary `1805881` bytes.
+- `main.cpp` shrank by `177` lines, but total hand-written firmware grew by `104` lines and firmware binary grew by `1500` bytes.
+- Added contract `C-012 Firmware Maintainability And DRY Refactor Goal` and follow-up `RF-021` because this cleanup improved structure, while its size signals showed extraction overhead that should be checked for avoidable duplication.
+
+## RF-021 Rebalance Firmware Cleanup Around Maintainability And DRY
+
+Status: Done
+
+Goal:
+
+Review the RF-017 through RF-020 helper extraction through a maintainability and DRY lens. Remove avoidable duplication or helper overhead where it improves readability, while treating code size as a signal rather than the primary goal.
+
+Protected contracts:
+
+- C-005 OTA Update Flow
+- C-006 Home Assistant Integration
+- C-007 MQTT Topics, Payloads, And Discovery
+- C-008 Device-Local Web And Automation Endpoints
+- C-010 Firmware Runtime Behavior
+- C-012 Firmware Maintainability And DRY Refactor Goal
+
+Implementation notes:
+
+- Start from the RF-020 size check: total hand-written firmware `12943` lines, `main.cpp` `8728` lines, firmware binary `1805881` bytes. Use these values to identify avoidable helper overhead, not as strict pass/fail thresholds.
+- Reduce repeated helper boilerplate introduced during extraction when it makes the code clearer, especially root-page rendering context setup, repeated topic/context strings, and small wrapper helpers that do not pay for themselves.
+- Prefer deleting duplication and naming shared behavior over compressing formatting-only lines; do not minify HTML/CSS merely to improve line counts.
+- Keep the device root page content, routes, response shapes, MQTT topics, Home Assistant behavior, OTA flows, touch behavior, and display refresh timing unchanged.
+- If source or binary size does not decrease, record the reason. Add a follow-up only when the remaining growth comes from avoidable duplication, branch sprawl, or unclear helper boundaries.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Hand-written firmware line-count command excluding generated headers and fonts
+
+Definition of done:
+
+- Avoidable duplication or helper overhead discovered in RF-017 through RF-020 is either removed or captured in a focused follow-up task.
+- Firmware compiles when production code changes.
+- Before/after source and binary size signals are recorded when practical.
+- Plan status and notes are updated with maintainability-focused outcomes.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Removed redundant precomputed device-root MQTT topic fields from `DeviceRootPageContext`; the renderer now derives the displayed topic strings from the already-provided base topic prefix.
+- Kept the rendered root-page topic values unchanged for page command/state/index, dark-mode command/state, and availability.
+- Cleaned up the `C-011`/`C-012` contract documentation structure so generated/local artifact hygiene remains under `C-011` and firmware maintainability/DRY cleanup is isolated under `C-012`.
+- Size before RF-021: hand-written firmware total `12943` lines, `firmware/src/main.cpp` `8728` lines, firmware binary `1805881` bytes.
+- Size after RF-021: hand-written firmware total `12931` lines, `firmware/src/main.cpp` `8722` lines, firmware binary `1805389` bytes.
+- RF-021 reduced total source by `12` lines, `main.cpp` by `6` lines, and firmware binary by `492` bytes compared with the RF-020 size check.
+- The firmware binary remains `1008` bytes larger than the RF-016 baseline because RF-017 through RF-020 introduced helper boundaries; this is recorded as a size signal rather than a failure by itself.
+- Updated after maintainer feedback on 2026-05-30: redesigned `C-012` so readability, clear structure, and DRY behavior are the contract; line count and binary size are supporting signals, not rigid goals.
+- Added `RF-022` to target the remaining branch-heavy font/text helper code as a focused maintainability task.
+- Verification: `cd firmware && pio run -e m5papers3` passed, `git diff --check` passed, and the hand-written firmware line-count command recorded the RF-021 size signals.
+
+## RF-022 Simplify Firmware Font Selection And Text Helper Branching
+
+Status: Done
+
+Goal:
+
+Make firmware font and text helper selection easier to read and maintain by reducing repeated `if`/`else` ladders and keeping fallback behavior in one obvious place.
+
+Protected contracts:
+
+- C-002 Layout Model And Firmware Header ABI
+- C-010 Firmware Runtime Behavior
+- C-012 Firmware Maintainability And DRY Refactor Goal
+
+Implementation notes:
+
+- Inspect the current font selection helpers, text measurement/drawing helpers, and any page/widget `.inc` call sites before editing.
+- Replace repeated font-selection branches with named helpers or small fixed lookup tables only where that makes the fallback order clearer.
+- Preserve generated UI config consumption, custom font fallback order, text truncation behavior, gray/mono theme helpers, display refresh behavior, and FastEPD font lifetime assumptions.
+- Keep memory use conservative; avoid dynamic allocation or heap-heavy containers.
+- Do not change generated UI ABI, page/widget rendering semantics, or Home Assistant-derived display state handling.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Manual display smoke test when hardware is available, covering configured custom fonts plus standard, overview, weather-focus, media-player, and dark mode pages
+
+Definition of done:
+
+- Font/text selection reads as a centralized, named flow instead of repeated branch-heavy code.
+- DRY improvements are demonstrable without cryptic one-liners or minified formatting.
+- Firmware compiles.
+- Size signals are recorded as context, not mandatory pass/fail thresholds.
+- Hardware-dependent verification status is recorded.
+
+Completion notes:
+
+- Completed on 2026-05-30.
+- Re-checked `RF-021` against the redesigned `C-012` contract before starting; no redo was needed because RF-021 already removed avoidable duplicated root-page topic context and recorded size signals as context rather than a strict goal.
+- Replaced repeated runtime font fallback `#if`/`#elif` ladders in `firmware/src/main.cpp` with named compile-time fallback constants for accent, page title, media title, body, meta, widget meta, and text-widget fonts.
+- Kept fallback resolution at compile time instead of using global font pointer tables, so unused fallback font assets stay unreferenced by the linker.
+- Removed the text-widget-local font selection switch from `firmware/src/ui/widgets/text_widget.inc`; text widgets now use the centralized `getUiTextWidgetFont()` helper.
+- Preserved generated `UI_FONT_NAME` profile behavior, custom font fallback order, text-widget drawing behavior, FastEPD font lifetime assumptions, display refresh behavior, and generated UI ABI.
+- Size before RF-022, from RF-021 notes: hand-written firmware total `12931` lines, `firmware/src/main.cpp` `8722` lines, PlatformIO flash used `1805389` bytes.
+- Size after RF-022: hand-written firmware total `12997` lines, `firmware/src/main.cpp` `8821` lines, `firmware/src/ui/widgets/text_widget.inc` `260` lines, PlatformIO flash used `1805389` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1805760` bytes.
+- Source lines increased because the old fallback chains are now named once as compile-time constants; this was kept because it improves readability and avoids the binary-size regression seen with global font pointer tables.
+- Verification: `cd firmware && pio run -e m5papers3` passed, and `git diff --check` passed.
+- Manual display smoke test was not run because no hardware session is available in this environment.
 
 ## Plan Update Protocol
 

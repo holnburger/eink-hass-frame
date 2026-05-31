@@ -34,6 +34,7 @@
 #include "firmware_utils.h"
 #include "generated_ui_config.h"
 #include "home_assistant_helpers.h"
+#include "media_cover_helpers.h"
 #include "mqtt_helpers.h"
 #if __has_include("generated_mdi_icons.h")
 #include "generated_mdi_icons.h"
@@ -713,49 +714,226 @@ static UiFontProfile getUiFontProfile()
 
 static void selectTextFont(UiTextRole role);
 
+// Resolve fallback chains at compile time so unused font assets stay unreferenced.
+#if UI_INTER_22_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_SYSTEM Inter_Regular_22
+#elif UI_INTER_18_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_SYSTEM Inter_Regular_18
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_SYSTEM Roboto_Regular_20
+#else
+#define UI_FONT_MEDIA_TITLE_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_22_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_SERIF IBMPlexSerif_22
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_SERIF IBMPlexSerif_18
+#else
+#define UI_FONT_MEDIA_TITLE_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_20_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_MONO IBMPlexMono_20
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_MEDIA_TITLE_MONO IBMPlexMono_18
+#else
+#define UI_FONT_MEDIA_TITLE_MONO nullptr
+#endif
+
+#if UI_INTER_18_AVAILABLE
+#define UI_FONT_ACCENT_SYSTEM Inter_Regular_18
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+#define UI_FONT_ACCENT_SYSTEM Roboto_Regular_20
+#else
+#define UI_FONT_ACCENT_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_ACCENT_SERIF IBMPlexSerif_18
+#elif UI_LORA_24_AVAILABLE
+#define UI_FONT_ACCENT_SERIF Lora_24
+#else
+#define UI_FONT_ACCENT_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_ACCENT_MONO IBMPlexMono_18
+#elif UI_COURIER_24_AVAILABLE
+#define UI_FONT_ACCENT_MONO Courier_Prime_24
+#else
+#define UI_FONT_ACCENT_MONO nullptr
+#endif
+
+#if UI_INTER_18_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK Inter_Regular_18
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK Roboto_Regular_20
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK IBMPlexSerif_18
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK IBMPlexMono_18
+#elif UI_LORA_24_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK Lora_24
+#elif UI_COURIER_24_AVAILABLE
+#define UI_FONT_ACCENT_FALLBACK Courier_Prime_24
+#else
+#define UI_FONT_ACCENT_FALLBACK nullptr
+#endif
+
+#if UI_INTER_16_AVAILABLE
+#define UI_FONT_PAGE_TITLE_SYSTEM Inter_Regular_16
+#elif UI_INTER_18_AVAILABLE
+#define UI_FONT_PAGE_TITLE_SYSTEM Inter_Regular_18
+#else
+#define UI_FONT_PAGE_TITLE_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_16_AVAILABLE
+#define UI_FONT_PAGE_TITLE_SERIF IBMPlexSerif_16
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_PAGE_TITLE_SERIF IBMPlexSerif_18
+#else
+#define UI_FONT_PAGE_TITLE_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_16_AVAILABLE
+#define UI_FONT_PAGE_TITLE_MONO IBMPlexMono_16
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_PAGE_TITLE_MONO IBMPlexMono_18
+#else
+#define UI_FONT_PAGE_TITLE_MONO nullptr
+#endif
+
+#if UI_INTER_16_AVAILABLE
+#define UI_FONT_BODY_SYSTEM Inter_Regular_16
+#elif UI_INTER_18_AVAILABLE
+#define UI_FONT_BODY_SYSTEM Inter_Regular_18
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+#define UI_FONT_BODY_SYSTEM Roboto_Regular_20
+#else
+#define UI_FONT_BODY_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_16_AVAILABLE
+#define UI_FONT_BODY_SERIF IBMPlexSerif_16
+#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_BODY_SERIF IBMPlexSerif_18
+#else
+#define UI_FONT_BODY_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_16_AVAILABLE
+#define UI_FONT_BODY_MONO IBMPlexMono_16
+#elif UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_BODY_MONO IBMPlexMono_18
+#else
+#define UI_FONT_BODY_MONO nullptr
+#endif
+
+#if UI_INTER_9_AVAILABLE
+#define UI_FONT_META_SYSTEM Inter_Regular_9
+#elif UI_ROBOTO_THIN_10_AVAILABLE
+#define UI_FONT_META_SYSTEM Roboto_Thin_10
+#elif UI_INTER_16_AVAILABLE
+#define UI_FONT_META_SYSTEM Inter_Regular_16
+#else
+#define UI_FONT_META_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_9_AVAILABLE
+#define UI_FONT_META_SERIF IBMPlexSerif_9
+#elif UI_LORA_10_AVAILABLE
+#define UI_FONT_META_SERIF Lora_10
+#elif UI_IBM_PLEX_SERIF_16_AVAILABLE
+#define UI_FONT_META_SERIF IBMPlexSerif_16
+#else
+#define UI_FONT_META_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_9_AVAILABLE
+#define UI_FONT_META_MONO IBMPlexMono_9
+#elif UI_COURIER_10_AVAILABLE
+#define UI_FONT_META_MONO Courier_Prime_10
+#elif UI_IBM_PLEX_MONO_16_AVAILABLE
+#define UI_FONT_META_MONO IBMPlexMono_16
+#else
+#define UI_FONT_META_MONO nullptr
+#endif
+
+#if UI_INTER_10_AVAILABLE
+#define UI_FONT_WIDGET_META_SYSTEM Inter_Regular_10
+#elif UI_INTER_9_AVAILABLE
+#define UI_FONT_WIDGET_META_SYSTEM Inter_Regular_9
+#elif UI_ROBOTO_THIN_10_AVAILABLE
+#define UI_FONT_WIDGET_META_SYSTEM Roboto_Thin_10
+#else
+#define UI_FONT_WIDGET_META_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_10_AVAILABLE
+#define UI_FONT_WIDGET_META_SERIF IBMPlexSerif_10
+#elif UI_IBM_PLEX_SERIF_9_AVAILABLE
+#define UI_FONT_WIDGET_META_SERIF IBMPlexSerif_9
+#elif UI_LORA_10_AVAILABLE
+#define UI_FONT_WIDGET_META_SERIF Lora_10
+#else
+#define UI_FONT_WIDGET_META_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_10_AVAILABLE
+#define UI_FONT_WIDGET_META_MONO IBMPlexMono_10
+#elif UI_IBM_PLEX_MONO_9_AVAILABLE
+#define UI_FONT_WIDGET_META_MONO IBMPlexMono_9
+#elif UI_COURIER_10_AVAILABLE
+#define UI_FONT_WIDGET_META_MONO Courier_Prime_10
+#else
+#define UI_FONT_WIDGET_META_MONO nullptr
+#endif
+
+#if UI_INTER_18_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_SYSTEM Inter_Regular_18
+#elif UI_INTER_16_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_SYSTEM Inter_Regular_16
+#elif UI_ROBOTO_REGULAR_20_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_SYSTEM Roboto_Regular_20
+#else
+#define UI_FONT_TEXT_WIDGET_SYSTEM nullptr
+#endif
+
+#if UI_IBM_PLEX_SERIF_18_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_SERIF IBMPlexSerif_18
+#elif UI_IBM_PLEX_SERIF_16_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_SERIF IBMPlexSerif_16
+#else
+#define UI_FONT_TEXT_WIDGET_SERIF nullptr
+#endif
+
+#if UI_IBM_PLEX_MONO_18_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_MONO IBMPlexMono_18
+#elif UI_IBM_PLEX_MONO_16_AVAILABLE
+#define UI_FONT_TEXT_WIDGET_MONO IBMPlexMono_16
+#else
+#define UI_FONT_TEXT_WIDGET_MONO nullptr
+#endif
+
 static const void *getUiAccentFont()
 {
+  const void *profileFont = nullptr;
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-#if UI_IBM_PLEX_SERIF_18_AVAILABLE
-    return IBMPlexSerif_18;
-#elif UI_LORA_24_AVAILABLE
-    return Lora_24;
-#endif
+    profileFont = UI_FONT_ACCENT_SERIF;
     break;
   case UI_FONT_PROFILE_MONO:
-#if UI_IBM_PLEX_MONO_18_AVAILABLE
-    return IBMPlexMono_18;
-#elif UI_COURIER_24_AVAILABLE
-    return Courier_Prime_24;
-#endif
+    profileFont = UI_FONT_ACCENT_MONO;
     break;
   case UI_FONT_PROFILE_SYSTEM:
   default:
-#if UI_INTER_18_AVAILABLE
-    return Inter_Regular_18;
-#elif UI_ROBOTO_REGULAR_20_AVAILABLE
-    return Roboto_Regular_20;
-#endif
+    profileFont = UI_FONT_ACCENT_SYSTEM;
     break;
   }
-
-#if UI_INTER_18_AVAILABLE
-  return Inter_Regular_18;
-#elif UI_ROBOTO_REGULAR_20_AVAILABLE
-  return Roboto_Regular_20;
-#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
-  return IBMPlexSerif_18;
-#elif UI_IBM_PLEX_MONO_18_AVAILABLE
-  return IBMPlexMono_18;
-#elif UI_LORA_24_AVAILABLE
-  return Lora_24;
-#elif UI_COURIER_24_AVAILABLE
-  return Courier_Prime_24;
-#else
-  return nullptr;
-#endif
+  return profileFont != nullptr ? profileFont : UI_FONT_ACCENT_FALLBACK;
 }
 
 static bool hasUiAccentFont()
@@ -765,32 +943,21 @@ static bool hasUiAccentFont()
 
 static const void *getUiPageTitleFont()
 {
+  const void *profileFont = nullptr;
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-#if UI_IBM_PLEX_SERIF_16_AVAILABLE
-    return IBMPlexSerif_16;
-#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
-    return IBMPlexSerif_18;
-#endif
+    profileFont = UI_FONT_PAGE_TITLE_SERIF;
     break;
   case UI_FONT_PROFILE_MONO:
-#if UI_IBM_PLEX_MONO_16_AVAILABLE
-    return IBMPlexMono_16;
-#elif UI_IBM_PLEX_MONO_18_AVAILABLE
-    return IBMPlexMono_18;
-#endif
+    profileFont = UI_FONT_PAGE_TITLE_MONO;
     break;
   case UI_FONT_PROFILE_SYSTEM:
   default:
-#if UI_INTER_16_AVAILABLE
-    return Inter_Regular_16;
-#elif UI_INTER_18_AVAILABLE
-    return Inter_Regular_18;
-#endif
+    profileFont = UI_FONT_PAGE_TITLE_SYSTEM;
     break;
   }
-  return getUiAccentFont();
+  return profileFont != nullptr ? profileFont : getUiAccentFont();
 }
 
 static const void *getUiMediaArtistFont()
@@ -803,32 +970,13 @@ static const void *getUiMediaTitleFont()
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-#if UI_IBM_PLEX_SERIF_22_AVAILABLE
-    return IBMPlexSerif_22;
-#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
-    return IBMPlexSerif_18;
-#endif
-    break;
-  case UI_FONT_PROFILE_SYSTEM:
-#if UI_INTER_22_AVAILABLE
-    return Inter_Regular_22;
-#elif UI_INTER_18_AVAILABLE
-    return Inter_Regular_18;
-#elif UI_ROBOTO_REGULAR_20_AVAILABLE
-    return Roboto_Regular_20;
-#endif
-    break;
+    return UI_FONT_MEDIA_TITLE_SERIF;
   case UI_FONT_PROFILE_MONO:
-#if UI_IBM_PLEX_MONO_20_AVAILABLE
-    return IBMPlexMono_20;
-#elif UI_IBM_PLEX_MONO_18_AVAILABLE
-    return IBMPlexMono_18;
-#endif
-    break;
+    return UI_FONT_MEDIA_TITLE_MONO;
+  case UI_FONT_PROFILE_SYSTEM:
   default:
-    break;
+    return UI_FONT_MEDIA_TITLE_SYSTEM;
   }
-  return nullptr;
 }
 
 static const void *getUiTextFont(UiTextRole role)
@@ -841,99 +989,51 @@ static const void *getUiTextFont(UiTextRole role)
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-    if (role == UI_TEXT_META)
-    {
-#if UI_IBM_PLEX_SERIF_9_AVAILABLE
-      return IBMPlexSerif_9;
-#elif UI_LORA_10_AVAILABLE
-      return Lora_10;
-#elif UI_IBM_PLEX_SERIF_16_AVAILABLE
-      return IBMPlexSerif_16;
-#endif
-    }
-#if UI_IBM_PLEX_SERIF_16_AVAILABLE
-    return IBMPlexSerif_16;
-#elif UI_IBM_PLEX_SERIF_18_AVAILABLE
-    return IBMPlexSerif_18;
-#endif
-    break;
+    return role == UI_TEXT_META ? UI_FONT_META_SERIF : UI_FONT_BODY_SERIF;
   case UI_FONT_PROFILE_MONO:
-    if (role == UI_TEXT_META)
-    {
-#if UI_IBM_PLEX_MONO_9_AVAILABLE
-      return IBMPlexMono_9;
-#elif UI_COURIER_10_AVAILABLE
-      return Courier_Prime_10;
-#elif UI_IBM_PLEX_MONO_16_AVAILABLE
-      return IBMPlexMono_16;
-#endif
-    }
-#if UI_IBM_PLEX_MONO_16_AVAILABLE
-    return IBMPlexMono_16;
-#elif UI_IBM_PLEX_MONO_18_AVAILABLE
-    return IBMPlexMono_18;
-#endif
-    break;
+    return role == UI_TEXT_META ? UI_FONT_META_MONO : UI_FONT_BODY_MONO;
   case UI_FONT_PROFILE_SYSTEM:
   default:
-    if (role == UI_TEXT_META)
-    {
-#if UI_INTER_9_AVAILABLE
-      return Inter_Regular_9;
-#elif UI_ROBOTO_THIN_10_AVAILABLE
-      return Roboto_Thin_10;
-#elif UI_INTER_16_AVAILABLE
-      return Inter_Regular_16;
-#endif
-    }
-#if UI_INTER_16_AVAILABLE
-    return Inter_Regular_16;
-#elif UI_INTER_18_AVAILABLE
-    return Inter_Regular_18;
-#elif UI_ROBOTO_REGULAR_20_AVAILABLE
-    return Roboto_Regular_20;
-#endif
-    break;
+    return role == UI_TEXT_META ? UI_FONT_META_SYSTEM : UI_FONT_BODY_SYSTEM;
   }
-
-  return nullptr;
 }
 
 static const void *getUiWidgetMetaFont()
 {
+  const void *profileFont = nullptr;
   switch (getUiFontProfile())
   {
   case UI_FONT_PROFILE_SERIF:
-#if UI_IBM_PLEX_SERIF_10_AVAILABLE
-    return IBMPlexSerif_10;
-#elif UI_IBM_PLEX_SERIF_9_AVAILABLE
-    return IBMPlexSerif_9;
-#elif UI_LORA_10_AVAILABLE
-    return Lora_10;
-#endif
+    profileFont = UI_FONT_WIDGET_META_SERIF;
     break;
   case UI_FONT_PROFILE_MONO:
-#if UI_IBM_PLEX_MONO_10_AVAILABLE
-    return IBMPlexMono_10;
-#elif UI_IBM_PLEX_MONO_9_AVAILABLE
-    return IBMPlexMono_9;
-#elif UI_COURIER_10_AVAILABLE
-    return Courier_Prime_10;
-#endif
+    profileFont = UI_FONT_WIDGET_META_MONO;
     break;
   case UI_FONT_PROFILE_SYSTEM:
   default:
-#if UI_INTER_10_AVAILABLE
-    return Inter_Regular_10;
-#elif UI_INTER_9_AVAILABLE
-    return Inter_Regular_9;
-#elif UI_ROBOTO_THIN_10_AVAILABLE
-    return Roboto_Thin_10;
-#endif
+    profileFont = UI_FONT_WIDGET_META_SYSTEM;
     break;
   }
+  return profileFont != nullptr ? profileFont : getUiTextFont(UI_TEXT_META);
+}
 
-  return getUiTextFont(UI_TEXT_META);
+static const void *getUiTextWidgetFont()
+{
+  const void *profileFont = nullptr;
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+    profileFont = UI_FONT_TEXT_WIDGET_SERIF;
+    break;
+  case UI_FONT_PROFILE_MONO:
+    profileFont = UI_FONT_TEXT_WIDGET_MONO;
+    break;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+    profileFont = UI_FONT_TEXT_WIDGET_SYSTEM;
+    break;
+  }
+  return profileFont != nullptr ? profileFont : getUiTextFont(UI_TEXT_BODY);
 }
 
 static int textWidthForCurrentSelection(const char *text)
@@ -2747,62 +2847,30 @@ static bool coverStateIsOpenLike(const char *rawState)
           strcmp(rawState, "closing") == 0);
 }
 
-static uint8_t *allocateMediaCoverBuffer(size_t size)
+static bool beginHttpRequest(
+    HTTPClient &http,
+    WiFiClient &client,
+    WiFiClientSecure &secureClient,
+    const String &url,
+    bool allowSecure)
 {
-#if __has_include(<esp_heap_caps.h>)
-  void *buffer = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (buffer == nullptr)
+  http.setTimeout(15000);
+  if (url.startsWith("https://"))
   {
-    buffer = heap_caps_malloc(size, MALLOC_CAP_8BIT);
+    if (!allowSecure)
+    {
+      return false;
+    }
+    secureClient.setInsecure();
+    return http.begin(secureClient, url);
   }
-  return static_cast<uint8_t *>(buffer);
-#else
-  return static_cast<uint8_t *>(malloc(size));
-#endif
+  return http.begin(client, url);
 }
 
-static void fillPackedGrayBuffer(uint8_t *buffer, size_t byteCount, uint8_t gray)
+static void addHomeAssistantAuthorizationHeader(HTTPClient &http)
 {
-  if (buffer == nullptr || byteCount == 0)
-  {
-    return;
-  }
-
-  const uint8_t packed = static_cast<uint8_t>(((gray & 0x0F) << 4) | (gray & 0x0F));
-  memset(buffer, packed, byteCount);
-}
-
-static uint8_t quantizeGrayTo4bppOrdered(uint8_t gray8, int x, int y)
-{
-  static const uint8_t bayer4x4[4][4] = {
-      {0, 8, 2, 10},
-      {12, 4, 14, 6},
-      {3, 11, 1, 9},
-      {15, 7, 13, 5},
-  };
-
-  int adjusted = static_cast<int>(gray8) + static_cast<int>(bayer4x4[y & 0x03][x & 0x03]) - 8;
-  adjusted = clampInt(adjusted, 0, 255);
-  return static_cast<uint8_t>(adjusted >> 4);
-}
-
-static void setPackedGrayPixel(uint8_t *buffer, int width, int x, int y, uint8_t gray)
-{
-  if (buffer == nullptr || width <= 0 || x < 0 || y < 0 || x >= width)
-  {
-    return;
-  }
-
-  const int pitch = (width + 1) / 2;
-  const int offset = (y * pitch) + (x / 2);
-  if ((x & 1) == 0)
-  {
-    buffer[offset] = static_cast<uint8_t>((buffer[offset] & 0x0F) | ((gray & 0x0F) << 4));
-  }
-  else
-  {
-    buffer[offset] = static_cast<uint8_t>((buffer[offset] & 0xF0) | (gray & 0x0F));
-  }
+  const String authHeader = String("Bearer ") + HOME_ASSISTANT_TOKEN_BUILD;
+  http.addHeader("Authorization", authHeader);
 }
 
 static bool resolveMediaCoverUrl(const char *rawCoverUrl, String &resolvedUrl, bool &useHomeAssistantAuth)
@@ -2955,41 +3023,15 @@ static bool downloadBinaryUrl(const String &url, bool useHomeAssistantAuth, uint
   }
 
   HTTPClient http;
-  http.setTimeout(15000);
-
-  const String authHeader = String("Bearer ") + HOME_ASSISTANT_TOKEN_BUILD;
-  const bool secureUrl = url.startsWith("https://");
-  if (secureUrl)
-  {
-    WiFiClientSecure client;
-    client.setInsecure();
-    if (!http.begin(client, url))
-    {
-      return false;
-    }
-    if (useHomeAssistantAuth)
-    {
-      http.addHeader("Authorization", authHeader);
-    }
-    const int statusCode = http.GET();
-    if (statusCode != HTTP_CODE_OK)
-    {
-      http.end();
-      return false;
-    }
-    const bool bodyOk = readHttpBinaryBody(http, dataOut, lengthOut);
-    http.end();
-    return bodyOk;
-  }
-
   WiFiClient client;
-  if (!http.begin(client, url))
+  WiFiClientSecure secureClient;
+  if (!beginHttpRequest(http, client, secureClient, url, true))
   {
     return false;
   }
   if (useHomeAssistantAuth)
   {
-    http.addHeader("Authorization", authHeader);
+    addHomeAssistantAuthorizationHeader(http);
   }
   const int statusCode = http.GET();
   if (statusCode != HTTP_CODE_OK)
@@ -3000,15 +3042,6 @@ static bool downloadBinaryUrl(const String &url, bool useHomeAssistantAuth, uint
   const bool bodyOk = readHttpBinaryBody(http, dataOut, lengthOut);
   http.end();
   return bodyOk;
-}
-
-static bool isJpegImageData(const uint8_t *data, size_t length)
-{
-  return data != nullptr &&
-         length >= 3 &&
-         data[0] == 0xFF &&
-         data[1] == 0xD8 &&
-         data[2] == 0xFF;
 }
 
 #if UI_ROM_JPEG_DECODER_AVAILABLE
@@ -3313,30 +3346,13 @@ static bool homeAssistantRequest(const char *method, const String &url, const St
   }
 
   HTTPClient http;
-  http.setTimeout(15000);
-  const String authHeader = String("Bearer ") + HOME_ASSISTANT_TOKEN_BUILD;
-  if (homeAssistantUrl.secure)
-  {
-    WiFiClientSecure client;
-    client.setInsecure();
-    if (!http.begin(client, url))
-    {
-      return false;
-    }
-    http.addHeader("Authorization", authHeader);
-    http.addHeader("Content-Type", "application/json");
-    statusOut = strcmp(method, "POST") == 0 ? http.POST(payload) : http.GET();
-    responseOut = http.getString();
-    http.end();
-    return true;
-  }
-
   WiFiClient client;
-  if (!http.begin(client, url))
+  WiFiClientSecure secureClient;
+  if (!beginHttpRequest(http, client, secureClient, url, true))
   {
     return false;
   }
-  http.addHeader("Authorization", authHeader);
+  addHomeAssistantAuthorizationHeader(http);
   http.addHeader("Content-Type", "application/json");
   statusOut = strcmp(method, "POST") == 0 ? http.POST(payload) : http.GET();
   responseOut = http.getString();
@@ -3583,6 +3599,197 @@ static void drawHomeAssistantBackedWidget(int pageIndex, int widgetIndex)
   }
 }
 
+static bool applyHomeAssistantSwitchWidgetState(
+    const UiWidgetConfig &widget,
+    WidgetRuntimeState &state,
+    JsonObjectConst attributes,
+    const char *rawState)
+{
+  const bool isCover = entityIdHasDomain(widget.entityId, "cover");
+  bool nextActualEnabled = widgetActualEnabled(widget, state.enabled);
+  if (isCover)
+  {
+    if (widget.type == UI_WIDGET_BUTTON)
+    {
+      if (coverStateIsClosed(rawState))
+      {
+        nextActualEnabled = false;
+      }
+      else if (coverStateIsOpenLike(rawState))
+      {
+        nextActualEnabled = true;
+      }
+      else if (state.lastHomeAssistantUpdateMs == 0)
+      {
+        float currentPosition = 0.0f;
+        if (jsonVariantToFloat(attributes["current_position"], currentPosition))
+        {
+          nextActualEnabled = clampPercentFromFloat(currentPosition) > 0;
+        }
+      }
+    }
+    else
+    {
+      float currentPosition = 0.0f;
+      if (jsonVariantToFloat(attributes["current_position"], currentPosition))
+      {
+        nextActualEnabled = clampPercentFromFloat(currentPosition) >= 50;
+      }
+      else if (state.lastHomeAssistantUpdateMs == 0)
+      {
+        nextActualEnabled =
+            strcmp(rawState, "open") == 0 ||
+            strcmp(rawState, "opening") == 0;
+      }
+    }
+  }
+  else
+  {
+    nextActualEnabled =
+        strcmp(rawState, "on") == 0 ||
+        strcmp(rawState, "open") == 0 ||
+        strcmp(rawState, "playing") == 0;
+  }
+
+  const bool nextEnabled = widgetDisplayEnabled(widget, nextActualEnabled);
+  const bool changed = state.enabled != nextEnabled;
+  state.enabled = nextEnabled;
+  return changed;
+}
+
+static bool applyHomeAssistantProgressWidgetState(
+    WidgetRuntimeState &state,
+    JsonObjectConst stateObject,
+    JsonObjectConst attributes,
+    bool entityAvailable)
+{
+  float numericValue = 0.0f;
+  int nextValue = entityAvailable ? state.value : 0;
+  if (entityAvailable && jsonVariantToFloat(stateObject["state"], numericValue))
+  {
+    nextValue = clampPercentFromFloat(numericValue);
+  }
+  else if (entityAvailable &&
+           (jsonVariantToFloat(attributes["percentage"], numericValue) ||
+            jsonVariantToFloat(attributes["humidity"], numericValue)))
+  {
+    nextValue = clampPercentFromFloat(numericValue);
+  }
+  const bool changed = state.value != nextValue;
+  state.value = nextValue;
+  return changed;
+}
+
+static bool applyHomeAssistantSliderWidgetState(
+    const UiWidgetConfig &widget,
+    WidgetRuntimeState &state,
+    JsonObjectConst stateObject,
+    JsonObjectConst attributes,
+    const char *rawState)
+{
+  float numericValue = 0.0f;
+  int nextActualValue = widgetActualPercentValue(widget, state.value);
+  if (entityIdHasDomain(widget.entityId, "light"))
+  {
+    if (jsonVariantToFloat(attributes["brightness"], numericValue))
+    {
+      nextActualValue = clampPercentFromFloat((numericValue / 255.0f) * 100.0f);
+    }
+    else
+    {
+      nextActualValue = strcmp(rawState, "on") == 0 ? 100 : 0;
+    }
+  }
+  else if (entityIdHasDomain(widget.entityId, "cover") && jsonVariantToFloat(attributes["current_position"], numericValue))
+  {
+    nextActualValue = clampPercentFromFloat(numericValue);
+  }
+  else if (entityIdHasDomain(widget.entityId, "media_player") && jsonVariantToFloat(attributes["volume_level"], numericValue))
+  {
+    nextActualValue = clampPercentFromFloat(numericValue * 100.0f);
+  }
+  else if ((entityIdHasDomain(widget.entityId, "fan") && jsonVariantToFloat(attributes["percentage"], numericValue)) ||
+           (entityIdHasDomain(widget.entityId, "humidifier") && jsonVariantToFloat(attributes["humidity"], numericValue)) ||
+           jsonVariantToFloat(attributes["percentage"], numericValue) ||
+           jsonVariantToFloat(stateObject["state"], numericValue))
+  {
+    nextActualValue = clampPercentFromFloat(numericValue);
+  }
+  const int nextValue = widgetDisplayPercentValue(widget, nextActualValue);
+  const bool changed = state.value != nextValue;
+  state.value = nextValue;
+  return changed;
+}
+
+static bool applyHomeAssistantThermostatWidgetState(
+    const UiWidgetConfig &widget,
+    WidgetRuntimeState &state,
+    JsonObjectConst stateObject,
+    JsonObjectConst attributes,
+    const char *rawState)
+{
+  float numericValue = 0.0f;
+  const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
+  int nextCurrent = state.currentValue > 0 ? state.currentValue : widget.currentValue;
+  int nextTarget = state.value > 0 ? state.value : widget.value;
+  const char *rawTempUnit = attributes["temperature_unit"] | "";
+  if (rawTempUnit[0] == '\0')
+  {
+    rawTempUnit = attributes["native_temperature_unit"] | "";
+  }
+  char nextTempUnit[sizeof(state.temperatureUnit)];
+  normalizeTemperatureUnitLabel(rawTempUnit, nextTempUnit, sizeof(nextTempUnit));
+  const uint8_t nextSupportedModes = thermostatSupportedModeMask(attributes["hvac_modes"]);
+  const uint8_t nextActiveMode = thermostatModeBitForName(rawState);
+
+  if (jsonVariantToFloat(attributes["current_temperature"], numericValue))
+  {
+    nextCurrent = climateTemperatureToTenths(numericValue, nextCurrent);
+  }
+  if (jsonVariantToFloat(attributes["temperature"], numericValue))
+  {
+    nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
+  }
+  else if (jsonVariantToFloat(stateObject["state"], numericValue))
+  {
+    nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
+  }
+
+  nextTarget = clampInt(nextTarget, 120, maxTemp);
+  const bool changed = state.currentValue != nextCurrent ||
+                       state.value != nextTarget ||
+                       strcmp(state.temperatureUnit, nextTempUnit) != 0 ||
+                       state.thermostatSupportedModes != nextSupportedModes ||
+                       state.thermostatActiveMode != nextActiveMode;
+  state.currentValue = nextCurrent;
+  state.value = nextTarget;
+  snprintf(state.temperatureUnit, sizeof(state.temperatureUnit), "%s", nextTempUnit);
+  state.thermostatSupportedModes = nextSupportedModes;
+  state.thermostatActiveMode = nextActiveMode;
+  return changed;
+}
+
+static bool applyHomeAssistantWeatherWidgetState(
+    WidgetRuntimeState &state,
+    JsonObjectConst attributes,
+    const char *rawState)
+{
+  float numericValue = 0.0f;
+  int nextTemp = state.value;
+  if (jsonVariantToFloat(attributes["temperature"], numericValue) ||
+      jsonVariantToFloat(attributes["native_temperature"], numericValue))
+  {
+    nextTemp = static_cast<int>(roundf(numericValue));
+  }
+
+  char nextCondition[sizeof(state.detailText)];
+  snprintf(nextCondition, sizeof(nextCondition), "%s", rawState);
+  const bool changed = state.value != nextTemp || strcmp(state.detailText, nextCondition) != 0;
+  state.value = nextTemp;
+  snprintf(state.detailText, sizeof(state.detailText), "%s", nextCondition);
+  return changed;
+}
+
 static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, JsonObjectConst stateObject, bool redraw)
 {
   const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
@@ -3594,11 +3801,6 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
   WidgetRuntimeState &state = getWidgetState(pageIndex, widgetIndex);
   JsonObjectConst attributes = stateObject["attributes"].as<JsonObjectConst>();
   const char *rawState = stateObject["state"] | "";
-  const bool isCover = entityIdHasDomain(widget.entityId, "cover");
-  const bool isLight = entityIdHasDomain(widget.entityId, "light");
-  const bool isMediaPlayer = entityIdHasDomain(widget.entityId, "media_player");
-  const bool isFan = entityIdHasDomain(widget.entityId, "fan");
-  const bool isHumidifier = entityIdHasDomain(widget.entityId, "humidifier");
   const bool entityAvailable =
       rawState[0] == '\0' ||
       (strcmp(rawState, "unavailable") != 0 &&
@@ -3609,161 +3811,23 @@ static bool applyHomeAssistantStateToWidget(int pageIndex, int widgetIndex, Json
 
   if (widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON)
   {
-    bool nextActualEnabled = widgetActualEnabled(widget, state.enabled);
-    if (isCover)
-    {
-      if (widget.type == UI_WIDGET_BUTTON)
-      {
-        if (coverStateIsClosed(rawState))
-        {
-          nextActualEnabled = false;
-        }
-        else if (coverStateIsOpenLike(rawState))
-        {
-          nextActualEnabled = true;
-        }
-        else if (state.lastHomeAssistantUpdateMs == 0)
-        {
-          float currentPosition = 0.0f;
-          if (jsonVariantToFloat(attributes["current_position"], currentPosition))
-          {
-            nextActualEnabled = clampPercentFromFloat(currentPosition) > 0;
-          }
-        }
-      }
-      else
-      {
-        float currentPosition = 0.0f;
-        if (jsonVariantToFloat(attributes["current_position"], currentPosition))
-        {
-          nextActualEnabled = clampPercentFromFloat(currentPosition) >= 50;
-        }
-        else if (state.lastHomeAssistantUpdateMs == 0)
-        {
-          nextActualEnabled =
-              strcmp(rawState, "open") == 0 ||
-              strcmp(rawState, "opening") == 0;
-        }
-      }
-    }
-    else
-    {
-      nextActualEnabled =
-          strcmp(rawState, "on") == 0 ||
-          strcmp(rawState, "open") == 0 ||
-          strcmp(rawState, "playing") == 0;
-    }
-    const bool nextEnabled = widgetDisplayEnabled(widget, nextActualEnabled);
-    changed = state.enabled != nextEnabled;
-    state.enabled = nextEnabled;
+    changed = applyHomeAssistantSwitchWidgetState(widget, state, attributes, rawState);
   }
   else if (widget.type == UI_WIDGET_PROGRESS)
   {
-    float numericValue = 0.0f;
-    int nextValue = entityAvailable ? state.value : 0;
-    if (entityAvailable && jsonVariantToFloat(stateObject["state"], numericValue))
-    {
-      nextValue = clampPercentFromFloat(numericValue);
-    }
-    else if (entityAvailable &&
-             (jsonVariantToFloat(attributes["percentage"], numericValue) ||
-              jsonVariantToFloat(attributes["humidity"], numericValue)))
-    {
-      nextValue = clampPercentFromFloat(numericValue);
-    }
-    changed = state.value != nextValue;
-    state.value = nextValue;
+    changed = applyHomeAssistantProgressWidgetState(state, stateObject, attributes, entityAvailable);
   }
   else if (widget.type == UI_WIDGET_SLIDER)
   {
-    float numericValue = 0.0f;
-    int nextActualValue = widgetActualPercentValue(widget, state.value);
-    if (isLight)
-    {
-      if (jsonVariantToFloat(attributes["brightness"], numericValue))
-      {
-        nextActualValue = clampPercentFromFloat((numericValue / 255.0f) * 100.0f);
-      }
-      else
-      {
-        nextActualValue = strcmp(rawState, "on") == 0 ? 100 : 0;
-      }
-    }
-    else if (isCover && jsonVariantToFloat(attributes["current_position"], numericValue))
-    {
-      nextActualValue = clampPercentFromFloat(numericValue);
-    }
-    else if (isMediaPlayer && jsonVariantToFloat(attributes["volume_level"], numericValue))
-    {
-      nextActualValue = clampPercentFromFloat(numericValue * 100.0f);
-    }
-    else if ((isFan && jsonVariantToFloat(attributes["percentage"], numericValue)) ||
-             (isHumidifier && jsonVariantToFloat(attributes["humidity"], numericValue)) ||
-             jsonVariantToFloat(attributes["percentage"], numericValue) ||
-             jsonVariantToFloat(stateObject["state"], numericValue))
-    {
-      nextActualValue = clampPercentFromFloat(numericValue);
-    }
-    const int nextValue = widgetDisplayPercentValue(widget, nextActualValue);
-    changed = state.value != nextValue;
-    state.value = nextValue;
+    changed = applyHomeAssistantSliderWidgetState(widget, state, stateObject, attributes, rawState);
   }
   else if (widget.type == UI_WIDGET_THERMOSTAT)
   {
-    float numericValue = 0.0f;
-    const int maxTemp = widget.maxValue > 0 ? widget.maxValue : 300;
-    int nextCurrent = state.currentValue > 0 ? state.currentValue : widget.currentValue;
-    int nextTarget = state.value > 0 ? state.value : widget.value;
-    const char *rawTempUnit = attributes["temperature_unit"] | "";
-    if (rawTempUnit[0] == '\0')
-    {
-      rawTempUnit = attributes["native_temperature_unit"] | "";
-    }
-    char nextTempUnit[sizeof(state.temperatureUnit)];
-    normalizeTemperatureUnitLabel(rawTempUnit, nextTempUnit, sizeof(nextTempUnit));
-    const uint8_t nextSupportedModes = thermostatSupportedModeMask(attributes["hvac_modes"]);
-    const uint8_t nextActiveMode = thermostatModeBitForName(rawState);
-
-    if (jsonVariantToFloat(attributes["current_temperature"], numericValue))
-    {
-      nextCurrent = climateTemperatureToTenths(numericValue, nextCurrent);
-    }
-    if (jsonVariantToFloat(attributes["temperature"], numericValue))
-    {
-      nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
-    }
-    else if (jsonVariantToFloat(stateObject["state"], numericValue))
-    {
-      nextTarget = climateTemperatureToTenths(numericValue, nextTarget);
-    }
-
-    nextTarget = clampInt(nextTarget, 120, maxTemp);
-    changed = state.currentValue != nextCurrent ||
-              state.value != nextTarget ||
-              strcmp(state.temperatureUnit, nextTempUnit) != 0 ||
-              state.thermostatSupportedModes != nextSupportedModes ||
-              state.thermostatActiveMode != nextActiveMode;
-    state.currentValue = nextCurrent;
-    state.value = nextTarget;
-    snprintf(state.temperatureUnit, sizeof(state.temperatureUnit), "%s", nextTempUnit);
-    state.thermostatSupportedModes = nextSupportedModes;
-    state.thermostatActiveMode = nextActiveMode;
+    changed = applyHomeAssistantThermostatWidgetState(widget, state, stateObject, attributes, rawState);
   }
   else if (widget.type == UI_WIDGET_WEATHER)
   {
-    float numericValue = 0.0f;
-    int nextTemp = state.value;
-    if (jsonVariantToFloat(attributes["temperature"], numericValue) ||
-        jsonVariantToFloat(attributes["native_temperature"], numericValue))
-    {
-      nextTemp = static_cast<int>(roundf(numericValue));
-    }
-
-    char nextCondition[sizeof(state.detailText)];
-    snprintf(nextCondition, sizeof(nextCondition), "%s", rawState);
-    changed = state.value != nextTemp || strcmp(state.detailText, nextCondition) != 0;
-    state.value = nextTemp;
-    snprintf(state.detailText, sizeof(state.detailText), "%s", nextCondition);
+    changed = applyHomeAssistantWeatherWidgetState(state, attributes, rawState);
   }
 
   state.homeAssistantAvailable = entityAvailable;
@@ -5168,6 +5232,70 @@ static bool fetchHomeAssistantWeatherForecast(const char *entityId, const char *
       forecastType != nullptr && strcmp(forecastType, "hourly") == 0);
 }
 
+template <size_t Capacity>
+struct UniqueEntityList
+{
+  String values[Capacity];
+  int count;
+
+  UniqueEntityList() : count(0) {}
+
+  bool add(const String &entityId)
+  {
+    if (entityId.length() == 0)
+    {
+      return false;
+    }
+    for (int index = 0; index < count; index++)
+    {
+      if (values[index] == entityId)
+      {
+        return false;
+      }
+    }
+    if (count >= static_cast<int>(Capacity))
+    {
+      return false;
+    }
+    values[count++] = entityId;
+    return true;
+  }
+
+  bool add(const char *entityId)
+  {
+    return entityId != nullptr && entityId[0] != '\0' && add(String(entityId));
+  }
+};
+
+template <size_t Capacity>
+static void addWeatherHourlySensorEntityIds(
+    const char *weatherEntityId,
+    UniqueEntityList<Capacity> &entityIds)
+{
+  if (weatherEntityId == nullptr || weatherEntityId[0] == '\0')
+  {
+    return;
+  }
+
+  const char *separator = strchr(weatherEntityId, '.');
+  const String weatherObjectId = separator != nullptr ? String(separator + 1) : String(weatherEntityId);
+  static const char *metricPrefixes[] = {"temperature", "precip_probability"};
+  for (int hourOffset = 1; hourOffset <= WEATHER_FOCUS_HOURLY_POINT_COUNT; hourOffset++)
+  {
+    for (size_t metricIndex = 0; metricIndex < sizeof(metricPrefixes) / sizeof(metricPrefixes[0]); metricIndex++)
+    {
+      entityIds.add(
+          String("sensor.") +
+          weatherObjectId +
+          "_" +
+          metricPrefixes[metricIndex] +
+          "_" +
+          String(hourOffset) +
+          "h");
+    }
+  }
+}
+
 static void syncAllHomeAssistantEntityStates(bool redraw)
 {
   if (!homeAssistantConfigured() || !homeAssistantUrl.valid || WiFi.status() != WL_CONNECTED)
@@ -5175,14 +5303,10 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
     return;
   }
 
-  String entityIds[UI_PAGE_COUNT * (UI_MAX_WIDGETS_PER_PAGE + UI_MAX_MEDIA_PLAYER_ENTITIES + 1)];
-  int entityCount = 0;
-  String weatherPageEntityIds[UI_PAGE_COUNT];
-  int weatherPageEntityCount = 0;
-  String weatherHourlySensorEntityIds[UI_PAGE_COUNT * WEATHER_FOCUS_HOURLY_POINT_COUNT * 2];
-  int weatherHourlySensorEntityCount = 0;
-  String thermostatHistoryEntityIds[UI_PAGE_COUNT * UI_MAX_WIDGETS_PER_PAGE];
-  int thermostatHistoryEntityCount = 0;
+  UniqueEntityList<UI_PAGE_COUNT * (UI_MAX_WIDGETS_PER_PAGE + UI_MAX_MEDIA_PLAYER_ENTITIES + 1)> entityIds;
+  UniqueEntityList<UI_PAGE_COUNT> weatherPageEntityIds;
+  UniqueEntityList<UI_PAGE_COUNT * WEATHER_FOCUS_HOURLY_POINT_COUNT * 2> weatherHourlySensorEntityIds;
+  UniqueEntityList<UI_PAGE_COUNT * UI_MAX_WIDGETS_PER_PAGE> thermostatHistoryEntityIds;
 
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
@@ -5197,82 +5321,18 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
           {
             continue;
           }
-          bool alreadyAdded = false;
-          for (int index = 0; index < entityCount; index++)
-          {
-            if (entityIds[index] == mediaEntityId)
-            {
-              alreadyAdded = true;
-              break;
-            }
-          }
-          if (!alreadyAdded)
-          {
-            entityIds[entityCount++] = mediaEntityId;
-          }
+          entityIds.add(mediaEntityId);
         }
       }
       else
       {
-        bool alreadyAdded = false;
-        for (int index = 0; index < entityCount; index++)
-        {
-          if (entityIds[index] == UI_PAGES[pageIndex].entityId)
-          {
-            alreadyAdded = true;
-            break;
-          }
-        }
-        if (!alreadyAdded)
-        {
-          entityIds[entityCount++] = UI_PAGES[pageIndex].entityId;
-        }
+        entityIds.add(UI_PAGES[pageIndex].entityId);
       }
 
       if (UI_PAGES[pageIndex].pageType == UI_PAGE_WEATHER_FOCUS)
       {
-        bool forecastAlreadyAdded = false;
-        for (int index = 0; index < weatherPageEntityCount; index++)
-        {
-          if (weatherPageEntityIds[index] == UI_PAGES[pageIndex].entityId)
-          {
-            forecastAlreadyAdded = true;
-            break;
-          }
-        }
-        if (!forecastAlreadyAdded)
-        {
-          weatherPageEntityIds[weatherPageEntityCount++] = UI_PAGES[pageIndex].entityId;
-        }
-
-        const char *weatherEntityId = UI_PAGES[pageIndex].entityId;
-        for (int hourOffset = 1; hourOffset <= WEATHER_FOCUS_HOURLY_POINT_COUNT; hourOffset++)
-        {
-          const char *metricPrefixes[2] = {"temperature", "precip_probability"};
-          for (int metricIndex = 0; metricIndex < 2; metricIndex++)
-          {
-            const String companionEntityId = String("sensor.") +
-                                             String(strchr(weatherEntityId, '.') != nullptr ? strchr(weatherEntityId, '.') + 1 : weatherEntityId) +
-                                             "_" +
-                                             metricPrefixes[metricIndex] +
-                                             "_" +
-                                             String(hourOffset) +
-                                             "h";
-            bool companionAlreadyAdded = false;
-            for (int index = 0; index < weatherHourlySensorEntityCount; index++)
-            {
-              if (weatherHourlySensorEntityIds[index] == companionEntityId)
-              {
-                companionAlreadyAdded = true;
-                break;
-              }
-            }
-            if (!companionAlreadyAdded)
-            {
-              weatherHourlySensorEntityIds[weatherHourlySensorEntityCount++] = companionEntityId;
-            }
-          }
-        }
+        weatherPageEntityIds.add(UI_PAGES[pageIndex].entityId);
+        addWeatherHourlySensorEntityIds(UI_PAGES[pageIndex].entityId, weatherHourlySensorEntityIds);
       }
     }
 
@@ -5284,55 +5344,31 @@ static void syncAllHomeAssistantEntityStates(bool redraw)
         continue;
       }
 
-      bool alreadyAdded = false;
-      for (int index = 0; index < entityCount; index++)
-      {
-        if (entityIds[index] == widget.entityId)
-        {
-          alreadyAdded = true;
-          break;
-        }
-      }
-      if (!alreadyAdded)
-      {
-        entityIds[entityCount++] = widget.entityId;
-      }
+      entityIds.add(widget.entityId);
 
       if (widget.type == UI_WIDGET_THERMOSTAT && thermostatWidgetShowsHistoryGraph(widget))
       {
-        bool historyAlreadyAdded = false;
-        for (int index = 0; index < thermostatHistoryEntityCount; index++)
-        {
-          if (thermostatHistoryEntityIds[index] == widget.entityId)
-          {
-            historyAlreadyAdded = true;
-            break;
-          }
-        }
-        if (!historyAlreadyAdded)
-        {
-          thermostatHistoryEntityIds[thermostatHistoryEntityCount++] = widget.entityId;
-        }
+        thermostatHistoryEntityIds.add(widget.entityId);
       }
     }
   }
 
-  for (int index = 0; index < entityCount; index++)
+  for (int index = 0; index < entityIds.count; index++)
   {
-    fetchHomeAssistantEntityState(entityIds[index].c_str(), redraw);
+    fetchHomeAssistantEntityState(entityIds.values[index].c_str(), redraw);
   }
-  for (int index = 0; index < weatherHourlySensorEntityCount; index++)
+  for (int index = 0; index < weatherHourlySensorEntityIds.count; index++)
   {
-    fetchHomeAssistantEntityState(weatherHourlySensorEntityIds[index].c_str(), redraw, true);
+    fetchHomeAssistantEntityState(weatherHourlySensorEntityIds.values[index].c_str(), redraw, true);
   }
-  for (int index = 0; index < weatherPageEntityCount; index++)
+  for (int index = 0; index < weatherPageEntityIds.count; index++)
   {
-    fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "daily", redraw);
-    fetchHomeAssistantWeatherForecast(weatherPageEntityIds[index].c_str(), "hourly", redraw);
+    fetchHomeAssistantWeatherForecast(weatherPageEntityIds.values[index].c_str(), "daily", redraw);
+    fetchHomeAssistantWeatherForecast(weatherPageEntityIds.values[index].c_str(), "hourly", redraw);
   }
-  for (int index = 0; index < thermostatHistoryEntityCount; index++)
+  for (int index = 0; index < thermostatHistoryEntityIds.count; index++)
   {
-    fetchHomeAssistantThermostatHistory(thermostatHistoryEntityIds[index].c_str(), redraw);
+    fetchHomeAssistantThermostatHistory(thermostatHistoryEntityIds.values[index].c_str(), redraw);
   }
   lastHomeAssistantPollMs = millis();
 }
@@ -5748,6 +5784,72 @@ static void scheduleTouchIdleFullRefresh(uint32_t nowMs)
   pendingTouchIdleFullRefresh = true;
 }
 
+static bool handlePageNavigationTouch(int tx, int ty, uint32_t now, const char *mappedName, int rawX, int rawY)
+{
+  if (isPointInRectExpanded(tx, ty, navLeftRect, 18))
+  {
+    lastTouchActionMs = now;
+    if (cycleActivePage(-1))
+    {
+      publishMqttPageState();
+    }
+    Serial.printf("PAGE_SWITCH DIR=LEFT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedName, rawX, rawY, tx, ty);
+    return true;
+  }
+
+  if (isPointInRectExpanded(tx, ty, navRightRect, 18))
+  {
+    lastTouchActionMs = now;
+    if (cycleActivePage(1))
+    {
+      publishMqttPageState();
+    }
+    Serial.printf("PAGE_SWITCH DIR=RIGHT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedName, rawX, rawY, tx, ty);
+    return true;
+  }
+
+  return false;
+}
+
+static bool handleMediaPlayerTouch(int tx, int ty, uint32_t now, const char *mappedName, int rawX, int rawY)
+{
+  if (!activePageIsMediaPlayer() || !activeMediaPageUsesHomeAssistant() || !mediaPageHasRenderableMedia(currentPageIndex))
+  {
+    return false;
+  }
+
+  if (isPointInRectExpanded(tx, ty, mediaPlayerPrevButtonRect, 10))
+  {
+    lastTouchActionMs = now;
+    callHomeAssistantServiceForPage(currentPageIndex, "media_previous_track");
+    Serial.printf("MEDIA_TOUCH ACTION=PREVIOUS MAP=%s RAW=%d,%d XY=%d,%d\n", mappedName, rawX, rawY, tx, ty);
+    return true;
+  }
+
+  if (isPointInRectExpanded(tx, ty, mediaPlayerPlayPauseButtonRect, 10))
+  {
+    lastTouchActionMs = now;
+    MediaPageRuntimeState &mediaState = mediaPageStates[currentPageIndex];
+    mediaState.playing = !mediaState.playing;
+    mediaState.lastPlaybackTickMs = now;
+    refreshMediaPlayerControlsRegion();
+    scheduleTouchIdleFullRefresh(now);
+    callHomeAssistantServiceForPage(currentPageIndex, "media_play_pause");
+    Serial.printf("MEDIA_TOUCH ACTION=PLAY_PAUSE MAP=%s RAW=%d,%d XY=%d,%d\n", mappedName, rawX, rawY, tx, ty);
+    return true;
+  }
+
+  if (isPointInRectExpanded(tx, ty, mediaPlayerNextButtonRect, 10))
+  {
+    lastTouchActionMs = now;
+    callHomeAssistantServiceForPage(currentPageIndex, "media_next_track");
+    Serial.printf("MEDIA_TOUCH ACTION=NEXT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedName, rawX, rawY, tx, ty);
+    return true;
+  }
+
+  return false;
+}
+
 static void pollTouchInput()
 {
 #if CAPTOUCH_AVAILABLE
@@ -5794,58 +5896,14 @@ static void pollTouchInput()
         return;
       }
 
-      if (isPointInRectExpanded(tx, ty, navLeftRect, 18))
+      if (handlePageNavigationTouch(tx, ty, now, mappedNames[i], rawX, rawY))
       {
-        lastTouchActionMs = now;
-        if (cycleActivePage(-1))
-        {
-          publishMqttPageState();
-        }
-        Serial.printf("PAGE_SWITCH DIR=LEFT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
         return;
       }
 
-      if (isPointInRectExpanded(tx, ty, navRightRect, 18))
+      if (handleMediaPlayerTouch(tx, ty, now, mappedNames[i], rawX, rawY))
       {
-        lastTouchActionMs = now;
-        if (cycleActivePage(1))
-        {
-          publishMqttPageState();
-        }
-        Serial.printf("PAGE_SWITCH DIR=RIGHT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
         return;
-      }
-
-      if (activePageIsMediaPlayer() && activeMediaPageUsesHomeAssistant() && mediaPageHasRenderableMedia(currentPageIndex))
-      {
-        if (isPointInRectExpanded(tx, ty, mediaPlayerPrevButtonRect, 10))
-        {
-          lastTouchActionMs = now;
-          callHomeAssistantServiceForPage(currentPageIndex, "media_previous_track");
-          Serial.printf("MEDIA_TOUCH ACTION=PREVIOUS MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
-          return;
-        }
-
-        if (isPointInRectExpanded(tx, ty, mediaPlayerPlayPauseButtonRect, 10))
-        {
-          lastTouchActionMs = now;
-          MediaPageRuntimeState &mediaState = mediaPageStates[currentPageIndex];
-          mediaState.playing = !mediaState.playing;
-          mediaState.lastPlaybackTickMs = now;
-          refreshMediaPlayerControlsRegion();
-          scheduleTouchIdleFullRefresh(now);
-          callHomeAssistantServiceForPage(currentPageIndex, "media_play_pause");
-          Serial.printf("MEDIA_TOUCH ACTION=PLAY_PAUSE MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
-          return;
-        }
-
-        if (isPointInRectExpanded(tx, ty, mediaPlayerNextButtonRect, 10))
-        {
-          lastTouchActionMs = now;
-          callHomeAssistantServiceForPage(currentPageIndex, "media_next_track");
-          Serial.printf("MEDIA_TOUCH ACTION=NEXT MAP=%s RAW=%d,%d XY=%d,%d\n", mappedNames[i], rawX, rawY, tx, ty);
-          return;
-        }
       }
 
       for (int widgetIndex = 0; widgetIndex < UI_PAGES[currentPageIndex].widgetCount; widgetIndex++)
@@ -7055,6 +7113,141 @@ static bool publishMqttSensorDiscovery(
   return publishMqttDiscoveryDocument(getMqttDiscoveryTopic("sensor", objectSuffix), document);
 }
 
+struct MqttBinarySensorDiscoverySpec
+{
+  const char *objectSuffix;
+  const char *name;
+  const char *stateTopicSuffix;
+  const char *payloadOn;
+  const char *payloadOff;
+  const char *deviceClass;
+  const char *icon;
+  bool diagnostic;
+  bool includeAvailability;
+};
+
+struct MqttSensorDiscoverySpec
+{
+  const char *objectSuffix;
+  const char *name;
+  const char *stateTopicSuffix;
+  const char *unit;
+  const char *deviceClass;
+  const char *icon;
+  bool diagnostic;
+  bool includeAvailability;
+};
+
+static bool publishMqttBinarySensorDiscoveries(
+    const MqttBinarySensorDiscoverySpec *specs,
+    size_t specCount)
+{
+  bool success = true;
+  for (size_t index = 0; index < specCount; index++)
+  {
+    const MqttBinarySensorDiscoverySpec &spec = specs[index];
+    success = publishMqttBinarySensorDiscovery(
+                  spec.objectSuffix,
+                  spec.name,
+                  getMqttTopic(spec.stateTopicSuffix),
+                  spec.payloadOn,
+                  spec.payloadOff,
+                  spec.deviceClass,
+                  spec.icon,
+                  spec.diagnostic,
+                  spec.includeAvailability) &&
+              success;
+  }
+  return success;
+}
+
+static bool publishMqttSensorDiscoveries(
+    const MqttSensorDiscoverySpec *specs,
+    size_t specCount)
+{
+  bool success = true;
+  for (size_t index = 0; index < specCount; index++)
+  {
+    const MqttSensorDiscoverySpec &spec = specs[index];
+    success = publishMqttSensorDiscovery(
+                  spec.objectSuffix,
+                  spec.name,
+                  getMqttTopic(spec.stateTopicSuffix),
+                  spec.unit,
+                  spec.deviceClass,
+                  spec.icon,
+                  spec.diagnostic,
+                  spec.includeAvailability) &&
+              success;
+  }
+  return success;
+}
+
+static bool publishMqttTextWidgetDiscovery(int pageIndex, int widgetIndex)
+{
+  const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+  if (!textWidgetUsesMqttInput(widget))
+  {
+    return true;
+  }
+
+  StaticJsonDocument<768> textDoc;
+  const String component = getMqttTextWidgetDiscoveryComponent(widget);
+  const String objectSuffix = getMqttTextWidgetDiscoveryObjectSuffix(component, String(widget.mqttName));
+  const String displayName = getMqttTextWidgetDiscoveryName(widget);
+  if (component == "notify")
+  {
+    const String objectId = String(getDeviceSlug()) + "_" + objectSuffix;
+    textDoc["name"] = displayName;
+    textDoc["object_id"] = objectId;
+    textDoc["unique_id"] = objectId;
+    textDoc["availability_topic"] = getMqttTopic("availability");
+    textDoc["payload_available"] = MQTT_AVAILABILITY_ONLINE;
+    textDoc["payload_not_available"] = MQTT_AVAILABILITY_OFFLINE;
+    populateMqttDiscoveryDevice(textDoc.createNestedObject("device"));
+  }
+  else
+  {
+    populateMqttDiscoveryDocument(
+        textDoc,
+        objectSuffix.c_str(),
+        displayName.c_str(),
+        getMqttTextWidgetStateTopic(pageIndex, widgetIndex));
+    textDoc["mode"] = "text";
+  }
+  textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
+  if (component == "notify")
+  {
+    textDoc["command_template"] = "{{ value }}";
+  }
+  textDoc["icon"] = "mdi:form-textbox";
+  textDoc["default_entity_id"] = component + "." + widget.mqttName;
+
+  if (publishMqttDiscoveryDocument(getMqttDiscoveryTopic(component.c_str(), objectSuffix.c_str()), textDoc))
+  {
+    return true;
+  }
+
+  setLastMqttError(String("discovery_") + component + "_failed_" + widget.mqttName);
+  return false;
+}
+
+static bool clearLegacyMqttDiscoveryTopics()
+{
+  static const char *topics[] = {
+      "partial_refresh_count",
+      "full_refresh_count",
+      "last_refresh_age_seconds",
+  };
+
+  bool success = true;
+  for (size_t index = 0; index < sizeof(topics) / sizeof(topics[0]); index++)
+  {
+    success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", topics[index])) && success;
+  }
+  return success;
+}
+
 static bool publishMqttDiscoveryConfig()
 {
   if (!mqttDiscoveryConfigured() || !mqttClient.connected())
@@ -7094,199 +7287,37 @@ static bool publishMqttDiscoveryConfig()
     success = false;
   }
 
-  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "partial_refresh_count")) && success;
-  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "full_refresh_count")) && success;
-  success = clearMqttDiscoveryTopic(getMqttDiscoveryTopic("sensor", "last_refresh_age_seconds")) && success;
+  success = clearLegacyMqttDiscoveryTopics() && success;
   success = clearStaleMqttTextWidgetDiscovery(currentTextWidgetRegistry) && success;
 
-  success = publishMqttBinarySensorDiscovery(
-                "usb_power_connected",
-                "Plugged In",
-                getMqttTopic("power/usb_power_connected"),
-                "ON",
-                "OFF",
-                "",
-                "mdi:power-plug",
-                false) &&
-            success;
-  success = publishMqttBinarySensorDiscovery(
-                "wifi_connected",
-                "Wi-Fi Connected",
-                getMqttTopic("status/wifi_connected"),
-                "ON",
-                "OFF",
-                "connectivity",
-                "mdi:wifi-check",
-                true) &&
-            success;
-  success = publishMqttBinarySensorDiscovery(
-                "mqtt_connected",
-                "MQTT Connected",
-                getMqttTopic("availability"),
-                MQTT_AVAILABILITY_ONLINE,
-                MQTT_AVAILABILITY_OFFLINE,
-                "connectivity",
-                "mdi:lan-connect",
-                true,
-                false) &&
-            success;
-  success = publishMqttBinarySensorDiscovery(
-                "home_assistant_connected",
-                "Home Assistant Connected",
-                getMqttTopic("status/home_assistant_connected"),
-                "ON",
-                "OFF",
-                "connectivity",
-                "mdi:home-assistant",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "wifi_rssi",
-                "Wi-Fi RSSI",
-                getMqttTopic("diagnostics/wifi_rssi"),
-                "dBm",
-                "signal_strength",
-                "mdi:wifi",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "uptime_seconds",
-                "Uptime",
-                getMqttTopic("diagnostics/uptime_seconds"),
-                "s",
-                "duration",
-                "mdi:timer-outline",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "free_heap_bytes",
-                "Free Heap",
-                getMqttTopic("diagnostics/free_heap_bytes"),
-                "B",
-                "data_size",
-                "mdi:memory",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "free_psram_bytes",
-                "Free PSRAM",
-                getMqttTopic("diagnostics/free_psram_bytes"),
-                "B",
-                "data_size",
-                "mdi:memory",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "ip_address",
-                "IP Address",
-                getMqttTopic("diagnostics/ip_address"),
-                "",
-                "",
-                "mdi:ip-network-outline",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "firmware_version",
-                "Firmware Version",
-                getMqttTopic("diagnostics/firmware_version"),
-                "",
-                "",
-                "mdi:chip",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "build_id",
-                "Build ID",
-                getMqttTopic("diagnostics/build_id"),
-                "",
-                "",
-                "mdi:identifier",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "battery_level",
-                "Battery Level",
-                getMqttTopic("power/battery_level"),
-                "%",
-                "battery",
-                "mdi:battery",
-                false) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "page_index",
-                "Page Index",
-                getMqttTopic("page/index"),
-                "",
-                "",
-                "mdi:file-document-multiple-outline",
-                false) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "last_mqtt_error",
-                "Last MQTT Error",
-                getMqttTopic("diagnostics/last_mqtt_error"),
-                "",
-                "",
-                "mdi:alert-circle-outline",
-                true) &&
-            success;
-  success = publishMqttSensorDiscovery(
-                "last_home_assistant_error",
-                "Last Home Assistant Error",
-                getMqttTopic("diagnostics/last_home_assistant_error"),
-                "",
-                "",
-                "mdi:home-alert-outline",
-                true) &&
-            success;
+  static const MqttBinarySensorDiscoverySpec binarySensorSpecs[] = {
+      {"usb_power_connected", "Plugged In", "power/usb_power_connected", "ON", "OFF", "", "mdi:power-plug", false, true},
+      {"wifi_connected", "Wi-Fi Connected", "status/wifi_connected", "ON", "OFF", "connectivity", "mdi:wifi-check", true, true},
+      {"mqtt_connected", "MQTT Connected", "availability", MQTT_AVAILABILITY_ONLINE, MQTT_AVAILABILITY_OFFLINE, "connectivity", "mdi:lan-connect", true, false},
+      {"home_assistant_connected", "Home Assistant Connected", "status/home_assistant_connected", "ON", "OFF", "connectivity", "mdi:home-assistant", true, true},
+  };
+  success = publishMqttBinarySensorDiscoveries(binarySensorSpecs, sizeof(binarySensorSpecs) / sizeof(binarySensorSpecs[0])) && success;
+
+  static const MqttSensorDiscoverySpec sensorSpecs[] = {
+      {"wifi_rssi", "Wi-Fi RSSI", "diagnostics/wifi_rssi", "dBm", "signal_strength", "mdi:wifi", true, true},
+      {"uptime_seconds", "Uptime", "diagnostics/uptime_seconds", "s", "duration", "mdi:timer-outline", true, true},
+      {"free_heap_bytes", "Free Heap", "diagnostics/free_heap_bytes", "B", "data_size", "mdi:memory", true, true},
+      {"free_psram_bytes", "Free PSRAM", "diagnostics/free_psram_bytes", "B", "data_size", "mdi:memory", true, true},
+      {"ip_address", "IP Address", "diagnostics/ip_address", "", "", "mdi:ip-network-outline", true, true},
+      {"firmware_version", "Firmware Version", "diagnostics/firmware_version", "", "", "mdi:chip", true, true},
+      {"build_id", "Build ID", "diagnostics/build_id", "", "", "mdi:identifier", true, true},
+      {"battery_level", "Battery Level", "power/battery_level", "%", "battery", "mdi:battery", false, true},
+      {"page_index", "Page Index", "page/index", "", "", "mdi:file-document-multiple-outline", false, true},
+      {"last_mqtt_error", "Last MQTT Error", "diagnostics/last_mqtt_error", "", "", "mdi:alert-circle-outline", true, true},
+      {"last_home_assistant_error", "Last Home Assistant Error", "diagnostics/last_home_assistant_error", "", "", "mdi:home-alert-outline", true, true},
+  };
+  success = publishMqttSensorDiscoveries(sensorSpecs, sizeof(sensorSpecs) / sizeof(sensorSpecs[0])) && success;
 
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
     for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
     {
-      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
-      if (!textWidgetUsesMqttInput(widget))
-      {
-        continue;
-      }
-
-      StaticJsonDocument<768> textDoc;
-      const String component = getMqttTextWidgetDiscoveryComponent(widget);
-      const String objectSuffix = getMqttTextWidgetDiscoveryObjectSuffix(component, String(widget.mqttName));
-      const String displayName = getMqttTextWidgetDiscoveryName(widget);
-      if (component == "notify")
-      {
-        const String objectId = String(getDeviceSlug()) + "_" + objectSuffix;
-        textDoc["name"] = displayName;
-        textDoc["object_id"] = objectId;
-        textDoc["unique_id"] = objectId;
-        textDoc["availability_topic"] = getMqttTopic("availability");
-        textDoc["payload_available"] = MQTT_AVAILABILITY_ONLINE;
-        textDoc["payload_not_available"] = MQTT_AVAILABILITY_OFFLINE;
-        populateMqttDiscoveryDevice(textDoc.createNestedObject("device"));
-      }
-      else
-      {
-        populateMqttDiscoveryDocument(
-            textDoc,
-            objectSuffix.c_str(),
-            displayName.c_str(),
-            getMqttTextWidgetStateTopic(pageIndex, widgetIndex));
-        textDoc["mode"] = "text";
-      }
-      textDoc["command_topic"] = getMqttTextWidgetCommandTopic(pageIndex, widgetIndex);
-      if (component == "notify")
-      {
-        textDoc["command_template"] = "{{ value }}";
-      }
-      textDoc["icon"] = "mdi:form-textbox";
-      textDoc["default_entity_id"] = component + "." + widget.mqttName;
-
-      if (!publishMqttDiscoveryDocument(getMqttDiscoveryTopic(component.c_str(), objectSuffix.c_str()), textDoc))
-      {
-        setLastMqttError(String("discovery_") + component + "_failed_" + widget.mqttName);
-        success = false;
-      }
+      success = publishMqttTextWidgetDiscovery(pageIndex, widgetIndex) && success;
     }
   }
 
@@ -7540,6 +7571,34 @@ static void handleMqttMessage(char *topic, uint8_t *payload, unsigned int length
   }
 }
 
+static bool subscribeMqttCommandTopics()
+{
+  bool subscribed = mqttClient.subscribe(getMqttTopic("page/set").c_str()) &&
+                    mqttClient.subscribe(getMqttTopic("dark_mode/set").c_str());
+  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
+  {
+    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
+    {
+      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
+      if (!textWidgetUsesMqttInput(widget))
+      {
+        continue;
+      }
+
+      subscribed =
+          mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex).c_str()) &&
+          subscribed;
+      if (textWidgetUsesMqttNotify(widget))
+      {
+        subscribed =
+            mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex, true).c_str()) &&
+            subscribed;
+      }
+    }
+  }
+  return subscribed;
+}
+
 static void disconnectMqtt(bool publishOffline = false)
 {
   if (mqttClient.connected() && publishOffline)
@@ -7615,32 +7674,7 @@ static bool ensureMqttConnected()
   mqttConnected = true;
   clearLastMqttError();
 
-  const bool pageSubscribed = mqttClient.subscribe(getMqttTopic("page/set").c_str());
-  const bool darkModeSubscribed = mqttClient.subscribe(getMqttTopic("dark_mode/set").c_str());
-  bool subscribed = pageSubscribed && darkModeSubscribed;
-  for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
-  {
-    for (int widgetIndex = 0; widgetIndex < UI_PAGES[pageIndex].widgetCount; widgetIndex++)
-    {
-      const UiWidgetConfig widget = getWidgetConfig(pageIndex, widgetIndex);
-      if (!textWidgetUsesMqttInput(widget))
-      {
-        continue;
-      }
-
-      subscribed =
-          mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex).c_str()) &&
-          subscribed;
-      if (textWidgetUsesMqttNotify(widget))
-      {
-        subscribed =
-            mqttClient.subscribe(getMqttTextWidgetCommandTopic(pageIndex, widgetIndex, true).c_str()) &&
-            subscribed;
-      }
-    }
-  }
-
-  if (!subscribed)
+  if (!subscribeMqttCommandTopics())
   {
     setLastMqttError("subscribe_failed");
   }
@@ -7654,32 +7688,8 @@ static bool ensureMqttConnected()
   return true;
 }
 
-static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
+static bool streamOtaUpdateFromHttp(HTTPClient &http, int contentLength, String &errorOut)
 {
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    errorOut = "WIFI_NOT_CONNECTED";
-    return false;
-  }
-
-  WiFiClient client;
-  HTTPClient http;
-  http.setTimeout(15000);
-  if (!http.begin(client, firmwareUrl))
-  {
-    errorOut = "HTTP_BEGIN_FAILED";
-    return false;
-  }
-
-  const int statusCode = http.GET();
-  if (statusCode != HTTP_CODE_OK)
-  {
-    errorOut = String("HTTP_") + statusCode;
-    http.end();
-    return false;
-  }
-
-  int contentLength = http.getSize();
   if (contentLength <= 0)
   {
     contentLength = UPDATE_SIZE_UNKNOWN;
@@ -7688,7 +7698,6 @@ static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
   if (!Update.begin(static_cast<size_t>(contentLength)))
   {
     errorOut = String("UPDATE_BEGIN_") + Update.getError();
-    http.end();
     return false;
   }
 
@@ -7708,7 +7717,6 @@ static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
       {
         errorOut = "OTA_STREAM_TIMEOUT";
         Update.abort();
-        http.end();
         return false;
       }
       delay(1);
@@ -7729,7 +7737,6 @@ static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
     {
       errorOut = String("UPDATE_WRITE_") + Update.getError();
       Update.abort();
-      http.end();
       return false;
     }
     writtenTotal += written;
@@ -7745,13 +7752,45 @@ static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
   if (!Update.end())
   {
     errorOut = String("UPDATE_END_") + Update.getError();
-    http.end();
     return false;
   }
 
   if (!Update.isFinished())
   {
     errorOut = "UPDATE_INCOMPLETE";
+    return false;
+  }
+
+  return true;
+}
+
+static bool performOtaFromUrl(const String &firmwareUrl, String &errorOut)
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    errorOut = "WIFI_NOT_CONNECTED";
+    return false;
+  }
+
+  WiFiClient client;
+  WiFiClientSecure secureClient;
+  HTTPClient http;
+  if (!beginHttpRequest(http, client, secureClient, firmwareUrl, false))
+  {
+    errorOut = "HTTP_BEGIN_FAILED";
+    return false;
+  }
+
+  const int statusCode = http.GET();
+  if (statusCode != HTTP_CODE_OK)
+  {
+    errorOut = String("HTTP_") + statusCode;
+    http.end();
+    return false;
+  }
+
+  if (!streamOtaUpdateFromHttp(http, http.getSize(), errorOut))
+  {
     http.end();
     return false;
   }
@@ -7780,16 +7819,6 @@ void handleHealth()
 
 void handleRoot()
 {
-  const bool mqttIsConfigured = mqttConfigured();
-  const bool mqttIsConnected = mqttClient.connected();
-  const String currentNotice =
-      server.hasArg("saved") ? String("MQTT settings saved.") : (server.hasArg("applied") ? String("Display settings updated.") : "");
-  const String currentError =
-      server.hasArg("error") ? server.arg("error") : "";
-  const String ipAddress = WiFi.localIP().toString();
-  const String mqttTopicPrefix = getEffectiveMqttTopicPrefix();
-  const String discoveryPrefix = getEffectiveMqttDiscoveryPrefix();
-
   String pageOptions;
   for (int pageIndex = 0; pageIndex < UI_PAGE_COUNT; pageIndex++)
   {
@@ -7805,166 +7834,32 @@ void handleRoot()
     pageOptions += "</option>";
   }
 
-  String html = "<!doctype html><html><head><meta charset=\"utf-8\">";
-  html += "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
-  html += "<title>M5PaperS3</title>";
-  html += "<style>";
-  html += "body{font-family:system-ui,sans-serif;background:#f5f5f4;color:#18181b;margin:0;padding:24px;}";
-  html += ".wrap{max-width:860px;margin:0 auto;display:grid;gap:18px;}";
-  html += ".card{background:#fff;border:1px solid #d4d4d8;border-radius:18px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.04);}";
-  html += ".grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}";
-  html += ".stack{display:grid;gap:12px;}";
-  html += "h1,h2,h3{margin:0 0 10px;}p{line-height:1.5;margin:0 0 10px;}small,.muted{color:#52525b;}";
-  html += "code{background:#f4f4f5;padding:2px 6px;border-radius:6px;word-break:break-all;}";
-  html += "label{display:grid;gap:6px;font-size:14px;color:#27272a;}";
-  html += "input,select{width:100%;padding:10px 12px;border:1px solid #d4d4d8;border-radius:10px;font:inherit;box-sizing:border-box;}";
-  html += "button{padding:10px 14px;border-radius:10px;border:0;background:#18181b;color:#fff;font:inherit;cursor:pointer;}";
-  html += ".secondary{background:#e4e4e7;color:#18181b;}";
-  html += ".row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}";
-  html += ".badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#e4e4e7;color:#18181b;}";
-  html += ".ok{background:#dcfce7;color:#166534;}.warn{background:#fef3c7;color:#92400e;}.err{background:#fee2e2;color:#991b1b;}";
-  html += ".notice{padding:12px 14px;border-radius:12px;background:#dcfce7;color:#166534;}";
-  html += ".error{padding:12px 14px;border-radius:12px;background:#fee2e2;color:#991b1b;}";
-  html += "ul{margin:10px 0 0;padding-left:20px;}hr{border:0;border-top:1px solid #e4e4e7;margin:18px 0;}";
-  html += "@media (max-width:640px){body{padding:16px;}.card{padding:18px;}}";
-  html += "</style></head><body><div class=\"wrap\">";
+  DeviceRootPageContext context = {};
+  context.wifiConnected = WiFi.status() == WL_CONNECTED;
+  context.mqttConfigured = mqttConfigured();
+  context.mqttConnected = mqttClient.connected();
+  context.mqttEnabled = mqttConfig.enabled;
+  context.mqttDiscoveryEnabled = mqttConfig.discoveryEnabled;
+  context.darkModeEnabled = currentDarkModeEnabled;
+  context.currentPageIndex = currentPageIndex;
+  context.mqttPort = mqttConfig.port;
+  context.firmwareDisplayName = FIRMWARE_DISPLAY_NAME;
+  context.firmwareVersionName = FIRMWARE_VERSION_NAME;
+  context.lastMqttError = lastMqttError;
+  context.currentNotice = server.hasArg("saved") ? String("MQTT settings saved.") : (server.hasArg("applied") ? String("Display settings updated.") : "");
+  context.currentError = server.hasArg("error") ? server.arg("error") : "";
+  context.ipAddress = WiFi.localIP().toString();
+  context.currentPageName = getCurrentPageName();
+  context.mqttTopicPrefix = getEffectiveMqttTopicPrefix();
+  context.discoveryPrefix = getEffectiveMqttDiscoveryPrefix();
+  context.pageOptionsHtml = pageOptions;
+  context.mqttHost = mqttConfig.host;
+  context.mqttUsername = mqttConfig.username;
+  context.mqttPassword = mqttConfig.password;
+  context.mqttConfiguredTopicPrefix = mqttConfig.topicPrefix;
+  context.mqttConfiguredDiscoveryPrefix = mqttConfig.discoveryPrefix;
 
-  if (currentNotice.length() > 0)
-  {
-    html += "<div class=\"notice\">";
-    html += htmlEscape(currentNotice);
-    html += "</div>";
-  }
-
-  if (currentError.length() > 0)
-  {
-    html += "<div class=\"error\">";
-    html += htmlEscape(currentError);
-    html += "</div>";
-  }
-
-  html += "<section class=\"card stack\"><div class=\"row\" style=\"justify-content:space-between;align-items:flex-start;\">";
-  html += "<div><h1>M5PaperS3 is online</h1><p class=\"muted\">Configure MQTT directly on the device and use the topics below from Home Assistant.</p></div>";
-  html += "<span class=\"badge ";
-  html += WiFi.status() == WL_CONNECTED ? "ok" : "err";
-  html += "\">Wi-Fi ";
-  html += WiFi.status() == WL_CONNECTED ? "connected" : "offline";
-  html += "</span></div><div class=\"grid\">";
-  html += "<div><strong>IP</strong><p><code>";
-  html += htmlEscape(ipAddress);
-  html += "</code></p></div>";
-  html += "<div><strong>Firmware</strong><p>";
-  html += htmlEscape(FIRMWARE_DISPLAY_NAME);
-  html += "</p></div>";
-  html += "<div><strong>Version</strong><p>";
-  html += htmlEscape(FIRMWARE_VERSION_NAME);
-  html += "</p></div>";
-  html += "<div><strong>MQTT</strong><p><span class=\"badge ";
-  if (!mqttIsConfigured)
-  {
-    html += "warn\">disabled";
-  }
-  else if (mqttIsConnected)
-  {
-    html += "ok\">connected";
-  }
-  else
-  {
-    html += "err\">disconnected";
-  }
-  html += "</span></p></div></div></section>";
-
-  html += "<section class=\"card stack\"><h2>Display</h2><div class=\"grid\">";
-  html += "<div><strong>Current page</strong><p>";
-  html += htmlEscape(getCurrentPageName());
-  html += " <span class=\"muted\">(index ";
-  html += currentPageIndex;
-  html += ")</span></p></div>";
-  html += "<div><strong>Dark mode</strong><p>";
-  html += currentDarkModeEnabled ? "Enabled" : "Disabled";
-  html += "</p></div></div>";
-  html += "<div class=\"row\"><form method=\"post\" action=\"/api/page\"><button class=\"secondary\" type=\"submit\" name=\"action\" value=\"previous\">Previous Page</button></form>";
-  html += "<form method=\"post\" action=\"/api/page\"><button class=\"secondary\" type=\"submit\" name=\"action\" value=\"next\">Next Page</button></form>";
-  html += "<form method=\"post\" action=\"/api/dark-mode\"><button type=\"submit\" name=\"action\" value=\"toggle\">Toggle Dark Mode</button></form></div>";
-  html += "<form method=\"post\" action=\"/api/page\" class=\"stack\"><label>Open page<select name=\"page\">";
-  html += pageOptions;
-  html += "</select></label><div class=\"row\"><button type=\"submit\">Show Page</button></div></form></section>";
-
-  html += "<section class=\"card stack\"><h2>MQTT Settings</h2>";
-  html += "<p class=\"muted\">Home Assistant discovery creates an MQTT select for page changes and an MQTT switch for dark mode.</p>";
-  html += "<form method=\"post\" action=\"/api/mqtt\" class=\"stack\">";
-  html += "<label><span>Enable MQTT</span><input type=\"checkbox\" name=\"enabled\" value=\"1\"";
-  if (mqttConfig.enabled)
-  {
-    html += " checked";
-  }
-  html += "></label>";
-  html += "<div class=\"grid\">";
-  html += "<label><span>Broker host</span><input name=\"host\" placeholder=\"192.168.1.10\" value=\"";
-  html += htmlEscape(mqttConfig.host);
-  html += "\"></label>";
-  html += "<label><span>Port</span><input name=\"port\" type=\"number\" min=\"1\" max=\"65535\" value=\"";
-  html += mqttConfig.port;
-  html += "\"></label></div>";
-  html += "<div class=\"grid\">";
-  html += "<label><span>Username</span><input name=\"username\" autocomplete=\"username\" value=\"";
-  html += htmlEscape(mqttConfig.username);
-  html += "\"></label>";
-  html += "<label><span>Password</span><input name=\"password\" type=\"password\" autocomplete=\"current-password\" value=\"";
-  html += htmlEscape(mqttConfig.password);
-  html += "\"></label></div>";
-  html += "<div class=\"grid\">";
-  html += "<label><span>Topic prefix</span><input name=\"topic_prefix\" placeholder=\"m5papers3/my-frame\" value=\"";
-  html += htmlEscape(mqttConfig.topicPrefix);
-  html += "\"></label>";
-  html += "<label><span>Discovery prefix</span><input name=\"discovery_prefix\" placeholder=\"homeassistant\" value=\"";
-  html += htmlEscape(mqttConfig.discoveryPrefix);
-  html += "\"></label></div>";
-  html += "<label><span>Enable Home Assistant discovery</span><input type=\"checkbox\" name=\"discovery_enabled\" value=\"1\"";
-  if (mqttConfig.discoveryEnabled)
-  {
-    html += " checked";
-  }
-  html += "></label>";
-  html += "<div class=\"row\"><button type=\"submit\">Save MQTT Settings</button></div></form>";
-  if (lastMqttError[0] != '\0')
-  {
-    html += "<p class=\"muted\">Last MQTT status: <code>";
-    html += htmlEscape(lastMqttError);
-    html += "</code></p>";
-  }
-  html += "</section>";
-
-  html += "<section class=\"card stack\"><h2>Topics</h2>";
-  html += "<p><strong>Base topic:</strong> <code>";
-  html += htmlEscape(mqttTopicPrefix);
-  html += "</code></p><ul>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("page/set"));
-  html += "</code> accepts page name, page number, <code>next</code>, or <code>previous</code>.</li>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("page/state"));
-  html += "</code> publishes the current page name.</li>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("page/index"));
-  html += "</code> publishes the zero-based current page index.</li>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("dark_mode/set"));
-  html += "</code> accepts <code>ON</code>, <code>OFF</code>, or <code>TOGGLE</code>.</li>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("dark_mode/state"));
-  html += "</code> publishes <code>ON</code> or <code>OFF</code>.</li>";
-  html += "<li><code>";
-  html += htmlEscape(getMqttTopic("availability"));
-  html += "</code> publishes device availability.</li></ul>";
-  html += "<p><strong>Discovery prefix:</strong> <code>";
-  html += htmlEscape(discoveryPrefix);
-  html += "</code></p></section>";
-
-  html += "<section class=\"card stack\"><h2>OTA</h2><p>Use this IP in the web app to save the device for OTA updates.</p>";
-  html += "<p class=\"muted\">Firmware uploads are still available at <code>/api/ota</code> and <code>/api/ota/upload</code>.</p></section>";
-  html += "</div></body></html>";
-  server.send(200, "text/html", html);
+  server.send(200, "text/html", renderDeviceRootPage(context));
 }
 
 void handleMqttConfigSave()
@@ -8844,66 +8739,83 @@ void setup()
   }
 }
 
-void loop()
+static void runConnectedNetworkServices()
 {
-  handleSerialProvisioning();
-
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() != WL_CONNECTED)
   {
-    startServerIfNeeded();
-    ensureMqttConnected();
-    if (mqttClient.connected())
-    {
-      if (!mqttClient.loop())
-      {
-        mqttConnected = false;
-        mqttDiscoveryPublished = false;
-        setLastMqttError(String("loop_") + mqttStateName(mqttClient.state()));
-      }
-      else if (millis() - lastMqttTelemetryPublishMs >= MQTT_TELEMETRY_PUBLISH_INTERVAL_MS)
-      {
-        publishMqttTelemetryState();
-      }
-    }
-    if (homeAssistantConfigured() && homeAssistantUrl.valid)
-    {
-      ensureHomeAssistantSocket();
-      if (homeAssistantSocketStarted)
-      {
-        homeAssistantSocket.loop();
-      }
+    return;
+  }
 
-      const uint32_t pollIntervalMs = homeAssistantAuthenticated ? 60000UL : 15000UL;
-      if (millis() - lastHomeAssistantPollMs >= pollIntervalMs)
-      {
-        syncAllHomeAssistantEntityStates(false);
-      }
+  startServerIfNeeded();
+  ensureMqttConnected();
+  if (mqttClient.connected())
+  {
+    if (!mqttClient.loop())
+    {
+      mqttConnected = false;
+      mqttDiscoveryPublished = false;
+      setLastMqttError(String("loop_") + mqttStateName(mqttClient.state()));
+    }
+    else if (millis() - lastMqttTelemetryPublishMs >= MQTT_TELEMETRY_PUBLISH_INTERVAL_MS)
+    {
+      publishMqttTelemetryState();
     }
   }
 
-  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiRetry > 30000)
+  if (homeAssistantConfigured() && homeAssistantUrl.valid)
   {
-    if (mqttClient.connected())
+    ensureHomeAssistantSocket();
+    if (homeAssistantSocketStarted)
     {
-      disconnectMqtt(false);
+      homeAssistantSocket.loop();
     }
-    lastWifiRetry = millis();
-    connectWifi(currentCredentials);
-    waitForWifiOrTimeout(8000);
-    if (WiFi.status() == WL_CONNECTED && homeAssistantConfigured() && homeAssistantUrl.valid)
+
+    const uint32_t pollIntervalMs = homeAssistantAuthenticated ? 60000UL : 15000UL;
+    if (millis() - lastHomeAssistantPollMs >= pollIntervalMs)
     {
       syncAllHomeAssistantEntityStates(false);
-      if (pageReady)
-      {
-        renderActivePage();
-      }
-      ensureHomeAssistantSocket();
     }
   }
+}
 
+static void retryWifiIfNeeded()
+{
+  if (WiFi.status() == WL_CONNECTED || millis() - lastWifiRetry <= 30000)
+  {
+    return;
+  }
+
+  if (mqttClient.connected())
+  {
+    disconnectMqtt(false);
+  }
+  lastWifiRetry = millis();
+  connectWifi(currentCredentials);
+  waitForWifiOrTimeout(8000);
+  if (WiFi.status() == WL_CONNECTED && homeAssistantConfigured() && homeAssistantUrl.valid)
+  {
+    syncAllHomeAssistantEntityStates(false);
+    if (pageReady)
+    {
+      renderActivePage();
+    }
+    ensureHomeAssistantSocket();
+  }
+}
+
+static void pollDeviceWebServer()
+{
   if (serverStarted && WiFi.status() == WL_CONNECTED)
   {
     server.handleClient();
   }
+}
+
+void loop()
+{
+  handleSerialProvisioning();
+  runConnectedNetworkServices();
+  retryWifiIfNeeded();
+  pollDeviceWebServer();
   runDisplayLoop();
 }
