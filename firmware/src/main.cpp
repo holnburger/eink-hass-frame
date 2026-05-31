@@ -36,6 +36,7 @@
 #include "home_assistant_helpers.h"
 #include "media_cover_helpers.h"
 #include "mqtt_helpers.h"
+#include "ui_layout_helpers.h"
 #if __has_include("generated_mdi_icons.h")
 #include "generated_mdi_icons.h"
 #define UI_MDI_ICONS_AVAILABLE 1

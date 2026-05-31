@@ -36,6 +36,8 @@ Status values:
 | RF-020 | Done | Flatten touch handling and main loop orchestration |
 | RF-021 | Done | Rebalance firmware cleanup around maintainability and DRY |
 | RF-022 | Done | Simplify firmware font selection and text helper branching |
+| RF-023 | Done | Standard firmware layout model |
+| RF-024 | Not started | Overview and special-page firmware layout models |
 
 ## RF-001 Separate Test Runners And Clean Tracked Local Artifacts
 
@@ -1031,6 +1033,87 @@ Completion notes:
 - Source lines increased because the old fallback chains are now named once as compile-time constants; this was kept because it improves readability and avoids the binary-size regression seen with global font pointer tables.
 - Verification: `cd firmware && pio run -e m5papers3` passed, and `git diff --check` passed.
 - Manual display smoke test was not run because no hardware session is available in this environment.
+
+## RF-023 Standard Firmware Layout Model
+
+Status: Done
+
+Goal:
+
+Make standard-page firmware layout easier to read and maintain by moving pure geometry into an internal layout model and keeping `WidgetRuntimeState` as the adapter-facing runtime state.
+
+Protected contracts:
+
+- C-002 Layout Model And Firmware Header ABI
+- C-010 Firmware Runtime Behavior
+- C-012 Firmware Maintainability And DRY Refactor Goal
+
+Implementation notes:
+
+- Add internal firmware layout helper files for standard-page geometry only.
+- Define small internal layout structs for rectangles, widget layout, and standard-page layout.
+- Compute standard-page layout from display size, page chrome, font profile, generated page config, and precomputed widget visibility flags.
+- Keep generated `UiPageConfig` and `UiWidgetConfig` ABI unchanged.
+- Preserve current standard-page geometry exactly, including the existing gap calculation based on `page.widgetCount`.
+- Leave overview, weather-focus, and media-player layout behavior unchanged.
+- Keep layout code allocation-free and free of display, MQTT, Home Assistant, OTA, and webserver side effects.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Hand-written firmware line-count command excluding generated headers and fonts
+
+Definition of done:
+
+- Standard-page layout math is readable as pure geometry.
+- `layoutCurrentPage()` delegates standard-page layout through an adapter and still feeds `WidgetRuntimeState`/`BB_RECT`.
+- Standard page visual geometry, touch hit rectangles, refresh behavior, and generated UI ABI are preserved.
+- Size signals and hardware-dependent verification status are recorded.
+
+Completion notes:
+
+- Completed on 2026-05-31.
+- Added `firmware/src/ui_layout_helpers.h` and `firmware/src/ui_layout_helpers.cpp` for allocation-free standard-page geometry calculation.
+- Added internal layout-only structs for rectangles, widget layouts, standard-page layout output, widget specs, and font profiles.
+- Kept the helper independent from `generated_ui_config.h` in its `.cpp` file so generated static config data is not duplicated across translation units.
+- Replaced the standard-page body of `layoutCurrentPage()` with `layoutStandardPage()`, which builds widget visibility/spec inputs, calls `computeStandardPageLayout()`, and copies the result back into `WidgetRuntimeState`/`BB_RECT`.
+- Preserved standard-page widget weights, min/max heights, card/content/control/touch rectangles, navigation rectangles, and the existing gap calculation based on `page.widgetCount`.
+- Left overview, weather-focus, and media-player layout behavior unchanged.
+- Size before RF-023, from RF-022 notes: hand-written firmware total `12997` lines, `firmware/src/main.cpp` `8821` lines, PlatformIO flash used `1805389` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1805760` bytes.
+- Size after RF-023: hand-written firmware total `13521` lines, `firmware/src/main.cpp` `8822` lines, `firmware/src/ui/widget_layout.inc` `691` lines, `firmware/src/ui_layout_helpers.h` `83` lines, `firmware/src/ui_layout_helpers.cpp` `469` lines, PlatformIO flash used `1858833` bytes, and `.pio/build/m5papers3/firmware.bin` file size `1859200` bytes.
+- The binary-size signal is not directly comparable to RF-022 because the generated firmware config present during this build changed to a larger Home Assistant-enabled, multi-page config; source growth is the meaningful RF-023 tradeoff.
+- Verification: `cd firmware && pio run -e m5papers3` passed, and `git diff --check` passed.
+- Static review: standard-page formulas were moved verbatim into named helpers; hidden widgets still receive zeroed layout output; overview/weather-focus/media-player paths still dispatch to their existing layout functions.
+- Manual standard-page display/touch smoke tests were not run because no hardware session is available in this environment.
+
+## RF-024 Overview And Special-Page Firmware Layout Models
+
+Status: Not started
+
+Goal:
+
+Continue the layout readability cleanup for overview, weather-focus, and media-player pages without changing visual geometry, touch hit areas, refresh behavior, or generated UI ABI.
+
+Protected contracts:
+
+- C-002 Layout Model And Firmware Header ABI
+- C-010 Firmware Runtime Behavior
+- C-012 Firmware Maintainability And DRY Refactor Goal
+
+Implementation notes:
+
+- Split this work into page-specific pure geometry helpers; do not mix overview, weather-focus, and media-player changes in one large movement if the patch becomes hard to review.
+- Keep page-specific globals as adapter outputs until drawing/touch code is ready for a later ownership cleanup.
+- Preserve overview stack/button row behavior, weather-focus section rectangles, media-player cover/progress/control rectangles, and page chrome rectangles exactly.
+- Keep helpers allocation-free and independent from display, MQTT, Home Assistant, OTA, and webserver side effects.
+
+Verification commands:
+
+- `cd firmware && pio run -e m5papers3`
+- `git diff --check`
+- Hand-written firmware line-count command excluding generated headers and fonts
+- Manual display/touch smoke test when hardware is available
 
 ## Plan Update Protocol
 

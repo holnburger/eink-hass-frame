@@ -569,6 +569,106 @@ static void layoutMediaPlayerPage()
   debugIpRect = {0, 0, 0, 0};
 }
 
+static BB_RECT toDisplayRect(const UiLayoutRect &rect)
+{
+  return BB_RECT{rect.x, rect.y, rect.w, rect.h};
+}
+
+static_assert((uint8_t)UI_LAYOUT_WIDGET_CLOCK == (uint8_t)UI_WIDGET_CLOCK, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_WEATHER == (uint8_t)UI_WIDGET_WEATHER, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_PROGRESS == (uint8_t)UI_WIDGET_PROGRESS, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_SWITCH == (uint8_t)UI_WIDGET_SWITCH, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_BUTTON == (uint8_t)UI_WIDGET_BUTTON, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_SLIDER == (uint8_t)UI_WIDGET_SLIDER, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_THERMOSTAT == (uint8_t)UI_WIDGET_THERMOSTAT, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_TEXT == (uint8_t)UI_WIDGET_TEXT, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_WIDGET_TITLE == (uint8_t)UI_WIDGET_TITLE, "layout widget type mapping changed");
+static_assert((uint8_t)UI_LAYOUT_CLOCK_DIGITAL == (uint8_t)UI_CLOCK_DIGITAL, "layout clock style mapping changed");
+static_assert((uint8_t)UI_LAYOUT_CLOCK_ANALOG == (uint8_t)UI_CLOCK_ANALOG, "layout clock style mapping changed");
+
+static UiLayoutFontProfile currentLayoutFontProfile()
+{
+  switch (getUiFontProfile())
+  {
+  case UI_FONT_PROFILE_SERIF:
+    return UI_LAYOUT_FONT_PROFILE_SERIF;
+  case UI_FONT_PROFILE_MONO:
+    return UI_LAYOUT_FONT_PROFILE_MONO;
+  case UI_FONT_PROFILE_SYSTEM:
+  default:
+    return UI_LAYOUT_FONT_PROFILE_SYSTEM;
+  }
+}
+
+static UiLayoutWidgetConfig toLayoutWidgetConfig(const UiWidgetConfig &widget)
+{
+  return {
+      widget.type,
+      widget.clockStyle,
+      widget.showSeconds != 0,
+      widget.showHistoryGraph != 0,
+  };
+}
+
+static void applyWidgetLayout(WidgetRuntimeState &state, const UiWidgetLayout &layout)
+{
+  state.cardRect = toDisplayRect(layout.card);
+  state.contentRect = toDisplayRect(layout.content);
+  state.controlRect = toDisplayRect(layout.control);
+  state.secondaryRect = toDisplayRect(layout.secondary);
+  state.tertiaryRect = toDisplayRect(layout.tertiary);
+  state.faceRect = toDisplayRect(layout.face);
+  state.clockTimeRect = toDisplayRect(layout.clockTime);
+  state.secondsRect = toDisplayRect(layout.seconds);
+
+  for (int index = 0; index < 8; index++)
+  {
+    state.digitRects[index] = toDisplayRect(layout.digits[index]);
+  }
+  for (int index = 0; index < 3; index++)
+  {
+    state.actionRects[index] = toDisplayRect(layout.actions[index]);
+  }
+}
+
+static void layoutStandardPage()
+{
+  const UiPageConfig &page = UI_PAGES[currentPageIndex];
+  UiLayoutWidgetConfig layoutWidgets[UI_MAX_WIDGETS_PER_PAGE] = {};
+  UiWidgetLayout widgetLayouts[UI_MAX_WIDGETS_PER_PAGE] = {};
+  bool widgetVisible[UI_MAX_WIDGETS_PER_PAGE] = {};
+  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
+  {
+    layoutWidgets[widgetIndex] = toLayoutWidgetConfig(page.widgets[widgetIndex]);
+    widgetVisible[widgetIndex] = widgetShouldBeVisible(currentPageIndex, widgetIndex);
+  }
+
+  UiStandardPageLayout layout = {};
+  layout.widgets = widgetLayouts;
+  layout.widgetCapacity = UI_MAX_WIDGETS_PER_PAGE;
+  const UiStandardPageLayoutInput input = {
+      display.width(),
+      display.height(),
+      showPageChrome(),
+      currentLayoutFontProfile(),
+      page.widgetCount,
+      layoutWidgets,
+      widgetVisible,
+  };
+  computeStandardPageLayout(input, layout);
+
+  for (int widgetIndex = 0; widgetIndex < page.widgetCount; widgetIndex++)
+  {
+    applyWidgetLayout(
+        getWidgetState(currentPageIndex, widgetIndex),
+        layout.widgets[widgetIndex]);
+  }
+
+  navLeftRect = toDisplayRect(layout.navLeft);
+  navRightRect = toDisplayRect(layout.navRight);
+  debugIpRect = toDisplayRect(layout.debugIp);
+}
+
 static void layoutCurrentPage()
 {
   if (activePageIsOverview())
@@ -587,134 +687,5 @@ static void layoutCurrentPage()
     return;
   }
 
-  const int width = display.width();
-  const int height = display.height();
-  const UiPageConfig &page = UI_PAGES[currentPageIndex];
-  const int margin = 24;
-  const int topY = showPageChrome() ? 76 : 28;
-  const int footerTop = showPageChrome() ? (height - 78) : (height - 20);
-  const int gap = 16;
-  const int availableHeight = footerTop - topY - (page.widgetCount > 0 ? (page.widgetCount - 1) * gap : 0);
-
-  int totalWeight = 0;
-  for (int i = 0; i < page.widgetCount; i++)
-  {
-    if (widgetShouldBeVisible(currentPageIndex, i))
-    {
-      totalWeight += widgetWeight(page.widgets[i]);
-    }
-  }
-  if (totalWeight <= 0)
-  {
-    totalWeight = 1;
-  }
-
-  int currentY = topY;
-  int remainingHeight = availableHeight;
-  int remainingWeight = totalWeight;
-  int visibleWidgetCount = 0;
-
-  for (int i = 0; i < page.widgetCount; i++)
-  {
-    if (widgetShouldBeVisible(currentPageIndex, i))
-    {
-      visibleWidgetCount++;
-    }
-  }
-
-  int visibleWidgetIndex = 0;
-
-  for (int i = 0; i < page.widgetCount; i++)
-  {
-    const UiWidgetConfig widget = page.widgets[i];
-    WidgetRuntimeState &state = getWidgetState(currentPageIndex, i);
-      state.cardRect = {0, 0, 0, 0};
-      state.contentRect = {0, 0, 0, 0};
-      state.controlRect = {0, 0, 0, 0};
-      state.secondaryRect = {0, 0, 0, 0};
-      state.tertiaryRect = {0, 0, 0, 0};
-      state.faceRect = {0, 0, 0, 0};
-      state.clockTimeRect = {0, 0, 0, 0};
-      state.secondsRect = {0, 0, 0, 0};
-      memset(state.actionRects, 0, sizeof(state.actionRects));
-
-    if (!widgetShouldBeVisible(currentPageIndex, i))
-    {
-      continue;
-    }
-
-    const int weight = widgetWeight(widget);
-    const bool thermostatHistoryGraph = thermostatWidgetShowsHistoryGraph(widget);
-    int cardHeight = (visibleWidgetIndex == visibleWidgetCount - 1) ? remainingHeight : (remainingHeight * weight) / remainingWeight;
-    const int minHeight = widget.type == UI_WIDGET_PROGRESS ? 52 : widget.type == UI_WIDGET_SWITCH   ? 56
-                                                               : widget.type == UI_WIDGET_BUTTON   ? 56
-                                                               : widget.type == UI_WIDGET_TITLE    ? 34
-                                                               : widget.type == UI_WIDGET_TEXT       ? 148
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 182 : 100)
-                                                                                                     : 88;
-    const int maxHeight = widget.type == UI_WIDGET_PROGRESS ? 84 : widget.type == UI_WIDGET_SWITCH   ? 92
-                                                               : widget.type == UI_WIDGET_BUTTON   ? 92
-                                                               : widget.type == UI_WIDGET_TITLE    ? 54
-                                                               : widget.type == UI_WIDGET_TEXT       ? 244
-                                                               : widget.type == UI_WIDGET_THERMOSTAT ? (thermostatHistoryGraph ? 224 : 132)
-                                                                                                     : 340;
-    cardHeight = clampInt(cardHeight, minHeight, maxHeight);
-    state.cardRect = {margin, currentY, width - (margin * 2), cardHeight};
-    state.contentRect = {state.cardRect.x + 18, state.cardRect.y + 52, state.cardRect.w - 36, state.cardRect.h - 70};
-
-    if (widget.type == UI_WIDGET_CLOCK)
-    {
-      state.contentRect = {state.cardRect.x + 18, state.cardRect.y + 50, state.cardRect.w - 36, state.cardRect.h - 68};
-      computeClockLayout(widget, state);
-    }
-    else if (widget.type == UI_WIDGET_WEATHER)
-    {
-      const int iconSize = clampInt(state.cardRect.h - 18, 112, 128);
-      state.secondaryRect = {state.cardRect.x + state.cardRect.w - iconSize - 14, state.cardRect.y + 9, iconSize, iconSize};
-    }
-    else if (widget.type == UI_WIDGET_PROGRESS || widget.type == UI_WIDGET_SLIDER)
-    {
-      if (widget.type == UI_WIDGET_SLIDER)
-      {
-        const int sliderHeight = clampInt(state.cardRect.h - 42, 42, 52);
-        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - sliderHeight - 14, state.cardRect.w - 36, sliderHeight};
-        state.secondaryRect = {state.controlRect.x, state.controlRect.y, sliderHeight, sliderHeight};
-      }
-      else
-      {
-        state.controlRect = {state.cardRect.x + 18, state.cardRect.y + state.cardRect.h - 21, state.cardRect.w - 36, 9};
-      }
-    }
-    else if (widget.type == UI_WIDGET_SWITCH || widget.type == UI_WIDGET_BUTTON)
-    {
-      state.controlRect = {state.cardRect.x + state.cardRect.w - 130, state.cardRect.y + (state.cardRect.h / 2) - 18, 96, 36};
-    }
-    else if (widget.type == UI_WIDGET_THERMOSTAT)
-    {
-      const int valueTop = state.cardRect.y + 46;
-      const int chevronX = state.cardRect.x + state.cardRect.w - 44;
-      const int chevronTouchSize = 36;
-      const int chevronTouchInset = 6;
-      const int buttonSize = 26;
-      const int buttonGap = 8;
-      const int buttonY = thermostatHistoryGraph
-                              ? state.cardRect.y + 44
-                              : state.cardRect.y + state.cardRect.h - buttonSize - 11;
-      state.tertiaryRect = {chevronX - 108, valueTop + 14, 92, 24};
-      state.controlRect = {chevronX - chevronTouchInset, valueTop - 8, chevronTouchSize, chevronTouchSize};
-      state.secondaryRect = {chevronX - chevronTouchInset, valueTop + 28, chevronTouchSize, chevronTouchSize};
-      state.actionRects[THERMOSTAT_BUTTON_ACTIVATE] = {state.cardRect.x + 18, buttonY, buttonSize, buttonSize};
-      state.actionRects[THERMOSTAT_BUTTON_DEACTIVATE] = {state.cardRect.x + 18 + buttonSize + buttonGap, buttonY, buttonSize, buttonSize};
-      state.actionRects[THERMOSTAT_BUTTON_COOL] = {state.cardRect.x + 18 + ((buttonSize + buttonGap) * 2), buttonY, buttonSize, buttonSize};
-    }
-
-    currentY += cardHeight + gap;
-    remainingHeight -= cardHeight;
-    remainingWeight -= weight;
-    visibleWidgetIndex++;
-  }
-
-  navLeftRect = showPageChrome() ? BB_RECT{margin - 1, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  navRightRect = showPageChrome() ? BB_RECT{width - margin - 47, height - 67, 48, 48} : BB_RECT{0, 0, 0, 0};
-  debugIpRect = {0, 0, 0, 0};
+  layoutStandardPage();
 }
